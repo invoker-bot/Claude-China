@@ -8,13 +8,15 @@ if (new URLSearchParams(location.search).has("preview")) {
   ];
   let settings = { check_system_proxy: true, auto_proxy_env: false, env_vars: { HTTPS_PROXY: "http://127.0.0.1:7890" } };
   let safetySettings = { enabled: true, block_unknown: true,
+    policy: { kind: "blocked_regions", updated_on: "2026-10-21", blocked_regions:
+      [["CN", "中国大陆"], ["HK", "香港"], ["MO", "澳门"], ["RU", "俄罗斯"], ["IR", "伊朗"], ["KP", "朝鲜"]].map(([code, name]) => ({ code, name })) },
     environment: { timezone: "Asia/Shanghai", utc_offset: "+0800", language: "zh-CN", region: "CN" } };
   const safetyReport = id => {
-    const status = modes.get("safety") || (id === "grok-bot" ? "unknown" : "supported");
+    const status = modes.get("safety") || "supported";
     return { app_id: id, status, environment: safetySettings.environment, checked_at: new Date().toISOString(),
-      reviewed_on: "2026-10-21", route: "系统 HTTP 代理（预览示例）",
+      policy: safetySettings.policy, route: "系统 HTTP 代理（预览示例）",
       network: status === "unknown" ? {} : { ip: "203.0.113.24", country: status === "unsupported" ? "China" : "Singapore", country_code: status === "unsupported" ? "CN" : "SG" },
-      reason: status === "unknown" ? "无法确认地区支持范围（预览示例）。" : status === "unsupported" ? "检测出口不在官方支持地区清单中。" : "检测出口位于官方支持地区。" };
+      reason: status === "unknown" ? "无法确认出口地区（预览示例）。" : status === "unsupported" ? "出口位于统一禁止地区：中国大陆，禁止启动。" : "出口地区已识别，未命中统一禁止名单，符合当前地区限制规则。" };
   };
   const perApp = {
     claude: { path: "", env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" } },

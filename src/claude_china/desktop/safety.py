@@ -1,7 +1,7 @@
 """Read-only environment checks and a fail-closed regional launch guard."""
 
 import base64
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 import http.client
 import ipaddress
 import json
@@ -10,7 +10,7 @@ import ssl
 from urllib.parse import unquote, urlsplit
 
 from .proxy import http_proxy_url
-from .regions import CLAUDE_COUNTRIES, CODEX_COUNTRIES, ISO_COUNTRIES, MAX_AGE_DAYS, REVIEWED_ON, SOURCES
+from .regions import BLOCKED_REGIONS, ISO_COUNTRIES, POLICY_UPDATED_ON, SOURCES
 from .safety_local import local_environment
 
 IP_HOST = "ipwho.is"
@@ -27,22 +27,21 @@ class SafetyCheckError(ValueError):
     """Safe diagnostics only; never include URLs, credentials or raw errors."""
 
 
-def assess_region(app_id, country_code, today=None):
-    result = {"status": "unknown", "source": SOURCES.get(app_id, ""),
-              "reviewed_on": REVIEWED_ON.isoformat()}
-    age = ((today or date.today()) - REVIEWED_ON).days
-    if not 0 <= age <= MAX_AGE_DAYS:
-        result["reason"] = "地区规则已过期或系统日期异常，请更新启动器并核对系统日期。"
-    elif app_id not in ("claude", "codex"):
-        result["reason"] = "尚无可核验的 Grok Bot 官方地区清单，无法确认支持范围。"
+def region_policy():
+    return {"kind": "blocked_regions", "updated_on": POLICY_UPDATED_ON,
+            "blocked_regions": [{"code": code, "name": name} for code, name in BLOCKED_REGIONS.items()]}
+
+
+def assess_region(app_id, country_code):
+    result = {"status": "unknown", "policy": region_policy()}
+    if app_id not in SERVICE_DOMAINS:
+        result["reason"] = "应用未注册，无法应用地区限制规则。"
     elif country_code not in ISO_COUNTRIES:
         result["reason"] = "无法识别出口 IP 的国家或地区。"
-    elif country_code == "UA":
-        result["reason"] = "该国家存在地区限制，仅凭国家级 IP 定位无法确认。"
+    elif country_code in BLOCKED_REGIONS:
+        result.update(status="unsupported", reason=f"出口位于统一禁止地区：{BLOCKED_REGIONS[country_code]}，禁止启动。")
     else:
-        supported = country_code in (CLAUDE_COUNTRIES if app_id == "claude" else CODEX_COUNTRIES)
-        result.update(status="supported" if supported else "unsupported",
-                      reason="检测出口位于官方支持地区。" if supported else "检测出口不在官方支持地区清单中。")
+        result.update(status="supported", reason="出口地区已识别，未命中统一禁止名单，符合当前地区限制规则。")
     return result
 
 
@@ -160,7 +159,7 @@ def inspect_environment(app_id, env, backend, status):
         for alias in route["aliases"]:
             other = lookup_ip(alias)
             if any(other[key] != report["network"][key] for key in ("ip", "country_code")):
-                raise SafetyCheckError("本地代理地址的检测出口不一致，无法确认地区支持状态。")
+                raise SafetyCheckError("本地代理地址的检测出口不一致，无法确认出口地区。")
         # A changed OS proxy must not authorize a launch using a stale probe.
         if select_route(env, backend, status) != route:
             raise SafetyCheckError("检测期间系统代理发生变化，请重新检查。")
@@ -168,7 +167,7 @@ def inspect_environment(app_id, env, backend, status):
     except SafetyCheckError as exc:
         report.update(status="unknown", reason=str(exc))
     except Exception:
-        report.update(status="unknown", reason="环境检查失败，无法确认地区支持状态。")
+        report.update(status="unknown", reason="环境检查失败，无法确认出口地区。")
     return report
 
 

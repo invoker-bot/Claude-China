@@ -153,6 +153,7 @@ class LauncherBridge:
     # ---- settings ----
     def get_safety_settings(self):
         return {**cfg.get_safety_settings(cfg.load_desktop_config()),
+                "policy": safety.region_policy(),
                 "environment": safety.local_environment()}
 
     def open_safety_source(self, app_id):

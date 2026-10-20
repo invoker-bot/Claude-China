@@ -12,10 +12,10 @@ Existing environment variables and application paths are preserved. Manual
 **检查环境** uses saved settings; unsaved edits do not change launch behavior.
 
 Every launch/restart runs a fresh check before stopping the existing app.
-Unsupported regions block launching. Unknown results also block in strict mode:
-network failure, invalid geolocation, ambiguous proxy routing, expired rules,
-and missing provider rules cannot authorize a launch. Disabling strict mode
-permits unknown results but continues blocking known unsupported regions.
+Regions in the shared denylist block launching. Unknown results also block in
+strict mode: network failure, invalid geolocation, and ambiguous proxy routing
+cannot authorize a launch. Disabling strict mode permits unknown results but
+continues blocking regions in the denylist.
 Turning off the master switch disables automatic queries and this guard.
 The earlier system-proxy and automatic-proxy-variable checks still apply.
 
@@ -39,42 +39,43 @@ without a corresponding system proxy. Failed proxy requests never fall back
 to a direct connection. Each network operation has an 8-second socket timeout;
 responses are capped at 16 KiB and redirects are refused.
 
-This is a regional support check, **not a guarantee of account safety**. A
+This checks the configured region policy, **not official provider eligibility or account safety**. A
 proxy exit does not prove the user's physical location, residency or eligibility.
 It does not evaluate account history, IP reputation, legal/organization
 eligibility, DNS-based application split routing, or the app's own network
 configuration. It only guards starts requested through this launcher; it does
 not change system settings or block opening an app elsewhere.
 
-## Rule provenance and maintenance
+## Shared region policy
 
-Country snapshots in `src/claude_china/desktop/regions.py` were reviewed on
-2026-10-21:
+On 2026-10-21 the user requested one common rule for Claude, Codex and Grok Bot:
 
-| App | Official reference | Check behavior |
-| --- | --- | --- |
-| Claude | [Where can I access Claude?](https://support.claude.com/en/articles/8461763-where-can-i-access-claude) | Current consumer service country list |
-| Codex | [ChatGPT Supported Countries](https://help.openai.com/en/articles/7947663-chatgpt-supported-countries) | Reference for Codex with a ChatGPT account; not a verification of API-account eligibility |
-| Grok Bot | [Grok Bot overview](https://docs.x.ai/grok-bot/overview) | No verifiable complete product-specific geographic list was found; report unknown |
+| Code | Region blocked |
+| --- | --- |
+| CN | Mainland China |
+| HK | Hong Kong |
+| MO | Macao |
+| RU | Russia |
+| IR | Iran |
+| KP | North Korea |
 
-The Claude list's duplicate Bosnia/Herzegovina entries are deduplicated and
-“Mariana Islands” is mapped to MP. The newer Anthropic legal page with an
-effective date of 2026-11-12 was not applied ahead of its effective date.
-Ukraine is conservatively unknown because country-level geolocation cannot
-resolve subregional restrictions. Grok-on-X availability is not used as a
-substitute for a Grok Bot policy.
+All other recognized ISO country/territory codes pass this configured rule.
+Missing/invalid codes and failed network queries remain unknown and fail closed
+in strict mode. No additional countries were inferred from the user's “etc.”.
+The shared list lives in `src/claude_china/desktop/regions.py` and is also returned
+to the settings UI; displayed policy and enforcement use the same source.
 
-Snapshots expire after 90 days; a system date before their review date also
-produces unknown. Maintainers must recheck official sources, update the ISO
-code sets and `REVIEWED_ON`, and run the regional tests when shipping new rules.
-The UI links to the official source and shows the rule review date. The source
-is evidence for the regional list, not a claim that timezone/language determine
-whether a provider will suspend an account.
+This replaces the former provider-specific allowlists and their 90-day expiry.
+A user-configured denylist is not an official support snapshot, so it does not
+expire as if it were one. Grok Bot no longer fails solely because an official
+country list is unavailable. The UI describes a successful result as passing
+the region rule. Its optional official-service links are informational, not
+the source or an endorsement of this user-requested rule.
 
 ## Verification
 
 - `python -m pytest tests/test_desktop_safety.py tests/test_desktop_safety_platforms.py -q`
-  covers provider rules, strict/disabled modes, transport failures, credentials,
+  covers the shared rules, strict/disabled modes, transport failures, credentials,
   proxy routing and preserving a running app when preflight fails.
 - `python -m pytest tests/ -q` covers existing launcher/configuration behavior.
 - The packaged GUI smoke checks the category, saved/default switches, draft

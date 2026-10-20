@@ -224,6 +224,9 @@ def verify_window(window, tray, report):
             " && document.getElementById('safety-enabled').checked"
             " && document.getElementById('safety-strict').checked"
             " && document.querySelectorAll('#safety-local dd').length === 3"
+            " && document.getElementById('safety-blocked-regions').textContent.includes('HK')"
+            " && document.getElementById('safety-blocked-regions').textContent.includes('MO')"
+            " && document.getElementById('safety-blocked-regions').textContent.includes('KP')"
             " && document.getElementById('safety-app').options.length === 3")
         window.evaluate_js("document.getElementById('safety-strict').click(); closeDialog(); showDialog('safety')")
         result["safety_draft_preserved"] = window.evaluate_js(

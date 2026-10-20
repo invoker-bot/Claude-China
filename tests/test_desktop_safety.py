@@ -1,5 +1,4 @@
 import json
-from datetime import date
 from unittest.mock import Mock
 from types import SimpleNamespace
 
@@ -9,15 +8,6 @@ from src.claude_china.desktop import config as cfg
 from src.claude_china.desktop import safety
 from src.claude_china.desktop.bridge import LauncherBridge
 from src.claude_china.desktop.platforms.base import AppStatus
-
-
-@pytest.fixture(autouse=True)
-def fixed_rule_review_date(monkeypatch):
-    class ReviewDate(date):
-        @classmethod
-        def today(cls):
-            return cls(2026, 10, 21)
-    monkeypatch.setattr(safety, "date", ReviewDate)
 
 
 @pytest.fixture
@@ -38,20 +28,38 @@ def bridge(tmp_path, monkeypatch, backend):
     return bridge
 
 
-@pytest.mark.parametrize("app_id,country,expected", [
-    ("claude", "SG", "supported"), ("claude", "CN", "unsupported"),
-    ("claude", "HK", "unsupported"), ("claude", "TW", "supported"),
-    ("codex", "US", "supported"), ("codex", "CN", "unsupported"),
-    ("codex", "UA", "unknown"), ("grok-bot", "US", "unknown"),
-    ("claude", "ZZ", "unknown"), ("claude", "", "unknown"),
-])
-def test_region_policy_is_provider_specific(app_id, country, expected):
-    assert safety.assess_region(app_id, country, today=date(2026, 10, 21))["status"] == expected
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("country", ["CN", "HK", "MO", "RU", "IR", "KP"])
+def test_shared_policy_blocks_every_explicitly_restricted_region(app_id, country):
+    report = safety.assess_region(app_id, country)
+    assert report["status"] == "unsupported"
+    assert "禁止" in report["reason"]
 
 
-def test_expired_or_future_rule_snapshot_cannot_pass():
-    for today in (date(2027, 10, 21), date(2025, 10, 21)):
-        assert safety.assess_region("claude", "US", today=today)["status"] == "unknown"
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("country", ["JP", "SG", "US", "TW", "UA"])
+def test_shared_policy_allows_other_identified_regions_without_claiming_official_support(app_id, country):
+    report = safety.assess_region(app_id, country)
+    assert report["status"] == "supported"
+    assert report["policy"]["kind"] == "blocked_regions"
+    assert "官方支持" not in report["reason"]
+    assert "source" not in report and "reviewed_on" not in report
+
+
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("country", ["ZZ", "", None])
+def test_shared_policy_keeps_unidentified_regions_unknown(app_id, country):
+    assert safety.assess_region(app_id, country)["status"] == "unknown"
+
+
+def test_unrecognized_app_cannot_be_authorized_by_shared_policy():
+    assert safety.assess_region("unregistered-app", "US")["status"] == "unknown"
+
+
+def test_settings_publish_the_same_blocked_regions_used_by_the_gate(bridge):
+    policy = bridge.get_safety_settings()["policy"]
+    assert {item["code"] for item in policy["blocked_regions"]} == {"CN", "HK", "MO", "RU", "IR", "KP"}
+    assert policy["kind"] == "blocked_regions"
 
 
 def test_local_language_and_timezone_are_information_not_a_block(backend, monkeypatch):

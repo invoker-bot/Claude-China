@@ -65,7 +65,7 @@ function showDialog(panel) {
   const app = findApp(panel);
   const headings = {
     common: ["通用设置", "应用启动时使用的共同配置。"],
-    safety: ["安全检查", "查看本机环境，检查应用的地区支持范围。"],
+    safety: ["安全检查", "查看本机环境，检查三个应用共用的地区限制规则。"],
     updates: ["版本更新", "获取 Claude China 桌面版的最新版本。"],
     about: ["关于", "你的 AI 桌面应用，集中管理。"],
   };
