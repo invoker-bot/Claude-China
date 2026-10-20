@@ -6,7 +6,7 @@ if (new URLSearchParams(location.search).has("preview")) {
     { id: "codex", display: "Codex", found: false, running: false },
     { id: "grok-bot", display: "Grok Bot", found: true, running: false },
   ];
-  let settings = { check_system_proxy: true, env_vars: { HTTPS_PROXY: "http://127.0.0.1:7890" } };
+  let settings = { check_system_proxy: true, auto_proxy_env: false, env_vars: { HTTPS_PROXY: "http://127.0.0.1:7890" } };
   const perApp = {
     claude: { path: "", env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" } },
     codex: { path: "", env_vars: {} }, "grok-bot": { path: "", env_vars: {} },
@@ -39,6 +39,7 @@ if (new URLSearchParams(location.search).has("preview")) {
     },
     pick_app_path: async id => ({ ok: true, path: `C:/Applications/${apps.find(a => a.id === id).display}.exe` }),
     launch_app: async id => {
+      if (settings.auto_proxy_env && modes.get("proxy") === "invalid") return { ok: false, error: "系统代理格式无效，请检查主机地址和端口（1–65535）。已取消启动。" };
       if (modes.get("launch") === "error") return { ok: false, error: "系统代理未开启，已取消启动" };
       apps.find(a => a.id === id).running = true; return { ok: true };
     },

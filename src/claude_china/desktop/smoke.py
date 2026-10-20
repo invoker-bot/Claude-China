@@ -169,17 +169,21 @@ def verify_window(window, tray, report):
             })()""")
             if not result["window_controls_with_settings"]:
                 raise RuntimeError("Settings blocks the native window controls")
-        window.evaluate_js("document.getElementById('proxy').checked = !SETTINGS.check_system_proxy")
+        # Toggle ONLY the new setting, so a missing draft field cannot be
+        # masked by changes to the older check-system-proxy switch.
+        window.evaluate_js("document.getElementById('auto-proxy-env').click()")
+        result["auto_proxy_default_off"] = window.evaluate_js(
+            "SETTINGS.auto_proxy_env === false && document.getElementById('auto-proxy-env').checked")
         tray._commands._dispatch("settings")
         result["menu_preserves_edits"] = window.evaluate_js(
             "document.getElementById('editor-common').classList.contains('is-open')"
-            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
+            " && document.getElementById('auto-proxy-env').checked !== SETTINGS.auto_proxy_env")
         window.evaluate_js("document.getElementById('nav-grok-bot').click()")
         window.evaluate_js("document.getElementById('nav-common').click()")
         result["category_preserves_edits"] = window.evaluate_js(
             "document.getElementById('editor-common').classList.contains('is-open')"
             " && hasUnsavedSettings()"
-            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
+            " && document.getElementById('auto-proxy-env').checked !== SETTINGS.auto_proxy_env")
         tray._commands._dispatch("update-status")
         _wait_js(window, "!openingUpdates")
         # A prepared update must not bypass the unsaved-settings guard just
@@ -191,20 +195,31 @@ def verify_window(window, tray, report):
         result["escape_preserves_edits"] = window.evaluate_js(
             "document.getElementById('launcher-overlay').hidden"
             " && hasUnsavedSettings()"
-            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
+            " && document.getElementById('auto-proxy-env').checked !== SETTINGS.auto_proxy_env")
         tray._commands._dispatch("settings")
         result["reopen_preserves_edits"] = window.evaluate_js(
             "document.getElementById('editor-common').classList.contains('is-open')"
-            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
+            " && document.getElementById('auto-proxy-env').checked !== SETTINGS.auto_proxy_env")
         window.evaluate_js("document.getElementById('cancel-common').click()")
         result["cancel_restores_settings"] = window.evaluate_js(
             "document.getElementById('launcher-overlay').hidden"
             " && !hasUnsavedSettings()"
-            " && document.getElementById('proxy').checked === SETTINGS.check_system_proxy")
+            " && document.getElementById('auto-proxy-env').checked === SETTINGS.auto_proxy_env")
+        tray._commands._dispatch("settings")
+        window.evaluate_js("document.getElementById('auto-proxy-env').click(); document.getElementById('save-settings').click()")
+        _wait_js(window, "SETTINGS.auto_proxy_env === true && !hasUnsavedSettings()")
+        from . import config
+        result["auto_proxy_saved"] = config.get_auto_proxy_env(config.load_desktop_config())
+        window.evaluate_js("closeDialog()")
+        tray._commands._dispatch("settings")
+        result["auto_proxy_reopened"] = window.evaluate_js(
+            "document.getElementById('auto-proxy-env').checked"
+            " && document.getElementById('common-summary').textContent.includes('自动添加代理环境变量')")
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_dialog", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_preserves_edits",
             "reopen_preserves_edits", "cancel_restores_settings",
+            "auto_proxy_default_off", "auto_proxy_saved", "auto_proxy_reopened",
         )):
             raise RuntimeError("Native menu commands did not reach the packaged UI")
         if sys.platform == "darwin":

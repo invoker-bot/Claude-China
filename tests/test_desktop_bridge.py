@@ -159,6 +159,81 @@ def test_settings_round_trip():
             assert a["env_vars"] == {"X": "Y"}
 
 
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+def test_auto_proxy_env_uses_current_proxy_on_each_launch(tmp_path, monkeypatch, app_id):
+    from src.claude_china.desktop import config as cfg
+
+    monkeypatch.setattr(cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+    monkeypatch.setenv("HTTP_PROXY", "http://stale:1111")
+    monkeypatch.setenv("https_proxy", "http://stale:2222")
+    backend = FakeBackend()
+    backend.system_http_proxy = Mock(side_effect=["http://localhost:7890", "http://localhost:7891"])
+    bridge = LauncherBridge(backend)
+    bridge.save_settings({"auto_proxy_env": True, "env_vars": {}})
+    assert bridge.get_settings()["auto_proxy_env"] is True
+    for port in (7890, 7891):
+        assert bridge.launch_app(app_id)["ok"] is True
+        for key in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
+            assert backend.launched[1][key] == f"http://localhost:{port}"
+    # The derived endpoint is never persisted or written to the parent env.
+    assert "7891" not in cfg.DESKTOP_CONFIG_FILE.read_text(encoding="utf-8")
+    import os
+    assert os.environ["HTTP_PROXY"] == "http://stale:1111"
+
+
+def test_auto_proxy_env_explicit_common_and_app_overrides_win(tmp_path, monkeypatch):
+    from src.claude_china.desktop import config as cfg
+
+    monkeypatch.setattr(cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+    backend = FakeBackend()
+    backend.system_http_proxy = Mock(return_value="http://localhost:7890")
+    bridge = LauncherBridge(backend)
+    bridge.save_settings({"auto_proxy_env": True, "env_vars": {
+        "HTTP_PROXY": "http://common:8080", "HTTPS_PROXY": "http://common:8080",
+        "NO_PROXY": "localhost", "UNCHANGED": "common",
+    }})
+    bridge.save_app_settings("claude", {"env_vars": {"https_proxy": "http://app:9999"}})
+    assert bridge.launch_app("claude")["ok"] is True
+    env = backend.launched[1]
+    assert env["HTTP_PROXY"] == env["http_proxy"] == "http://common:8080"
+    assert env["HTTPS_PROXY"] == env["https_proxy"] == "http://app:9999"
+    assert env["NO_PROXY"] == "localhost"
+    assert env["UNCHANGED"] == "common"
+
+
+@pytest.mark.parametrize("check_proxy", [True, False])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+def test_invalid_auto_proxy_blocks_restart_before_stopping_app(tmp_path, monkeypatch, check_proxy, app_id):
+    from src.claude_china.desktop import config as cfg
+
+    monkeypatch.setattr(cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+    backend = FakeBackend(running=True)
+    backend.system_http_proxy = Mock(side_effect=ValueError("bad proxy with secret password"))
+    bridge = LauncherBridge(backend)
+    bridge.save_settings({"check_system_proxy": check_proxy, "auto_proxy_env": True,
+                          "env_vars": {"HTTP_PROXY": "http://manual:7890"}})
+    result = bridge.launch_app(app_id)
+    assert result["ok"] is False
+    assert "系统代理" in result["error"]
+    assert "取消启动" in result["error"]
+    assert "secret" not in result["error"]
+    assert backend.calls == []
+
+
+def test_disabled_auto_proxy_never_reads_system_endpoint(tmp_path, monkeypatch):
+    from src.claude_china.desktop import config as cfg
+
+    monkeypatch.setattr(cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+    backend = FakeBackend(proxy=False)
+    backend.system_http_proxy = Mock(side_effect=AssertionError("must not read"))
+    bridge = LauncherBridge(backend)
+    bridge.save_settings({"check_system_proxy": False, "auto_proxy_env": False,
+                          "env_vars": {"HTTPS_PROXY": "http://manual:7890"}})
+    assert bridge.launch_app("claude")["ok"] is True
+    assert backend.launched[1]["HTTPS_PROXY"] == "http://manual:7890"
+    backend.system_http_proxy.assert_not_called()
+
+
 def test_picking_path_can_leave_saved_settings_unchanged(tmp_path, monkeypatch):
     monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
                         tmp_path / "desktop.yaml")

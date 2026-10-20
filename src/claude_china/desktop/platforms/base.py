@@ -131,5 +131,9 @@ class PlatformBackend(Protocol):
     def proxy_enabled(self) -> bool:
         ...
 
+    def system_http_proxy(self) -> str:
+        """Return a validated HTTP proxy URL, or raise SystemProxyError."""
+        ...
+
     def pick_path_filter(self) -> tuple:
         ...

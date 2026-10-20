@@ -1,6 +1,6 @@
 const api = () => window.pywebview.api;
 let APPS = [];
-let SETTINGS = { check_system_proxy: true, env_vars: {} };
+let SETTINGS = { check_system_proxy: true, auto_proxy_env: false, env_vars: {} };
 const APP_SETTINGS = {};
 let READY = false;
 let lastRefresh = 0;

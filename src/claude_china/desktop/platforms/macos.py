@@ -7,6 +7,7 @@ import sys
 
 from . import base
 from .. import process as subprocess
+from ..proxy import SystemProxyError, http_proxy_address
 from .base import AppStatus
 
 _IGNORED_RUNNING_PROCESS_NAMES = {"browser_crashpad_handler"}
@@ -66,13 +67,30 @@ class MacBackend:
         return ""
 
     # ---- proxy ----
+    def system_http_proxy(self) -> str:
+        output = self._scutil_output()
+        values = {}
+        depth = 0
+        root_depth = 1 if output.lstrip().startswith("<dictionary>") else 0
+        for line in output.splitlines():
+            if depth == root_depth:
+                name, separator, value = line.strip().partition(" : ")
+                if separator and name in ("HTTPEnable", "HTTPProxy", "HTTPPort"):
+                    if name in values:
+                        raise SystemProxyError("系统 HTTP 代理设置包含重复字段。")
+                    values[name] = value.strip()
+            depth += line.count("{") - line.count("}")
+        if values.get("HTTPEnable") != "1":
+            raise SystemProxyError("无法读取已启用的系统 HTTP 代理；仅有 PAC 或 SOCKS 设置不受支持。")
+        return http_proxy_address(values.get("HTTPProxy"), values.get("HTTPPort"))
+
     def proxy_enabled(self) -> bool:
         return self._parse_scutil(self._scutil_output())
 
     def _scutil_output(self) -> str:
         try:
             return subprocess.check_output(
-                ["scutil", "--proxy"], text=True, stderr=subprocess.DEVNULL,
+                ["scutil", "--proxy"], text=True, stderr=subprocess.DEVNULL, timeout=3,
             )
         except Exception:
             return ""

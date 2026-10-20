@@ -301,6 +301,29 @@ Desktop settings are stored separately in `~/.claudec/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
 environment variables; per-application values take precedence.
 
+In **设置 → 通用设置**, **自动添加代理环境变量** (off by default,
+`auto_proxy_env` in the configuration) reads the current static HTTP proxy on
+every launch and supplies both `HTTP_PROXY` and `HTTPS_PROXY`. Lowercase aliases
+are kept in sync for clients that prefer them. Explicit common and then per-app
+variables override these defaults. The derived address is not saved to disk or
+written into the system environment.
+
+Windows reads the enabled Internet Settings HTTP endpoint (including
+`http=host:port;https=...` lists); macOS reads the global HTTP host/port from
+`scutil --proxy`; Linux uses `http_proxy`/`HTTP_PROXY`, then GNOME's manual HTTP
+proxy. HTTP URLs, host/port pairs and IPv6 are supported; a bare HTTP host uses
+port 80. PAC-only, SOCKS-only, missing/invalid endpoints and unreadable settings
+cancel the launch with an error **before stopping an already running app**.
+This validation remains mandatory while auto-add is enabled, even if the
+separate proxy-check switch is off or manual variables override the defaults.
+GNOME proxies requiring authentication must instead be configured manually with
+auto-add disabled.
+
+Environment injection applies to directly launched processes. OS-brokered
+activation (including Windows Codex MSIX activation, required for its package
+context) may not forward custom variables to the application. The proxy
+validation still runs before that activation.
+
 The home window presents application cards with status, launch/restart and stop
 controls. **设置** opens a separate panel with categories for common settings,
 each application, updates and About. Switching categories or closing the panel

@@ -56,7 +56,7 @@ def test_import_preserves_credentials_comments_and_old_files(settings_home):
     original = {name: (legacy / name).read_bytes() for name in ("config.yaml", "desktop.yaml")}
 
     assert config.load_config() == profiles
-    assert desktop_config.load_desktop_config() == desktop
+    assert desktop_config.load_desktop_config() == {**desktop, "auto_proxy_env": False}
     for name, content in original.items():
         assert (current / name).read_bytes() == content
         assert (legacy / name).read_bytes() == content

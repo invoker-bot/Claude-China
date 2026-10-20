@@ -8,6 +8,7 @@ DESKTOP_CONFIG_FILE = config_dir() / "desktop.yaml"
 
 DEFAULTS = {
     "check_system_proxy": True,
+    "auto_proxy_env": False,
     "env_vars": {},   # 通用 (common) — every app launch
     "apps": {},       # per-app: {<id>: {"path": str, "env_vars": {...}}}
 }
@@ -26,6 +27,7 @@ def load_desktop_config() -> dict:
     if not isinstance(data.get("apps"), dict):
         data["apps"] = {}
     data.setdefault("check_system_proxy", True)
+    data.setdefault("auto_proxy_env", False)
     return data
 
 
@@ -41,6 +43,14 @@ def get_check_system_proxy(data: dict) -> bool:
 
 def set_check_system_proxy(data: dict, value: bool) -> None:
     data["check_system_proxy"] = bool(value)
+
+
+def get_auto_proxy_env(data: dict) -> bool:
+    return bool(data.get("auto_proxy_env", False))
+
+
+def set_auto_proxy_env(data: dict, value: bool) -> None:
+    data["auto_proxy_env"] = bool(value)
 
 
 def get_common_env(data: dict) -> dict:

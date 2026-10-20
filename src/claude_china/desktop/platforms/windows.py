@@ -1,10 +1,12 @@
 import json
 import os
+import re
 import sys
 import xml.etree.ElementTree as ET
 
 from . import base
 from .. import process as subprocess
+from ..proxy import SystemProxyError, http_proxy_url
 from .windows_shell import launcher_icon_path, set_shortcut_app_id
 from .base import AppStatus
 
@@ -109,6 +111,44 @@ class WindowsBackend:
         return data if isinstance(data, list) else []
 
     # ---- proxy ----
+    def system_http_proxy(self) -> str:
+        if winreg is None:
+            raise SystemProxyError("无法读取 Windows 系统代理设置。")
+        try:
+            key = winreg.OpenKey(
+                winreg.HKEY_CURRENT_USER,
+                r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
+            )
+            try:
+                enabled, _ = winreg.QueryValueEx(key, "ProxyEnable")
+                if enabled != 1:
+                    raise SystemProxyError("系统 HTTP 代理未开启；仅有 PAC 自动配置不能生成代理环境变量。")
+                server, _ = winreg.QueryValueEx(key, "ProxyServer")
+            finally:
+                winreg.CloseKey(key)
+        except OSError:
+            raise SystemProxyError("无法读取系统 HTTP 代理，请检查系统代理设置。") from None
+        return self._http_proxy_server(server)
+
+    @staticmethod
+    def _http_proxy_server(server):
+        if not isinstance(server, str) or any(ord(c) < 32 for c in server):
+            raise SystemProxyError("系统代理地址格式无效。")
+        proxies = {}
+        for entry in re.split(r"[; ]+", server.strip(" ;")):
+            match = re.fullmatch(r"([a-zA-Z]+)=(.+)", entry)
+            protocol, value = (match.group(1).lower(), match.group(2)) if match else ("default", entry)
+            if protocol in proxies or protocol not in ("default", "http", "https", "ftp", "socks"):
+                raise SystemProxyError("系统代理列表格式无效或包含重复协议。")
+            # Validate structure even for protocols we do not select.
+            if not value or ("=" in entry and not match and "://" not in entry):
+                raise SystemProxyError("系统代理列表格式无效。")
+            proxies[protocol] = value
+        selected = proxies.get("http", proxies.get("default"))
+        if selected is None:
+            raise SystemProxyError("系统代理未配置 HTTP 端口，无法自动添加代理环境变量。")
+        return http_proxy_url(selected)
+
     def proxy_enabled(self) -> bool:
         if winreg is None:
             return False
@@ -117,8 +157,10 @@ class WindowsBackend:
                 winreg.HKEY_CURRENT_USER,
                 r"Software\Microsoft\Windows\CurrentVersion\Internet Settings",
             )
-            value, _ = winreg.QueryValueEx(key, "ProxyEnable")
-            winreg.CloseKey(key)
+            try:
+                value, _ = winreg.QueryValueEx(key, "ProxyEnable")
+            finally:
+                winreg.CloseKey(key)
             return int(value) == 1
         except Exception:
             return False

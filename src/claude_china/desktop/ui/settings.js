@@ -34,7 +34,10 @@ function renderAppSettingsPanels() {
 function envContainer(id) { return id === "common" ? "common-env" : `env-${id}`; }
 function draftSnapshot(id) {
   return JSON.stringify({
-    setting: id === "common" ? document.getElementById("proxy").checked : DRAFT_PATHS[id] || "",
+    setting: id === "common" ? {
+      check_system_proxy: document.getElementById("proxy").checked,
+      auto_proxy_env: document.getElementById("auto-proxy-env").checked,
+    } : DRAFT_PATHS[id] || "",
     rows: Array.from(document.querySelectorAll(`#${envContainer(id)} .env-row`), row =>
       [row.querySelector(".k").value, row.querySelector(".v").value]),
   });
@@ -53,8 +56,12 @@ function markDrafts() {
 }
 function renderCommon() {
   document.getElementById("proxy").checked = !!SETTINGS.check_system_proxy;
+  document.getElementById("auto-proxy-env").checked = !!SETTINGS.auto_proxy_env;
   renderEnv("common-env", SETTINGS.env_vars);
-  document.getElementById("common-summary").textContent = SETTINGS.check_system_proxy ? "启动前检查系统代理" : "启动时不检查系统代理";
+  const summary = [];
+  if (SETTINGS.check_system_proxy) summary.push("启动前检查系统代理");
+  if (SETTINGS.auto_proxy_env) summary.push("自动添加代理环境变量");
+  document.getElementById("common-summary").textContent = summary.join(" · ") || "启动时不检查系统代理";
   SAVED_DRAFTS.common = draftSnapshot("common");
 }
 function renderAppEditor(id) {
@@ -124,7 +131,10 @@ async function saveEditor(id) {
   let payload;
   try {
     payload = { env_vars: collectEnv(envContainer(id)) };
-    if (id === "common") payload.check_system_proxy = document.getElementById("proxy").checked;
+    if (id === "common") {
+      payload.check_system_proxy = document.getElementById("proxy").checked;
+      payload.auto_proxy_env = document.getElementById("auto-proxy-env").checked;
+    }
     else payload.path = DRAFT_PATHS[id] || "";
   } catch (error) { showFormError(id, error.message); return; }
   SAVING.add(id);

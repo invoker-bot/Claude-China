@@ -1,5 +1,6 @@
 """Find known desktop executables and launch explicitly configured ones."""
 
+import ast
 import os
 from pathlib import Path
 import shutil
@@ -7,6 +8,7 @@ import shutil
 from . import base
 from .base import AppStatus
 from .. import process as subprocess
+from ..proxy import SystemProxyError, http_proxy_address, http_proxy_url
 
 
 class LinuxBackend:
@@ -46,6 +48,34 @@ class LinuxBackend:
             return mode.strip().strip("'\"") in ("manual", "auto")
         except (OSError, subprocess.SubprocessError):
             return False
+
+    def system_http_proxy(self) -> str:
+        # Match conventional Unix HTTP proxy precedence. An invalid explicit
+        # value must not silently fall through to another configuration source.
+        for key in ("http_proxy", "HTTP_PROXY"):
+            if key in os.environ:
+                return http_proxy_url(os.environ[key])
+        try:
+            mode = ast.literal_eval(self._proxy_setting("mode"))
+            if mode != "manual":
+                raise SystemProxyError("系统未配置静态 HTTP 代理；PAC 自动配置不受支持。")
+            if self._proxy_setting("use-authentication", "http") != "false":
+                raise SystemProxyError("系统 HTTP 代理要求认证，请关闭自动添加并手动配置代理环境变量。")
+            host = ast.literal_eval(self._proxy_setting("host", "http"))
+            port = self._proxy_setting("port", "http")
+            return http_proxy_address(host, port)
+        except SystemProxyError:
+            raise
+        except (OSError, subprocess.SubprocessError, ValueError, SyntaxError):
+            raise SystemProxyError("无法读取系统 HTTP 代理；请配置 http_proxy 或 GNOME 手动代理。") from None
+
+    @staticmethod
+    def _proxy_setting(key, protocol=""):
+        schema = "org.gnome.system.proxy" + ("." + protocol if protocol else "")
+        return subprocess.check_output(
+            ["gsettings", "get", schema, key], text=True,
+            stderr=subprocess.DEVNULL, timeout=3,
+        ).strip()
 
     def pick_path_filter(self) -> tuple:
         return ("Executable files (*)",)

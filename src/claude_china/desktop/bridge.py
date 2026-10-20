@@ -4,6 +4,7 @@ import os
 from .apps import APP_REGISTRY, get_app
 from . import config as cfg
 from .env import merge_env
+from .proxy import SystemProxyError
 
 
 class LauncherBridge:
@@ -99,6 +100,16 @@ class LauncherBridge:
         data = cfg.load_desktop_config()
         if cfg.get_check_system_proxy(data) and not self._backend.proxy_enabled():
             return {"ok": False, "error": "系统代理未开启，已取消启动"}
+        proxy_url = None
+        if cfg.get_auto_proxy_env(data):
+            try:
+                proxy_url = self._backend.system_http_proxy()
+            except SystemProxyError as exc:
+                return {"ok": False, "error": f"{exc} 已取消启动。"}
+            except Exception:
+                # System sources and third-party tools can include credentials
+                # in exceptions; only show our own safe diagnostics.
+                return {"ok": False, "error": "无法解析系统代理，请检查 HTTP 代理地址和端口。已取消启动。"}
         app = get_app(app_id)
         override = cfg.get_app_path(data, app_id)
         status = self._backend.detect(app, override)
@@ -111,7 +122,7 @@ class LauncherBridge:
             return {"ok": False, "error": f"中止失败: {exc}"}
         env = merge_env(os.environ,
                         cfg.get_common_env(data),
-                        cfg.get_app_env(data, app_id))
+                        cfg.get_app_env(data, app_id), proxy_url=proxy_url)
         try:
             self._backend.launch(status, env)
         except Exception as exc:
@@ -133,12 +144,14 @@ class LauncherBridge:
     def get_settings(self):
         data = cfg.load_desktop_config()
         return {"check_system_proxy": cfg.get_check_system_proxy(data),
+                "auto_proxy_env": cfg.get_auto_proxy_env(data),
                 "env_vars": cfg.get_common_env(data)}
 
     def save_settings(self, payload):
         self._notify_activity()
         data = cfg.load_desktop_config()
         cfg.set_check_system_proxy(data, bool(payload.get("check_system_proxy", True)))
+        cfg.set_auto_proxy_env(data, payload.get("auto_proxy_env", cfg.get_auto_proxy_env(data)))
         cfg.set_common_env(data, dict(payload.get("env_vars", {})))
         cfg.save_desktop_config(data)
         return {"ok": True}
