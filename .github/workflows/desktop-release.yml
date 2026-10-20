@@ -117,18 +117,31 @@ jobs:
           sudo apt-get remove -y claude-china-desktop
           test ! -e /opt/claude-china/claude-china-desktop
           test ! -e /usr/share/applications/claude-china.desktop
-          rpm -qpl dist/installers/*.rpm
+          rpm -qpl dist/installers/*.rpm > build/desktop/rpm-files.txt
+      - name: Verify RPM installation and removal on Fedora
+        if: runner.os == 'Linux'
+        run: |
+          docker run --rm \
+            --volume "$PWD/dist/installers:/packages:ro" \
+            --volume "$PWD/packaging/desktop/linux:/checks:ro" \
+            fedora:44 bash /checks/test-rpm.sh
       - uses: actions/upload-artifact@v4
+        timeout-minutes: 5
         with:
           name: desktop-${{ matrix.artifact }}
           path: dist/installers/*
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
+        timeout-minutes: 5
         if: always()
         with:
           name: desktop-validation-${{ matrix.artifact }}
           path: |
-            build/desktop/**/*smoke.json
+            build/desktop/smoke.json
+            build/desktop/dmg-smoke.json
+            build/desktop/deb-smoke.json
+            build/desktop/rpm-files.txt
+            build/desktop/installer-test-*/*smoke.json
             build/desktop/installer-test-*/*.log
           if-no-files-found: ignore
 

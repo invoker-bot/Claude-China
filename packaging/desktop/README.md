@@ -102,9 +102,9 @@ matching GitHub Release. The existing PyPI workflow remains independent.
 Update `pyproject.toml` and `__version__` together before tagging a new version.
 
 Validation covers the full pytest suite, each frozen GUI, the Windows
-install/repair/uninstall cycle, the mounted macOS disk image, and Debian
-installation/removal. RPM content is inspected; deployment on a specific RPM
-distribution still needs an installation test on that distribution.
+install/repair/uninstall cycle, the mounted macOS disk image, Debian
+installation/removal, and RPM installation, native GUI startup and removal in
+a disposable Fedora 44 container.
 
 ## Signing
 
