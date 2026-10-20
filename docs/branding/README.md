@@ -33,7 +33,7 @@ Run `claudec desktop install` after upgrading to refresh existing shortcuts, the
 - Windows Shell readback confirms the process identity and both installed shortcuts use the same AppUserModelID; the shortcut ICO bytes match the packaged artwork. Native shortcut tests also check command preservation and COM cleanup on failure. Taskbar pixels were not captured by the available window-only screenshot tool.
 - Browser preview checked on light/dark surfaces and at 16 / 24 / 32 / 48 / 64 px.
 - Wheel build verified to contain the current animation module and all three platform icon assets.
-- Rename validation: the built `claude-china 0.2.0` wheel exposes only `claudec`, installs the `claude_china` namespace, and works in a separate environment. Both Windows shortcuts use the new name and command; reopening reuses the running launcher. Existing profile and desktop configuration hashes are unchanged. macOS tests verify the renamed bundle metadata and cleanup of legacy shortcuts.
+- Rename validation: the built `claude-china` wheel exposes only `claudec`, installs the `claude_china` namespace, and works in a separate environment. Both Windows shortcuts use the new name and command; reopening reuses the running launcher. Existing profile and desktop configuration hashes are unchanged. macOS tests verify the renamed bundle metadata and cleanup of legacy shortcuts.
 - Python 3.9 syntax checked. macOS dispatch and asset packaging are covered by tests; macOS native execution has not been performed on this Windows host.
 
 ![Windows launcher](launcher-windows.png)

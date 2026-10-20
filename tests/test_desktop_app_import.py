@@ -241,7 +241,7 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
         "src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
         tmp_path / "desktop.yaml",
     )
-    monkeypatch.setattr(app_mod.sys, "platform", "win32")
+    monkeypatch.setattr(app_mod, "sys", types.SimpleNamespace(platform="win32"))
 
     app_mod.run_gui()
 

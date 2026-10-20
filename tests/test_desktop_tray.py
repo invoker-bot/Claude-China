@@ -98,7 +98,7 @@ def tray_environment(monkeypatch):
     monkeypatch.setitem(sys.modules, "PIL", types.SimpleNamespace(
         Image=types.SimpleNamespace(open=Mock(return_value=source)),
     ))
-    monkeypatch.setattr(tray_mod.sys, "platform", "win32")
+    monkeypatch.setattr(tray_mod, "sys", types.SimpleNamespace(platform="win32"))
     monkeypatch.setattr(tray_mod, "IconAnimation", Mock(), raising=False)
     return factory, image
 

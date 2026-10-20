@@ -50,7 +50,7 @@ Requirements:
 
 ### Upgrading from code-ai / AI Launcher
 
-Version 0.2.0 renames the distribution from `ai-code-switcher` to `claude-china`,
+The 0.2 series renames the distribution from `ai-code-switcher` to `claude-china`,
 the command from `code-ai` to `claudec`, and the desktop app to **Claude China**.
 The Python module is now `claude_china` (`python -m claude_china.cli`).
 
