@@ -212,9 +212,12 @@ def verify_window(window, tray, report):
         result["auto_proxy_saved"] = config.get_auto_proxy_env(config.load_desktop_config())
         window.evaluate_js("closeDialog()")
         tray._commands._dispatch("settings")
+        # GTK's evaluate_javascript length counts characters instead of UTF-8
+        # bytes in pywebview 6.2.1; keep injected scripts ASCII on that backend.
         result["auto_proxy_reopened"] = window.evaluate_js(
             "document.getElementById('auto-proxy-env').checked"
-            " && document.getElementById('common-summary').textContent.includes('自动添加代理环境变量')")
+            " && document.getElementById('common-summary').textContent.includes("
+            + json.dumps("自动添加代理环境变量") + ")")
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_dialog", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_preserves_edits",
