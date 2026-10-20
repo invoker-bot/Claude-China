@@ -48,22 +48,18 @@ class DesktopMenu:
             logging.getLogger(__name__).exception("Could not open desktop menu panel")
 
     def native_menu(self):
-        from webview.menu import Menu, MenuAction, MenuSeparator
+        # Windows/Linux use the page navigation and tray. A native menu adds
+        # a second toolbar that does not follow the launcher's dark theme.
+        if sys.platform != "darwin":
+            return []
 
-        if sys.platform == "darwin":
-            return [
-                Menu("__app__", [MenuAction("设置…", self.settings),
-                                 MenuAction("检查更新…", self.updates)]),
-                Menu("窗口", [MenuAction("打开 Claude China", self.show)]),
-                Menu("帮助", [MenuAction("发布页面", self.release_page)]),
-            ]
+        from webview.menu import Menu, MenuAction
+
         return [
-            Menu("应用", [MenuAction("打开 Claude China", self.show),
-                          MenuAction("设置…", self.settings), MenuSeparator(),
-                          MenuAction("退出", self.quit)]),
-            Menu("帮助", [MenuAction("检查更新…", self.updates),
-                          MenuAction("发布页面", self.release_page), MenuSeparator(),
-                          MenuAction("关于 Claude China", self.about)]),
+            Menu("__app__", [MenuAction("设置…", self.settings),
+                             MenuAction("检查更新…", self.updates)]),
+            Menu("窗口", [MenuAction("打开 Claude China", self.show)]),
+            Menu("帮助", [MenuAction("发布页面", self.release_page)]),
         ]
 
     def bind_platform_menu(self):

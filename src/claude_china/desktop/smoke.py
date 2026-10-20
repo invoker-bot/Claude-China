@@ -19,18 +19,17 @@ def _wait_js(window, expression):
     raise RuntimeError("Timed out waiting for packaged UI: " + expression)
 
 
-def _activate_native_settings(window):
-    """Activate a real menu item on its GUI thread, including GTK action wiring."""
+def _verify_platform_menu(window):
+    """Check the native menu policy on the GUI thread; exercise macOS Settings."""
     done = threading.Event()
     errors = []
 
-    def activate():
+    def verify():
         try:
             if sys.platform == "win32":
-                menu = next(control for control in window.native.Controls
-                            if control.GetType().Name == "MenuStrip")
-                next(item for item in menu.Items[0].DropDownItems
-                     if item.Text == "设置…").PerformClick()
+                if any(control.GetType().Name == "MenuStrip"
+                       for control in window.native.Controls):
+                    raise RuntimeError("Windows must not show a native menu bar")
             elif sys.platform == "darwin":
                 from AppKit import NSApplication
                 app = NSApplication.sharedApplication()
@@ -40,24 +39,8 @@ def _activate_native_settings(window):
                     raise RuntimeError("macOS did not dispatch the Settings menu action")
             else:
                 app = window.native.get_application()
-
-                def find_action(model):
-                    for i in range(model.get_n_items()):
-                        label = model.get_item_attribute_value(i, "label", None)
-                        if label and label.get_string() == "设置…":
-                            return model.get_item_attribute_value(i, "action", None).get_string()
-                        for link in ("submenu", "section"):
-                            child = model.get_item_link(i, link)
-                            if child:
-                                action = find_action(child)
-                                if action:
-                                    return action
-                    return None
-
-                action = find_action(app.get_menubar())
-                if not action or not action.startswith("app."):
-                    raise RuntimeError("GTK Settings menu action is missing")
-                app.activate_action(action[4:], None)
+                if app.get_menubar() is not None:
+                    raise RuntimeError("Linux must not show a native menu bar")
         except Exception as exc:
             errors.append(exc)
         finally:
@@ -65,18 +48,19 @@ def _activate_native_settings(window):
 
     if sys.platform == "win32":
         from System import Action
-        window.native.Invoke(Action(activate))
+        window.native.Invoke(Action(verify))
     elif sys.platform == "darwin":
         from PyObjCTools import AppHelper
-        AppHelper.callAfter(activate)
+        AppHelper.callAfter(verify)
     else:
         from gi.repository import GLib
-        GLib.idle_add(activate)
+        GLib.idle_add(verify)
     if not done.wait(10):
-        raise RuntimeError("Native menu action timed out")
+        raise RuntimeError("Native menu verification timed out")
     if errors:
         raise errors[0]
-    _wait_js(window, "document.getElementById('editor-common').classList.contains('is-open')")
+    if sys.platform == "darwin":
+        _wait_js(window, "document.getElementById('editor-common').classList.contains('is-open')")
 
 
 def verify_window(window, tray, report):
@@ -129,8 +113,12 @@ def verify_window(window, tray, report):
             "!document.getElementById('launcher-overlay').hidden"
             " && !document.getElementById('update-panel').hidden")
         window.evaluate_js("closeDialog()")
-        _activate_native_settings(window)
-        result["native_menu_action"] = True
+        _verify_platform_menu(window)
+        result["platform_menu"] = True
+        if sys.platform != "darwin":
+            window.evaluate_js("document.getElementById('open-settings').click()")
+            _wait_js(window, "document.getElementById('editor-common').classList.contains('is-open')")
+        result["settings_entry"] = True
         window.evaluate_js("document.getElementById('proxy').checked = !SETTINGS.check_system_proxy")
         tray._commands._dispatch("settings")
         result["menu_preserves_edits"] = window.evaluate_js(

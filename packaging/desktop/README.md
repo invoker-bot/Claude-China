@@ -91,9 +91,11 @@ distributed app or run a user-facing desktop app as root.
 Outputs go to `dist/installers/`, with a SHA-256 sidecar for each package.
 `--freeze-only` builds just the runnable bundle; `--skip-freeze` reuses it.
 `--smoke` opens an actual hidden native webview, loads the bundled HTML/CSS/JS
-and icon, waits for the UI to initialize through the real Python bridge, activates
-the native Settings menu, and verifies update-dialog dispatch, unsaved-edit
-protection and Escape handling. On macOS it also checks the standard Quit binding.
+and icon, waits for the UI to initialize through the real Python bridge, and
+verifies update-dialog dispatch, unsaved-edit protection and Escape handling.
+On Windows/Linux it checks that no native menu bar is present and opens Settings
+through the page navigation. On macOS it activates the native Settings menu and
+checks the standard Quit binding.
 It writes `build/desktop/smoke.json`, uses temporary configuration and does not
 read or overwrite the user's settings.
 

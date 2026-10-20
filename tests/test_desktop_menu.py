@@ -28,18 +28,11 @@ def commands():
 
 
 @pytest.mark.parametrize("platform", ["win32", "linux"])
-def test_native_menus_share_actions_with_tray(commands, menu_types, monkeypatch, platform):
+def test_windows_and_linux_do_not_add_a_native_window_menu(
+    commands, menu_types, monkeypatch, platform,
+):
     monkeypatch.setattr(menu_mod, "sys", types.SimpleNamespace(platform=platform))
-    menus = commands.native_menu()
-    actions = {item.title: item.function for menu in menus for item in menu.items
-               if hasattr(item, "function")}
-    assert [menu.title for menu in menus] == ["应用", "帮助"]
-    assert actions["设置…"] == commands.settings
-    assert actions["检查更新…"] == commands.updates
-    actions["退出"]()
-    commands._tray._quit.assert_called_once_with(None, None)
-    actions["发布页面"]()
-    commands._updater.open_release.assert_called_once()
+    assert commands.native_menu() == []
 
 
 def test_macos_places_settings_and_updates_in_the_application_menu(
