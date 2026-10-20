@@ -4,6 +4,8 @@
 
 This is a `src`-layout Python package. Core CLI and profile logic lives in `src/claude_china/`, with `cli.py` as the Typer entry point, `config.py` for `~/.code-ai/config.yaml`, `models.py` for profile dataclasses, and `launcher.py` for environment setup and process launch. Desktop launcher code is under `src/claude_china/desktop/`; static desktop UI assets are in `src/claude_china/desktop/ui/` and are packaged via `pyproject.toml`. Tests live in `tests/`, and design notes/plans live in `docs/superpowers/`.
 
+The deprecated `ai-code-switcher` distribution is built separately from `compat/ai-code-switcher/`. It only provides the old CLI/module bridge and depends on `claude-china`; do not copy application code into it. Tags `legacy-v<version>` run its cross-platform upgrade checks and publish that package, while `v<version>` tags publish the main distribution.
+
 ## Build, Test, and Development Commands
 
 - `pip install -e .` installs the package in editable mode for local CLI development.
@@ -11,6 +13,7 @@ This is a `src`-layout Python package. Core CLI and profile logic lives in `src/
 - `python -m pytest tests/ -q` runs the full pytest suite configured in `pyproject.toml`.
 - `python -m pytest tests/test_launcher.py::test_merge_launch_args_only_defaults -q` runs one targeted test.
 - `PYTHONPATH=src python -m claude_china.cli <subcommand>` smoke-tests the working tree version. Use this form when checking uncommitted source changes.
+- `python -m build compat/ai-code-switcher` builds the legacy bridge; `python tests/legacy_install_smoke.py <wheel-path>` verifies upgrading the old PyPI release in an isolated environment (requires network access).
 
 ## Coding Style & Naming Conventions
 

@@ -1,0 +1,70 @@
+name: Publish legacy compatibility package
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'legacy-v*'
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.9'
+          - os: macos-latest
+            python: '3.11'
+          - os: windows-latest
+            python: '3.12'
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.python }}
+    - name: Install test and build dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install -e .
+        python -m pip install pytest Pillow build twine
+    - name: Run tests
+      run: python -m pytest tests/ -q
+    - name: Build compatibility package
+      run: python -m build compat/ai-code-switcher
+    - name: Check package metadata
+      run: python -m twine check --strict compat/ai-code-switcher/dist/*
+    - name: Verify upgrade from the old PyPI release
+      shell: bash
+      run: python tests/legacy_install_smoke.py compat/ai-code-switcher/dist/*.whl
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push'
+    steps:
+    - uses: actions/checkout@v6
+    - uses: actions/setup-python@v6
+      with:
+        python-version: '3.11'
+    - name: Build compatibility package
+      run: |
+        python -m pip install build twine
+        python -m build compat/ai-code-switcher
+        python -m twine check --strict compat/ai-code-switcher/dist/*
+    - name: Check release tag
+      env:
+        RELEASE_TAG: ${{ github.ref_name }}
+      run: |
+        python - <<'PY'
+        import os
+        import tomllib
+        from pathlib import Path
+        project = tomllib.loads(Path("compat/ai-code-switcher/pyproject.toml").read_text())
+        assert os.environ["RELEASE_TAG"] == "legacy-v" + project["project"]["version"]
+        PY
+    - name: Publish compatibility package to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: python -m twine upload compat/ai-code-switcher/dist/*

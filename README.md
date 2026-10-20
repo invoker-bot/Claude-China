@@ -67,7 +67,21 @@ login directories, desktop settings and the single-instance lock continue to
 use `~/.code-ai/`; no credentials need to be copied. Installing the desktop
 shortcut replaces the old **AI Launcher** shortcuts on Windows and macOS.
 You can then remove the old distribution with `python -m pip uninstall ai-code-switcher`.
-Old PyPI releases remain available for existing installations.
+
+For existing scripts that still use `code-ai`, upgrade the compatibility package:
+
+```bash
+python -m pip install --upgrade ai-code-switcher
+# Desktop users: python -m pip install --upgrade "ai-code-switcher[desktop]"
+```
+
+Starting with `ai-code-switcher` 0.1.24, the old package automatically installs
+`claude-china`. Both `code-ai` and `python -m code_ai.cli` forward to the new
+CLI and print a deprecation warning to stderr. Arguments, stdout and exit codes
+are preserved. Switch scripts to `claudec` when convenient; removing the old
+package afterwards leaves the new CLI installed. Internal Python imports should
+use `claude_china`. Versions pinned below 0.1.24 retain the old implementation.
+See the [compatibility package](https://github.com/invoker-bot/Claude-China/tree/main/compat/ai-code-switcher) for details.
 
 ## Quick start
 
