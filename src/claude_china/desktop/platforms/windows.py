@@ -131,10 +131,11 @@ class WindowsBackend:
         return self._http_proxy_server(server)
 
     @staticmethod
-    def _http_proxy_server(server):
+    def _http_proxy_server(server, protocol="http"):
         if not isinstance(server, str) or any(ord(c) < 32 for c in server):
             raise SystemProxyError("系统代理地址格式无效。")
         proxies = {}
+        wanted = protocol
         for entry in re.split(r"[; ]+", server.strip(" ;")):
             match = re.fullmatch(r"([a-zA-Z]+)=(.+)", entry)
             protocol, value = (match.group(1).lower(), match.group(2)) if match else ("default", entry)
@@ -144,10 +145,31 @@ class WindowsBackend:
             if not value or ("=" in entry and not match and "://" not in entry):
                 raise SystemProxyError("系统代理列表格式无效。")
             proxies[protocol] = value
-        selected = proxies.get("http", proxies.get("default"))
+        selected = proxies.get(wanted, proxies.get("default"))
         if selected is None:
             raise SystemProxyError("系统代理未配置 HTTP 端口，无法自动添加代理环境变量。")
         return http_proxy_url(selected)
+
+    def safety_proxy(self):
+        """HTTPS route for the regional probe, including proxy exclusions."""
+        if winreg is None:
+            raise SystemProxyError("无法读取 Windows 系统代理。")
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER,
+                             r"Software\Microsoft\Windows\CurrentVersion\Internet Settings")
+        try:
+            def value(name, default=""):
+                try:
+                    return winreg.QueryValueEx(key, name)[0]
+                except FileNotFoundError:
+                    return default
+            if value("AutoConfigURL") or value("AutoDetect", 0):
+                raise SystemProxyError("自动代理无法确认单一出口。")
+            if value("ProxyEnable", 0) != 1:
+                return {"proxy": None}
+            return {"proxy": self._http_proxy_server(value("ProxyServer"), "https"),
+                    "bypass": value("ProxyOverride")}
+        finally:
+            winreg.CloseKey(key)
 
     def proxy_enabled(self) -> bool:
         if winreg is None:

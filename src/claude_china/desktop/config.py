@@ -9,6 +9,8 @@ DESKTOP_CONFIG_FILE = config_dir() / "desktop.yaml"
 DEFAULTS = {
     "check_system_proxy": True,
     "auto_proxy_env": False,
+    "safety_check": True,
+    "safety_block_unknown": True,
     "env_vars": {},   # 通用 (common) — every app launch
     "apps": {},       # per-app: {<id>: {"path": str, "env_vars": {...}}}
 }
@@ -28,6 +30,8 @@ def load_desktop_config() -> dict:
         data["apps"] = {}
     data.setdefault("check_system_proxy", True)
     data.setdefault("auto_proxy_env", False)
+    data.setdefault("safety_check", True)
+    data.setdefault("safety_block_unknown", True)
     return data
 
 
@@ -55,6 +59,18 @@ def set_auto_proxy_env(data: dict, value: bool) -> None:
 
 def get_common_env(data: dict) -> dict:
     return dict(data.get("env_vars") or {})
+
+
+def get_safety_settings(data: dict) -> dict:
+    # Invalid handwritten values must not accidentally disable protection.
+    return {"enabled": data.get("safety_check") is not False,
+            "block_unknown": data.get("safety_block_unknown") is not False}
+
+
+def set_safety_settings(data: dict, payload: dict) -> None:
+    for field, key in (("enabled", "safety_check"), ("block_unknown", "safety_block_unknown")):
+        if field in payload:
+            data[key] = payload[field] is not False
 
 
 def set_common_env(data: dict, env: dict) -> None:

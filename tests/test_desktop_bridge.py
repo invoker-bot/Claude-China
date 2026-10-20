@@ -11,6 +11,14 @@ from src.claude_china.desktop.bridge import LauncherBridge
 from src.claude_china.desktop.platforms.base import AppStatus
 
 
+@pytest.fixture(autouse=True)
+def disable_unrelated_network_guard(monkeypatch):
+    # This module isolates the pre-existing launch/settings behavior. The new
+    # guard's real defaults and fail-closed ordering have their own test module.
+    monkeypatch.setattr("src.claude_china.desktop.config.get_safety_settings",
+                        lambda data: {"enabled": False, "block_unknown": True})
+
+
 @contextmanager
 def temp_desktop_config():
     root = Path.cwd() / ".test-artifacts" / str(uuid4())

@@ -160,6 +160,25 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 .about-content p { margin-top: 12px; color: var(--muted); }
 .about-location { display: flex; gap: 10px; flex-direction: column; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 .is-busy svg { animation: spin 1.2s linear infinite; }
+.safety-local { display: grid; grid-template-columns: 1.2fr 1fr .8fr; gap: 16px; margin: 14px 0 8px; padding: 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--header); }
+.safety-local dt, .safety-details dt { font-size: 12px; color: var(--muted); }
+.safety-local dd { margin: 6px 0 0; font-size: 13px; overflow-wrap: anywhere; }
+.safety-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.safety-toolbar .field-label { margin-right: auto; }
+.safety-toolbar select { max-width: 150px; min-width: 100px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--input); color: var(--text); font: inherit; font-size: 13px; }
+.safety-result { margin-top: 16px; padding: 18px; border-radius: 8px; border: 1px solid var(--line); background: var(--header); font-size: 13px; line-height: 1.7; }
+.safety-result-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.safety-result-head strong { display: inline-flex; align-items: center; gap: 8px; font-size: 15px; }
+.safety-result-head svg { width: 20px; height: 20px; }
+.safety-result-head > span { font-size: 12px; color: var(--muted); }
+.safety-result[data-status="supported"] strong { color: var(--accent); }
+.safety-result[data-status="unsupported"] strong { color: var(--danger); }
+.safety-result[data-status="unknown"] strong { color: #f2ca81; }
+.safety-details { margin: 14px 0; display: grid; gap: 6px; }
+.safety-details > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
+.safety-details dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
+.safety-source { font-size: 12px; padding: 14px 0 0; }
+.safety-limit { margin-top: 12px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes dialog-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (min-width: 1200px) { .panel { width: 1100px; margin-inline: auto; } }

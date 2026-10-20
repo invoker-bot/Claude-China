@@ -33,6 +33,7 @@ function renderAppSettingsPanels() {
 
 function envContainer(id) { return id === "common" ? "common-env" : `env-${id}`; }
 function draftSnapshot(id) {
+  if (id === "safety") return JSON.stringify(safetyDraft());
   return JSON.stringify({
     setting: id === "common" ? {
       check_system_proxy: document.getElementById("proxy").checked,
@@ -43,9 +44,9 @@ function draftSnapshot(id) {
   });
 }
 function isDirty(id) { return SAVED_DRAFTS[id] !== undefined && draftSnapshot(id) !== SAVED_DRAFTS[id]; }
-function hasUnsavedSettings() { return SAVING.size > 0 || ["common", ...APPS.map(a => a.id)].some(isDirty); }
+function hasUnsavedSettings() { return SAVING.size > 0 || ["common", "safety", ...APPS.map(a => a.id)].some(isDirty); }
 function markDrafts() {
-  for (const id of ["common", ...APPS.map(a => a.id)]) {
+  for (const id of ["common", "safety", ...APPS.map(a => a.id)]) {
     const dirty = isDirty(id);
     const nav = document.getElementById(`nav-${id}`);
     if (nav) nav.dataset.dirty = String(dirty);
@@ -122,7 +123,7 @@ function showFormError(id, message) {
 }
 function cancelSettings(id) {
   if (SAVING.has(id)) return;
-  if (id === "common") renderCommon(); else renderAppEditor(id);
+  if (id === "common") renderCommon(); else if (id === "safety") renderSafetySettings(); else renderAppEditor(id);
   showFormError(id, ""); markDrafts(); closeDialog();
 }
 async function saveEditor(id) {
@@ -130,21 +131,22 @@ async function saveEditor(id) {
   showFormError(id, "");
   let payload;
   try {
-    payload = { env_vars: collectEnv(envContainer(id)) };
+    payload = id === "safety" ? safetyDraft() : { env_vars: collectEnv(envContainer(id)) };
     if (id === "common") {
       payload.check_system_proxy = document.getElementById("proxy").checked;
       payload.auto_proxy_env = document.getElementById("auto-proxy-env").checked;
     }
-    else payload.path = DRAFT_PATHS[id] || "";
+    else if (id !== "safety") payload.path = DRAFT_PATHS[id] || "";
   } catch (error) { showFormError(id, error.message); return; }
   SAVING.add(id);
   const editor = document.getElementById(`editor-${id}`);
   const controls = Array.from(editor.querySelectorAll("input, button"));
   controls.forEach(el => { el.disabled = true; });
   try {
-    const result = id === "common" ? await api().save_settings(payload) : await api().save_app_settings(id, payload);
+    const result = id === "common" ? await api().save_settings(payload) : id === "safety" ? await api().save_safety_settings(payload) : await api().save_app_settings(id, payload);
     if (!result || !result.ok) throw new Error("保存失败");
     if (id === "common") { SETTINGS = payload; renderCommon(); }
+    else if (id === "safety") { SAFETY_SETTINGS = { ...SAFETY_SETTINGS, ...payload }; renderSafetySettings(); }
     else { APP_SETTINGS[id] = payload; renderAppEditor(id); rerenderBay(id); }
     animateBrand(); toast("设置已保存");
     try { await refresh(); } catch (_) { toast("设置已保存，应用状态暂时无法刷新。"); }

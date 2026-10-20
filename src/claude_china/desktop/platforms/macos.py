@@ -68,21 +68,42 @@ class MacBackend:
 
     # ---- proxy ----
     def system_http_proxy(self) -> str:
-        output = self._scutil_output()
+        values = self._proxy_values(self._scutil_output())
+        if values.get("HTTPEnable") != "1":
+            raise SystemProxyError("无法读取已启用的系统 HTTP 代理；仅有 PAC 或 SOCKS 设置不受支持。")
+        return http_proxy_address(values.get("HTTPProxy"), values.get("HTTPPort"))
+
+    @staticmethod
+    def _proxy_values(output):
         values = {}
         depth = 0
         root_depth = 1 if output.lstrip().startswith("<dictionary>") else 0
         for line in output.splitlines():
             if depth == root_depth:
                 name, separator, value = line.strip().partition(" : ")
-                if separator and name in ("HTTPEnable", "HTTPProxy", "HTTPPort"):
+                if separator and not value.startswith("<"):
                     if name in values:
                         raise SystemProxyError("系统 HTTP 代理设置包含重复字段。")
                     values[name] = value.strip()
             depth += line.count("{") - line.count("}")
-        if values.get("HTTPEnable") != "1":
-            raise SystemProxyError("无法读取已启用的系统 HTTP 代理；仅有 PAC 或 SOCKS 设置不受支持。")
-        return http_proxy_address(values.get("HTTPProxy"), values.get("HTTPPort"))
+        return values
+
+    def safety_proxy(self):
+        import re
+
+        output = self._scutil_output()
+        if not output:
+            raise SystemProxyError("无法读取 macOS 系统代理。")
+        values = self._proxy_values(output)
+        if any(values.get(key) == "1" for key in (
+                "ProxyAutoConfigEnable", "ProxyAutoDiscoveryEnable", "SOCKSEnable")):
+            raise SystemProxyError("自动代理或 SOCKS 代理无法确认单一 HTTP 出口。")
+        proxy = None
+        if values.get("HTTPSEnable") == "1":
+            proxy = http_proxy_address(values.get("HTTPSProxy"), values.get("HTTPSPort"))
+        exclusions = re.search(r"ExceptionsList\s*:\s*<array>\s*\{([^}]*)\}", output)
+        bypass = ",".join(re.findall(r"\d+\s*:\s*([^\n]+)", exclusions.group(1))) if exclusions else ""
+        return {"proxy": proxy, "bypass": bypass}
 
     def proxy_enabled(self) -> bool:
         return self._parse_scutil(self._scutil_output())

@@ -1,5 +1,6 @@
 // One outline family shared by the launcher and settings.
 const ICON_PATHS = {
+  shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/>',
   refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 7a7.5 7.5 0 0 1 12.4-2L20 8M4 16l2.1 3A7.5 7.5 0 0 0 18.5 17"/>',
   settings: '<path d="m9 3-.6 2.3-2 .9-2.2-.6L2.7 8.2l1.7 1.7v2.2l-1.7 1.7 1.5 2.6 2.2-.6 2 .9L9 19h3l.6-2.3 2-.9 2.2.6 1.5-2.6-1.7-1.7V9.9l1.7-1.7-1.5-2.6-2.2.6-2-.9L12 3Z" transform="translate(1.5 1)"/><circle cx="12" cy="12" r="3"/>',
   network: '<circle cx="12" cy="5" r="3"/><circle cx="5" cy="18" r="3"/><circle cx="19" cy="18" r="3"/><path d="m10.5 7.7-4 7.6m7-7.6 4 7.6M8 18h8"/>',

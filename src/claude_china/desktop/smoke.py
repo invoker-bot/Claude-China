@@ -218,11 +218,34 @@ def verify_window(window, tray, report):
             "document.getElementById('auto-proxy-env').checked"
             " && document.getElementById('common-summary').textContent.includes("
             + json.dumps("自动添加代理环境变量") + ")")
+        window.evaluate_js("document.getElementById('nav-safety').click()")
+        result["safety_settings"] = window.evaluate_js(
+            "!document.getElementById('editor-safety').hidden"
+            " && document.getElementById('safety-enabled').checked"
+            " && document.getElementById('safety-strict').checked"
+            " && document.querySelectorAll('#safety-local dd').length === 3"
+            " && document.getElementById('safety-app').options.length === 3")
+        window.evaluate_js("document.getElementById('safety-strict').click(); closeDialog(); showDialog('safety')")
+        result["safety_draft_preserved"] = window.evaluate_js(
+            "hasUnsavedSettings() && !document.getElementById('safety-strict').checked")
+        window.evaluate_js("document.getElementById('cancel-safety').click(); showDialog('safety')")
+        result["safety_cancel_restored"] = window.evaluate_js(
+            "!hasUnsavedSettings() && document.getElementById('safety-strict').checked")
+        window.evaluate_js("document.getElementById('safety-strict').click(); document.getElementById('save-safety').click()")
+        _wait_js(window, "!SAFETY_SETTINGS.block_unknown && !hasUnsavedSettings()")
+        result["safety_saved"] = not config.get_safety_settings(config.load_desktop_config())["block_unknown"]
+        # Render a deterministic blocked result; GUI smoke never calls an IP
+        # service or launches/stops any of the user's real apps.
+        window.evaluate_js("rememberSafetyReport('claude', {status:'unsupported', reason:'Test blocked region', network:{country_code:'CN'}})")
+        result["safety_blocked_display"] = window.evaluate_js(
+            "document.getElementById('safety-result').dataset.status === 'unsupported'")
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_dialog", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_preserves_edits",
             "reopen_preserves_edits", "cancel_restores_settings",
             "auto_proxy_default_off", "auto_proxy_saved", "auto_proxy_reopened",
+            "safety_settings", "safety_draft_preserved", "safety_cancel_restored",
+            "safety_saved", "safety_blocked_display",
         )):
             raise RuntimeError("Native menu commands did not reach the packaged UI")
         if sys.platform == "darwin":

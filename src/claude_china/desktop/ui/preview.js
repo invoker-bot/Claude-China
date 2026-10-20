@@ -7,6 +7,15 @@ if (new URLSearchParams(location.search).has("preview")) {
     { id: "grok-bot", display: "Grok Bot", found: true, running: false },
   ];
   let settings = { check_system_proxy: true, auto_proxy_env: false, env_vars: { HTTPS_PROXY: "http://127.0.0.1:7890" } };
+  let safetySettings = { enabled: true, block_unknown: true,
+    environment: { timezone: "Asia/Shanghai", utc_offset: "+0800", language: "zh-CN", region: "CN" } };
+  const safetyReport = id => {
+    const status = modes.get("safety") || (id === "grok-bot" ? "unknown" : "supported");
+    return { app_id: id, status, environment: safetySettings.environment, checked_at: new Date().toISOString(),
+      reviewed_on: "2026-10-21", route: "系统 HTTP 代理（预览示例）",
+      network: status === "unknown" ? {} : { ip: "203.0.113.24", country: status === "unsupported" ? "China" : "Singapore", country_code: status === "unsupported" ? "CN" : "SG" },
+      reason: status === "unknown" ? "无法确认地区支持范围（预览示例）。" : status === "unsupported" ? "检测出口不在官方支持地区清单中。" : "检测出口位于官方支持地区。" };
+  };
   const perApp = {
     claude: { path: "", env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" } },
     codex: { path: "", env_vars: {} }, "grok-bot": { path: "", env_vars: {} },
@@ -26,6 +35,13 @@ if (new URLSearchParams(location.search).has("preview")) {
     move_window: async () => ({ ok: true }),
     list_apps: async () => clone(apps),
     get_settings: async () => clone(settings),
+    get_safety_settings: async () => clone(safetySettings),
+    save_safety_settings: async payload => {
+      if (modes.get("save") === "error") return { ok: false };
+      safetySettings = { ...safetySettings, ...clone(payload) }; return { ok: true };
+    },
+    check_safety: async id => clone(safetyReport(id)),
+    open_safety_source: async () => ({ ok: true }),
     get_app_settings: async id => clone(perApp[id]),
     save_settings: async payload => {
       if (modes.get("save") === "error") return { ok: false };
@@ -41,6 +57,10 @@ if (new URLSearchParams(location.search).has("preview")) {
     launch_app: async id => {
       if (settings.auto_proxy_env && modes.get("proxy") === "invalid") return { ok: false, error: "系统代理格式无效，请检查主机地址和端口（1–65535）。已取消启动。" };
       if (modes.get("launch") === "error") return { ok: false, error: "系统代理未开启，已取消启动" };
+      const report = safetyReport(id);
+      if (safetySettings.enabled && (report.status === "unsupported" || report.status === "unknown" && safetySettings.block_unknown)) {
+        return { ok: false, error: "安全检查未通过：" + report.reason + " 已取消启动。", safety: report };
+      }
       apps.find(a => a.id === id).running = true; return { ok: true };
     },
     stop_app: async id => { apps.find(a => a.id === id).running = false; return { ok: true }; },

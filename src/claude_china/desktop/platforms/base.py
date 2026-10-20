@@ -135,5 +135,9 @@ class PlatformBackend(Protocol):
         """Return a validated HTTP proxy URL, or raise SystemProxyError."""
         ...
 
+    def safety_proxy(self) -> dict:
+        """Return the static HTTPS route and bypass list, or raise on ambiguity."""
+        ...
+
     def pick_path_filter(self) -> tuple:
         ...

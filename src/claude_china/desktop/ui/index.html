@@ -46,6 +46,7 @@
         <h2 class="sidebar-title">设置</h2>
         <nav aria-label="设置分类" class="settings-nav">
           <button class="settings-link" id="nav-common" data-panel="common" type="button"><span data-icon="settings"></span>通用设置<span class="draft-dot" aria-hidden="true"></span></button>
+          <button class="settings-link" id="nav-safety" data-panel="safety" type="button"><span data-icon="shield"></span>安全检查<span class="draft-dot" aria-hidden="true"></span></button>
           <p class="nav-caption">应用设置</p><div id="settings-app-nav"></div><div class="nav-divider"></div>
           <button class="settings-link" data-panel="updates" type="button"><span data-icon="refresh"></span>版本更新</button>
           <button class="settings-link" data-panel="about" type="button"><span data-icon="info"></span>关于</button>
@@ -64,6 +65,22 @@
             <div class="editor-actions"><span class="save-state" id="save-state-common">仅保存在当前设备</span><button class="btn" id="cancel-common" type="button">取消</button><button class="btn btn--solid" id="save-settings" type="button">保存设置</button></div>
           </section>
           <div id="app-editors"></div>
+          <section class="editor settings-panel" id="editor-safety" hidden inert>
+            <div class="editor-body">
+              <label class="switch" for="safety-enabled"><span class="switch-text"><span class="field-label">启动前检查环境</span><span class="field-hint">每次启动或重启前查询出口地区。不在官方支持范围时取消启动。</span></span><input type="checkbox" id="safety-enabled" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
+              <label class="switch" for="safety-strict"><span class="switch-text"><span class="field-label">无法确认时也阻止启动</span><span class="field-hint">包括查询失败、代理出口不明确或缺少官方地区规则。推荐开启。</span></span><input type="checkbox" id="safety-strict" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
+              <div class="field"><h3 class="field-label">本机环境</h3><dl class="safety-local" id="safety-local"></dl><p class="field-hint">时区与语言仅供核对，不单独作为拦截依据。</p></div>
+              <div class="field">
+                <div class="safety-toolbar"><label class="field-label" for="safety-app">地区支持检查</label><select id="safety-app" aria-label="检查的应用"></select><button class="btn" id="safety-check" type="button"><span data-icon="refresh"></span>检查环境</button></div>
+                <p class="field-hint">使用已保存的启动设置，通过 HTTPS 向 ipwho.is 查询出口 IP；不会上传本机语言、时区或配置。</p>
+                <div class="safety-result" id="safety-result" role="status" aria-live="polite"><p>尚未检查。启动时会重新检测。</p></div>
+                <button class="text-button safety-source" id="safety-source" type="button">查看官方规则<span data-icon="external"></span></button>
+                <p class="field-hint safety-limit">地区检查通过仅代表本次检测出口符合地区清单，不保证账号安全或实际所在地资格，也无法验证应用自己的网络分流。仅拦截从本启动器发起的启动。</p>
+              </div>
+              <p class="form-error" id="error-safety" role="alert" hidden></p>
+            </div>
+            <div class="editor-actions"><span class="save-state" id="save-state-safety">仅保存在当前设备</span><button class="btn" id="cancel-safety" type="button">取消</button><button class="btn btn--solid" id="save-safety" type="button">保存设置</button></div>
+          </section>
           <section class="settings-panel" id="update-panel" hidden>
             <div class="editor-body">
               <div class="update-banner"><span data-icon="refresh"></span><div><h3>Claude China</h3><p id="update-version"></p></div></div>
@@ -80,6 +97,6 @@
       </div>
     </section>
   </div>
-  <script src="icons.js"></script><script src="settings.js"></script><script src="app.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
+  <script src="icons.js"></script><script src="settings.js"></script><script src="safety.js"></script><script src="app.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
 </body>
 </html>

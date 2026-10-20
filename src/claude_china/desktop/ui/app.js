@@ -33,6 +33,8 @@ async function init() {
     renderApps();
     SETTINGS = await api().get_settings();
     renderCommon();
+    SAFETY_SETTINGS = await api().get_safety_settings();
+    renderSafetySettings();
     await Promise.all(APPS.map(async app => {
       APP_SETTINGS[app.id] = await api().get_app_settings(app.id);
       renderAppEditor(app.id);
@@ -63,6 +65,7 @@ function showDialog(panel) {
   const app = findApp(panel);
   const headings = {
     common: ["通用设置", "应用启动时使用的共同配置。"],
+    safety: ["安全检查", "查看本机环境，检查应用的地区支持范围。"],
     updates: ["版本更新", "获取 Claude China 桌面版的最新版本。"],
     about: ["关于", "你的 AI 桌面应用，集中管理。"],
   };
@@ -163,6 +166,7 @@ async function onAction(id, mode) {
   BUSY_APPS.add(id); delete BAY_ERRORS[id]; rerenderBay(id); animateBrand();
   try {
     const result = await api()[mode === "stop" ? "stop_app" : "launch_app"](id);
+    rememberSafetyReport(id, result.safety);
     if (!result.ok) BAY_ERRORS[id] = result.error || "操作失败，请重试";
     await refresh();
     if (result.ok) toast(mode === "stop" ? `已停止 ${findApp(id).display}` : `已发送 ${findApp(id).display} 启动请求`);
@@ -268,7 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (overlay.hidden) return;
     if (event.key === "Escape") { event.preventDefault(); closeDialog(); }
     if (event.key === "Tab") {
-      const controls = [...document.querySelectorAll("[data-window-action]"), ...overlay.querySelectorAll("button, input, [tabindex='0']")].filter(el => !el.disabled && el.getClientRects().length && !el.closest("[inert]"));
+      const controls = [...document.querySelectorAll("[data-window-action]"), ...overlay.querySelectorAll("button, input, select, [tabindex='0']")].filter(el => !el.disabled && el.getClientRects().length && !el.closest("[inert]"));
       const first = controls[0], last = controls[controls.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }

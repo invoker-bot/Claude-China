@@ -3,6 +3,7 @@ import os
 
 from .apps import APP_REGISTRY, get_app
 from . import config as cfg
+from . import safety
 from .env import merge_env
 from .proxy import SystemProxyError
 
@@ -116,18 +117,27 @@ class LauncherBridge:
         self._status[app_id] = status
         if not status.found:
             return {"ok": False, "error": "未检测到应用，请先配置路径"}
+        env = merge_env(os.environ,
+                        cfg.get_common_env(data),
+                        cfg.get_app_env(data, app_id), proxy_url=proxy_url)
+        settings = cfg.get_safety_settings(data)
+        report = None
+        if settings["enabled"]:
+            report = self._check_safety(app_id, env, status, settings)
+            if not report["allowed"]:
+                return {"ok": False, "error": "安全检查未通过：" + report.get("reason", "无法确认支持状态。") + " 已取消启动。",
+                        "safety": report}
+            if cfg.load_desktop_config() != data:
+                return {"ok": False, "error": "检测期间启动设置发生变化，已取消启动，请重试。"}
         try:
             self._backend.stop(status)
         except Exception as exc:
             return {"ok": False, "error": f"中止失败: {exc}"}
-        env = merge_env(os.environ,
-                        cfg.get_common_env(data),
-                        cfg.get_app_env(data, app_id), proxy_url=proxy_url)
         try:
             self._backend.launch(status, env)
         except Exception as exc:
             return {"ok": False, "error": f"启动失败: {exc}"}
-        return {"ok": True}
+        return {"ok": True, "safety": report} if report else {"ok": True}
 
     def stop_app(self, app_id):
         self._notify_activity()
@@ -141,6 +151,47 @@ class LauncherBridge:
         return {"ok": True}
 
     # ---- settings ----
+    def get_safety_settings(self):
+        return {**cfg.get_safety_settings(cfg.load_desktop_config()),
+                "environment": safety.local_environment()}
+
+    def open_safety_source(self, app_id):
+        import webbrowser
+
+        source = safety.SOURCES.get(app_id)
+        return {"ok": bool(source and webbrowser.open(source))}
+
+    def save_safety_settings(self, payload):
+        self._notify_activity()
+        data = cfg.load_desktop_config()
+        cfg.set_safety_settings(data, payload)
+        cfg.save_desktop_config(data)
+        return {"ok": True}
+
+    def _check_safety(self, app_id, env, status, settings):
+        try:
+            report = safety.inspect_environment(app_id, env, self._backend, status)
+        except Exception:
+            report = {"app_id": app_id, "status": "unknown", "reason": "环境检查失败，无法确认支持状态。"}
+        report["allowed"] = safety.launch_allowed(report, settings)
+        return report
+
+    def check_safety(self, app_id):
+        self._notify_activity()
+        app = get_app(app_id)
+        data = cfg.load_desktop_config()
+        status = self._backend.detect(app, cfg.get_app_path(data, app_id))
+        proxy_url = None
+        if cfg.get_auto_proxy_env(data):
+            try:
+                proxy_url = self._backend.system_http_proxy()
+            except Exception:
+                return {"app_id": app_id, "status": "unknown", "allowed": False,
+                        "environment": safety.local_environment(),
+                        "reason": "无法解析系统 HTTP 代理，自动添加代理环境变量将阻止启动。"}
+        env = merge_env(os.environ, cfg.get_common_env(data), cfg.get_app_env(data, app_id), proxy_url=proxy_url)
+        return self._check_safety(app_id, env, status, cfg.get_safety_settings(data))
+
     def get_settings(self):
         data = cfg.load_desktop_config()
         return {"check_system_proxy": cfg.get_check_system_proxy(data),

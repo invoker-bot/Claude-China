@@ -63,6 +63,14 @@ The tray also provides **设置…** (Settings), **发布页面** (Release page)
 **退出** (Quit). On macOS the standard application menu retains Settings,
 Check for updates, About, Hide and Quit (Cmd+Q).
 
+Settings → **安全检查** shows local timezone/language/region and checks the
+current public-IP region before each app launch or restart. Unsupported regions
+and, by default, unknown/failed checks block launching without stopping an
+already running app. The settings include automatic-check and strict-mode
+switches. Region eligibility does not guarantee account safety. See the
+[environment check guide](docs/desktop-safety.md) for supported rules, network
+privacy, limitations and maintenance.
+
 Windows upgrades the registered installation; macOS replaces the installed app
 after Developer ID/Gatekeeper verification; Linux requests system authorization
 and upgrades through apt/dnf. macOS needs an Applications folder you can write

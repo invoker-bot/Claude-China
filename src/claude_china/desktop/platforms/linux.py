@@ -4,6 +4,7 @@ import ast
 import os
 from pathlib import Path
 import shutil
+from subprocess import CalledProcessError
 
 from . import base
 from .base import AppStatus
@@ -76,6 +77,25 @@ class LinuxBackend:
             ["gsettings", "get", schema, key], text=True,
             stderr=subprocess.DEVNULL, timeout=3,
         ).strip()
+
+    def safety_proxy(self):
+        # Environment variables are resolved separately from the GNOME settings.
+        try:
+            mode = ast.literal_eval(self._proxy_setting("mode"))
+        except (FileNotFoundError, CalledProcessError):
+            return {"proxy": None}  # No GNOME proxy schema on this desktop.
+        if mode == "none":
+            return {"proxy": None}
+        if mode != "manual":
+            raise SystemProxyError("自动代理无法确认单一出口。")
+        same = self._proxy_setting("use-same-proxy") == "true"
+        protocol = "http" if same else "https"
+        if same and self._proxy_setting("use-authentication", "http") != "false":
+            raise SystemProxyError("无法读取系统代理认证信息。")
+        host = ast.literal_eval(self._proxy_setting("host", protocol))
+        proxy = http_proxy_address(host, self._proxy_setting("port", protocol)) if host else None
+        bypass = ast.literal_eval(self._proxy_setting("ignore-hosts"))
+        return {"proxy": proxy, "bypass": ",".join(bypass)}
 
     def pick_path_filter(self) -> tuple:
         return ("Executable files (*)",)
