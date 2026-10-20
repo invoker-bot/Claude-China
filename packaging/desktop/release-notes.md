@@ -6,7 +6,10 @@ Download the desktop app below; Python and the CLI package are not required.
 
 Windows setup installs Microsoft's WebView2 Runtime if missing (internet required).
 Linux requires GTK 3 and WebKitGTK 4.1; select an installed desktop executable in
-the launcher settings. The packages do not include Claude or Codex themselves.
+the launcher settings. The packages do not include Claude, Codex or Grok Bot themselves.
+
+The launcher now supports Grok Bot alongside Claude and Codex, including
+automatic detection, launch/restart, stop and per-application environment settings.
 
 macOS release builds must pass Developer ID signing and Apple notarization.
 Windows signing service enrollment is pending; Windows downloads currently

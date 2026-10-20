@@ -65,7 +65,7 @@ after Developer ID/Gatekeeper verification; Linux requests system authorization
 and upgrades through apt/dnf. macOS needs an Applications folder you can write
 to; Linux needs `pkexec` and a desktop authentication agent. Development/unpacked
 copies can check releases and open the download page but do not self-install.
-Updating restarts only the launcher, leaving launched Claude/Codex apps running.
+Updating restarts only the launcher, leaving launched Claude/Codex/Grok Bot apps running.
 Failures are shown in the launcher when it reopens.
 
 You can also install a newer package over the existing installation.
@@ -84,9 +84,10 @@ Desktop requirements: Windows 10/11, macOS 12 or later, or a Linux desktop with
 GTK 3 and WebKitGTK 4.1 (Ubuntu 22.04 or later; Fedora 40 or later). Windows
 setup installs Microsoft's WebView2 Runtime if it is missing, which requires
 internet access. Linux package managers resolve system GUI dependencies.
-The launcher does not install Claude or Codex themselves. On Linux, select an
-installed desktop application's executable in its settings; terminal commands
-on `PATH` are not treated as desktop apps.
+The launcher does not install Claude, Codex or Grok Bot themselves. On Linux,
+Grok Bot's `grok-bot` desktop command is detected automatically; select an
+installed executable in settings for other or portable desktop apps. Terminal
+commands such as `claude`, `codex` and `grok` are not treated as desktop apps.
 
 The v0.3.0 installers have no verified publisher signature. Windows signing
 service enrollment is pending. Future macOS release builds require Developer ID
@@ -262,8 +263,9 @@ claudec roll-claude-buddy claude-api --type legendary
 
 ## Desktop launcher
 
-The standalone desktop launcher provides a graphical interface for Claude and
-Codex desktop apps. Install it from GitHub Releases and open **Claude China**
+The standalone desktop launcher provides a graphical interface for Claude,
+Codex and [Grok Bot](https://cursor.com/download/bot) desktop apps.
+Install it from GitHub Releases and open **Claude China**
 from the Start Menu, Applications, or your Linux application menu.
 
 ```bash
@@ -295,6 +297,14 @@ shortcut. Restart the launcher after upgrading to refresh the taskbar icon.
 Desktop settings are stored separately in `~/.claudec/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
 environment variables; per-application values take precedence.
+
+Grok Bot has its own launch/restart, stop and settings controls, stored under
+`apps.grok-bot`. On Windows, detection checks its registered installation and
+`%LOCALAPPDATA%\Programs\Grok Bot\Grok Bot.exe`. On macOS, it finds `Grok Bot.app`
+through Spotlight or the Applications folders and launches the bundle executable
+directly to pass environment variables. On Linux, it resolves the installed
+`grok-bot` desktop command. All platforms also accept a manually selected path.
+Grok Bot desktop controls do not manage the separate Grok CLI or its profiles.
 
 ## Development
 

@@ -58,22 +58,23 @@ class FakeBackend:
         return []
 
 
-def test_list_apps_reports_claude_and_codex(monkeypatch):
+def test_list_apps_reports_claude_codex_and_grok_bot(monkeypatch):
     with temp_desktop_config() as f:
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             b = LauncherBridge(FakeBackend(found=True), APP_REGISTRY)
             apps = b.list_apps()
-            assert [a["id"] for a in apps] == ["claude", "codex"]
+            assert [a["id"] for a in apps] == ["claude", "codex", "grok-bot"]
             assert all(a["found"] for a in apps)
             assert all(a["running"] is False for a in apps)
 
 
-def test_launch_blocked_when_proxy_off():
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+def test_launch_blocked_when_proxy_off(app_id):
     with temp_desktop_config() as f:
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             be = FakeBackend(found=True, proxy=False)
             b = LauncherBridge(be, APP_REGISTRY)
-            result = b.launch_app("claude")
+            result = b.launch_app(app_id)
             assert result["ok"] is False
             assert "系统代理" in result["error"]
             assert be.launched is None
@@ -89,35 +90,53 @@ def test_launch_blocked_when_not_found():
             assert be.launched is None
 
 
-def test_launch_merges_env_with_per_app_winning():
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+def test_launch_merges_env_with_per_app_winning(app_id):
     with temp_desktop_config() as f:
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             from src.claude_china.desktop import config as cfg
             data = cfg.load_desktop_config()
             cfg.set_common_env(data, {"SHARED": "common", "C_ONLY": "1"})
-            cfg.set_app_env(data, "claude", {"SHARED": "app", "A_ONLY": "2"})
+            cfg.set_app_env(data, app_id, {"SHARED": "app", "A_ONLY": "2"})
             cfg.save_desktop_config(data)
 
             be = FakeBackend(found=True, proxy=True)
             b = LauncherBridge(be, APP_REGISTRY)
-            result = b.launch_app("claude")
+            result = b.launch_app(app_id)
             assert result["ok"] is True
             _status, env = be.launched
             assert env["SHARED"] == "app"     # 专有 wins
             assert env["C_ONLY"] == "1"
             assert env["A_ONLY"] == "2"
+            assert _status.app_id == app_id
 
 
-def test_launch_stops_running_app_before_starting():
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+def test_launch_stops_running_app_before_starting(app_id):
     with temp_desktop_config() as f:
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             be = FakeBackend(found=True, proxy=True, running=True)
             b = LauncherBridge(be, APP_REGISTRY)
-            result = b.launch_app("claude")
+            result = b.launch_app(app_id)
             assert result["ok"] is True
             assert be.calls == ["stop", "launch"]
             assert be.stopped is not None
             assert be.launched is not None
+            assert be.stopped.app_id == app_id
+
+
+def test_grok_bot_settings_are_independent_of_other_apps(tmp_path, monkeypatch):
+    from src.claude_china.desktop import config as cfg
+
+    monkeypatch.setattr(cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+    bridge = LauncherBridge(FakeBackend())
+    bridge.save_app_settings("claude", {"env_vars": {"TEST_APP": "claude"}})
+    bridge.save_app_settings("grok-bot", {"env_vars": {"HTTPS_PROXY": "http://localhost:7890"}})
+    assert bridge.get_app_settings("grok-bot")["env_vars"] == {
+        "HTTPS_PROXY": "http://localhost:7890",
+    }
+    assert bridge.get_app_settings("claude")["env_vars"] == {"TEST_APP": "claude"}
+    assert bridge.get_app_settings("codex")["env_vars"] == {}
 
 
 def test_stop_app_not_found_returns_error():

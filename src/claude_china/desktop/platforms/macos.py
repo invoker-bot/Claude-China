@@ -21,14 +21,24 @@ class MacBackend:
                              launch_target=binary, match_root=override_path)
         bundle = self._find_bundle(app)
         if bundle:
+            # Launch the bundle executable directly so per-app environment
+            # variables reach it instead of being dropped by Launch Services.
+            binary = self._bundle_binary(bundle)
+            if binary and os.path.isfile(binary):
+                return AppStatus(app.id, found=True, direct=True,
+                                 launch_target=binary, match_root=bundle)
             return AppStatus(app.id, found=True, direct=False,
                              launch_target=bundle, match_root=bundle)
         return AppStatus(app.id, found=False)
 
     def _find_bundle(self, app) -> str:
+        query = (f"kMDItemCFBundleIdentifier == '{app.mac_bundle_id}'"
+                 if app.mac_bundle_id else
+                 f"kMDItemFSName == '{app.mac_bundle_name}' && "
+                 "kMDItemContentType == 'com.apple.application-bundle'")
         try:
             out = subprocess.check_output(
-                ["mdfind", f"kMDItemCFBundleIdentifier == '{app.mac_bundle_id}'"],
+                ["mdfind", query],
                 text=True, stderr=subprocess.DEVNULL,
             )
             for line in out.splitlines():

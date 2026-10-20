@@ -3,9 +3,9 @@ import pytest
 from src.claude_china.desktop.apps import AppSpec, APP_REGISTRY, get_app
 
 
-def test_registry_has_two_known_apps():
+def test_registry_has_three_known_apps():
     ids = [a.id for a in APP_REGISTRY]
-    assert ids == ["claude", "codex"]
+    assert ids == ["claude", "codex", "grok-bot"]
 
 
 def test_registry_entries_are_appspec_with_identifiers():

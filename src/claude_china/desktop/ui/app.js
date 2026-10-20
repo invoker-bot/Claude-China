@@ -527,10 +527,12 @@ if (new URLSearchParams(location.search).has("preview")) {
   APPS = [
     { id: "claude", display: "Claude", found: true, running: true },
     { id: "codex", display: "Codex", found: false, running: false },
+    { id: "grok-bot", display: "Grok Bot", found: true, running: false },
   ];
   const appSettings = {
     claude: { env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" }, path: "" },
     codex: { env_vars: {}, path: "" },
+    "grok-bot": { env_vars: {}, path: "" },
   };
   let previewUpdate = {
     phase: "idle", current: "0.3.0", latest: "", can_install: true,

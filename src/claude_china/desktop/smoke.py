@@ -7,6 +7,7 @@ import threading
 import time
 
 from .. import __version__
+from .apps import APP_REGISTRY
 
 
 def _wait_js(window, expression):
@@ -88,18 +89,28 @@ def verify_window(window, tray, report):
         result.update(window.evaluate_js("""({
             title: document.title,
             cards: document.querySelectorAll('.bay--app').length,
+            apps: Array.from(document.querySelectorAll('.bay--app'), bay => bay.id),
             icon_loaded: document.getElementById('brand-mark').naturalWidth > 0,
             stylesheet: document.styleSheets.length > 0,
             update_hidden: document.getElementById('launcher-overlay').hidden,
             update_version: document.getElementById('update-version').textContent,
             update_action: document.getElementById('update-action').textContent
         })"""))
-        if (result["title"] != "Claude China" or result["cards"] != 2
+        if (result["title"] != "Claude China" or result["cards"] != len(APP_REGISTRY)
+                or result["apps"] != ["bay-" + app.id for app in APP_REGISTRY]
                 or not result["icon_loaded"] or not result["stylesheet"]
                 or not result["update_hidden"]
                 or result["update_version"] != "v" + __version__
                 or result["update_action"] != "检查更新"):
             raise RuntimeError("The packaged UI is incomplete")
+        window.evaluate_js("document.getElementById('gear-grok-bot').click()")
+        _wait_js(window, "document.getElementById('editor-grok-bot').classList.contains('is-open')")
+        result["grok_bot_settings"] = window.evaluate_js(
+            "document.getElementById('gear-grok-bot').getAttribute('aria-expanded') === 'true'"
+            " && !document.getElementById('editor-grok-bot').inert"
+            " && !!document.getElementById('env-grok-bot')"
+            " && !!document.getElementById('pick-grok-bot')")
+        window.evaluate_js("document.getElementById('cancel-grok-bot').click()")
         # Exercise the shared menu dispatch against the actual packaged webview,
         # without a network request or changing any saved settings.
         tray._commands._dispatch("update-status")
@@ -128,7 +139,8 @@ def verify_window(window, tray, report):
             " && !document.getElementById('proxy').checked")
         window.evaluate_js("setEditorOpen('common', false)")
         if not all(result[key] for key in (
-            "menu_dialog", "menu_preserves_edits", "restart_guard", "escape_preserves_edits",
+            "grok_bot_settings", "menu_dialog", "menu_preserves_edits",
+            "restart_guard", "escape_preserves_edits",
         )):
             raise RuntimeError("Native menu commands did not reach the packaged UI")
         if sys.platform == "darwin":

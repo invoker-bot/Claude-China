@@ -35,6 +35,13 @@ class WindowsBackend:
         if override_path and os.path.exists(override_path):
             return AppStatus(app.id, found=True, direct=True,
                              launch_target=override_path, match_root=override_path)
+        if app.win_executable:
+            executable = self._find_executable(app)
+            if executable:
+                return AppStatus(app.id, found=True, direct=True,
+                                 launch_target=executable, match_root=executable)
+        if not app.win_package_family or not app.win_aumid:
+            return AppStatus(app.id, found=False)
         family = app.win_package_family.lower()
         for pkg in self._query_packages():
             if str(pkg.get("PackageFamilyName", "")).lower() == family:
@@ -42,6 +49,49 @@ class WindowsBackend:
                 return AppStatus(app.id, found=True, direct=False,
                                  launch_target=app.win_aumid, match_root=loc)
         return AppStatus(app.id, found=False)
+
+    def _find_executable(self, app) -> str:
+        """Find a conventional installer without treating its CLI as the app."""
+        if winreg is not None and app.win_uninstall_key:
+            for root, prefix in (
+                (winreg.HKEY_CURRENT_USER, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\Microsoft\Windows\CurrentVersion\Uninstall"),
+                (winreg.HKEY_LOCAL_MACHINE, r"Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall"),
+            ):
+                try:
+                    key = winreg.OpenKey(root, prefix + "\\" + app.win_uninstall_key)
+                except OSError:
+                    continue
+                try:
+                    for field in ("InstallLocation", "DisplayIcon"):
+                        try:
+                            value, _ = winreg.QueryValueEx(key, field)
+                        except OSError:
+                            continue
+                        if not isinstance(value, str) or not value.strip():
+                            continue
+                        value = os.path.expandvars(value.strip())
+                        if field == "InstallLocation":
+                            candidate = os.path.join(value.strip('"'), app.win_executable)
+                        else:
+                            # A DisplayIcon may be quoted and end with an icon
+                            # index. Commas inside the actual path are valid.
+                            filename, separator, index = value.rpartition(",")
+                            if separator and index.strip().lstrip("-").isdigit():
+                                value = filename
+                            candidate = value.strip().strip('"')
+                        if (os.path.normcase(os.path.basename(candidate))
+                                == os.path.normcase(app.win_executable)
+                                and os.path.isfile(candidate)):
+                            return os.path.abspath(candidate)
+                finally:
+                    winreg.CloseKey(key)
+        local = os.environ.get("LOCALAPPDATA")
+        if local:
+            candidate = os.path.join(local, "Programs", app.display, app.win_executable)
+            if os.path.isfile(candidate):
+                return os.path.abspath(candidate)
+        return ""
 
     def _query_packages(self):
         ps = ("Get-AppxPackage | Select-Object Name,PackageFamilyName,"

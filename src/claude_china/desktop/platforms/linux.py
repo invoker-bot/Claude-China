@@ -1,7 +1,8 @@
-"""Launch explicitly configured Linux desktop executables."""
+"""Find known desktop executables and launch explicitly configured ones."""
 
 import os
 from pathlib import Path
+import shutil
 
 from . import base
 from .base import AppStatus
@@ -10,10 +11,13 @@ from .. import process as subprocess
 
 class LinuxBackend:
     def detect(self, app, override_path=None) -> AppStatus:
-        # `claude` and `codex` on PATH can be terminal CLIs. Only a desktop
-        # executable selected by the user is a reliable Linux launch target.
-        if override_path:
-            path = Path(override_path).expanduser().resolve()
+        # Names in linux_commands identify desktop packages, not terminal CLIs.
+        candidates = ([override_path] if override_path else
+                      [shutil.which(command) for command in app.linux_commands])
+        for candidate in candidates:
+            if not candidate:
+                continue
+            path = Path(candidate).expanduser().resolve()
             if path.is_file() and os.access(str(path), os.X_OK):
                 return AppStatus(app.id, found=True, direct=True,
                                  launch_target=str(path), match_root=str(path))

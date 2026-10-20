@@ -1,13 +1,14 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple
 
 
 @dataclass(frozen=True)
 class AppSpec:
     """Platform-agnostic identity of a supported AI desktop app.
 
-    Windows: launch by AUMID; detect/monitor by PackageFamilyName (version-proof).
-    macOS:   launch/detect by .app bundle name + bundle id.
+    Windows: MSIX identity or a registered/per-user executable.
+    macOS:   .app bundle name, with a bundle id when known.
+    Linux:   known desktop commands, never the terminal CLI with the same brand.
     """
     id: str
     display: str
@@ -15,6 +16,9 @@ class AppSpec:
     win_package_family: str
     mac_bundle_name: str
     mac_bundle_id: str
+    win_executable: str = ""
+    win_uninstall_key: str = ""
+    linux_commands: Tuple[str, ...] = ()
 
 
 APP_REGISTRY: List[AppSpec] = [
@@ -33,6 +37,17 @@ APP_REGISTRY: List[AppSpec] = [
         win_package_family="OpenAI.Codex_2p2nqsd0c76g0",
         mac_bundle_name="Codex.app",
         mac_bundle_id="com.openai.codex",
+    ),
+    AppSpec(
+        id="grok-bot",
+        display="Grok Bot",
+        win_aumid="",
+        win_package_family="",
+        mac_bundle_name="Grok Bot.app",
+        mac_bundle_id="",
+        win_executable="Grok Bot.exe",
+        win_uninstall_key="8db316bb-b3e2-5dd2-9554-ecccb62be362",
+        linux_commands=("grok-bot",),
     ),
 ]
 
