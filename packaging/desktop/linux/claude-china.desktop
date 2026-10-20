@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Claude China
+Comment=Launch AI desktop applications with their own environment
+Exec=/opt/claude-china/claude-china-desktop
+Icon=claude-china
+Terminal=false
+Categories=Development;Utility;
+StartupNotify=true

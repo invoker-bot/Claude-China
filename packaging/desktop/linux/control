@@ -1,0 +1,11 @@
+Package: claude-china-desktop
+Version: @VERSION@
+Section: utils
+Priority: optional
+Architecture: amd64
+Maintainer: Claude China contributors <noreply@github.com>
+Homepage: https://github.com/invoker-bot/Claude-China
+Depends: libc6 (>= 2.35), libgtk-3-0, libwebkit2gtk-4.1-0, libayatana-appindicator3-1
+Description: Claude China desktop launcher
+ Standalone launcher for configured AI desktop applications.
+ Python and the application are included. User settings are preserved on removal.

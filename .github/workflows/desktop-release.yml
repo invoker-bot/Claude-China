@@ -1,0 +1,161 @@
+name: Desktop installers
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/claude_china/**'
+      - 'packaging/desktop/**'
+      - 'tools/*desktop*'
+      - 'tools/test_windows_installer.py'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - '.github/workflows/desktop-release.yml'
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-2022
+            artifact: windows-x64
+          - os: macos-15-intel
+            artifact: macos-x64
+          - os: macos-15
+            artifact: macos-arm64
+          - os: ubuntu-22.04
+            artifact: linux-x64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        if: runner.os != 'Linux'
+        with:
+          python-version: '3.12'
+      - name: Install Linux system build and GUI dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv python3-dev libpython3.10 python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-ayatanaappindicator3-0.1 rpm xvfb xauth dbus-x11 desktop-file-utils fonts-noto-cjk
+          /usr/bin/python3 -m venv --system-site-packages .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Install isolated Windows and macOS build environment
+        if: runner.os != 'Linux'
+        shell: bash
+        run: |
+          python -m venv .venv
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            echo "$PWD/.venv/Scripts" >> "$GITHUB_PATH"
+          else
+            echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+          fi
+      - name: Install build and test dependencies
+        run: python -m pip install ".[desktop]" -r packaging/desktop/requirements.txt pytest
+      - name: Test source and check release version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          python -m pytest tests/ -q
+          python - <<'PY'
+          import os, runpy
+          version = runpy.run_path("src/claude_china/__init__.py")["__version__"]
+          if os.environ["REF_TYPE"] == "tag":
+              assert os.environ["RELEASE_TAG"] == "v" + version, "Tag does not match application version"
+          PY
+      - name: Locate Inno Setup
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $compiler = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path -LiteralPath $compiler)) { throw "Inno Setup 6 is required" }
+          "ISCC_EXE=$compiler" >> $env:GITHUB_ENV
+      - name: Build Windows installer
+        if: runner.os == 'Windows'
+        run: python tools/build_desktop.py
+      - name: Build and test macOS bundle
+        if: runner.os == 'macOS'
+        run: python tools/build_desktop.py --smoke
+      - name: Build and test Linux bundle
+        if: runner.os == 'Linux'
+        run: xvfb-run -a dbus-run-session -- python tools/build_desktop.py --smoke
+      - name: Verify Windows installation, repair and OS uninstaller
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem dist/installers/*-setup.exe
+          python tools/test_windows_installer.py $installer.FullName
+      - name: Verify macOS disk image
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p build/desktop/mounted
+          hdiutil attach dist/installers/*.dmg -nobrowse -mountpoint "$PWD/build/desktop/mounted"
+          trap 'hdiutil detach "$PWD/build/desktop/mounted"' EXIT
+          test -L "build/desktop/mounted/Applications"
+          "build/desktop/mounted/Claude China.app/Contents/MacOS/claude-china-desktop" --smoke-test "$PWD/build/desktop/dmg-smoke.json"
+          python -c "import json; assert json.load(open('build/desktop/dmg-smoke.json'))['ok']"
+      - name: Verify Linux package installation and removal
+        if: runner.os == 'Linux'
+        run: |
+          desktop-file-validate packaging/desktop/linux/claude-china.desktop
+          sudo apt-get install -y ./dist/installers/*.deb
+          xvfb-run -a dbus-run-session -- /opt/claude-china/claude-china-desktop --smoke-test "$PWD/build/desktop/deb-smoke.json"
+          python -c "import json; assert json.load(open('build/desktop/deb-smoke.json'))['ok']"
+          sudo apt-get remove -y claude-china-desktop
+          test ! -e /opt/claude-china/claude-china-desktop
+          test ! -e /usr/share/applications/claude-china.desktop
+          rpm -qpl dist/installers/*.rpm
+      - uses: actions/upload-artifact@v4
+        with:
+          name: desktop-${{ matrix.artifact }}
+          path: dist/installers/*
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: desktop-validation-${{ matrix.artifact }}
+          path: |
+            build/desktop/**/*smoke.json
+            build/desktop/installer-test-*/*.log
+          if-no-files-found: ignore
+
+  release:
+    needs: build
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: desktop-*
+          path: artifacts
+      - name: Collect and verify installer checksums
+        shell: bash
+        run: |
+          mkdir release
+          find artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.sha256' \) -exec cp {} release/ \;
+          cd release
+          cat *.sha256 > SHA256SUMS
+          sha256sum --check SHA256SUMS
+          test "$(wc -l < SHA256SUMS)" -eq 5
+      - name: Publish native installers on GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          if ! gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release create "$RELEASE_TAG" --verify-tag --title "Claude China $RELEASE_TAG" --notes-file packaging/desktop/release-notes.md --generate-notes --draft
+          fi
+          gh release upload "$RELEASE_TAG" release/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false

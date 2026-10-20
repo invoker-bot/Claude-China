@@ -14,4 +14,7 @@ def get_backend():
     if sys.platform == "darwin":
         from .macos import MacBackend
         return MacBackend()
+    if sys.platform == "linux":
+        from .linux import LinuxBackend
+        return LinuxBackend()
     return None

@@ -22,9 +22,9 @@ The footer uses the same motion curve on actions and focus, and respects `prefer
 
 ## Windows taskbar
 
-The process sets `ClaudeChina.DesktopLauncher` as its explicit AppUserModelID before creating native windows. Desktop and Start Menu shortcuts store the same ID, so the Shell can associate the launcher with its own shortcut and icon. Window and shortcut icons use the same content-addressed ICO in `~/.code-ai/icons/`; changing the artwork changes its cache key without deleting older pinned shortcuts' resources.
+The process sets `ClaudeChina.DesktopLauncher` as its explicit AppUserModelID before creating native windows. Native installer shortcuts store the same ID and use the icon embedded in the executable. Window icons use a content-addressed ICO in `~/.code-ai/icons/`; changing the artwork changes its cache key without deleting older pinned shortcuts' resources.
 
-Run `claudec desktop install` after upgrading to refresh existing shortcuts, then quit and reopen the launcher. No global icon-cache reset or Explorer restart is required.
+Install the new Windows release to refresh installer-owned shortcuts, then quit and reopen the launcher. No global icon-cache reset or Explorer restart is required.
 
 ## Validation
 

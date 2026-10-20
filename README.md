@@ -19,7 +19,7 @@ Repository: [invoker-bot/Claude-China](https://github.com/invoker-bot/Claude-Chi
 - Forward arguments to the underlying AI CLI
 - Set per-profile default arguments such as `--model`
 - Upgrade the supported AI CLIs through npm
-- Optional Windows and macOS desktop launcher
+- Standalone Windows, macOS and Linux desktop launcher
 
 ## Installation
 
@@ -35,18 +35,38 @@ For local development, install the checkout in editable mode:
 python -m pip install -e .
 ```
 
-The optional desktop launcher is installed with:
+Download the desktop app from
+[GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
+It includes Python and the desktop dependencies; installing the CLI is optional.
 
-```bash
-python -m pip install "claude-china[desktop]"
-```
+| Platform | Download | Install | Uninstall |
+| --- | --- | --- | --- |
+| Windows x64 | `*-windows-x64-setup.exe` | Run the installer | Settings → Apps → Installed apps → Claude China |
+| macOS Apple Silicon | `*-macos-arm64.dmg` | Drag Claude China to Applications | Quit the app, then move it to Trash |
+| macOS Intel | `*-macos-x64.dmg` | Drag Claude China to Applications | Quit the app, then move it to Trash |
+| Debian / Ubuntu x64 | `*-linux-x64.deb` | Open with the software installer, or `sudo apt install ./<file>.deb` | Software manager, or `sudo apt remove claude-china-desktop` |
+| Fedora x64 | `*-linux-x64.rpm` | Open with the software installer, or `sudo dnf install ./<file>.rpm` | Software manager, or `sudo dnf remove claude-china-desktop` |
 
-Requirements:
+Install a newer package over the existing installation to upgrade. Uninstalling
+preserves profiles, credentials and settings in `~/.code-ai/`.
+
+CLI requirements:
 
 - Python 3.9 or later
 - At least one supported AI CLI installed and available on `PATH`
 - Node.js and npm for `claudec upgrade`
-- Windows or macOS for the optional desktop launcher
+
+Desktop requirements: Windows 10/11, macOS 12 or later, or a Linux desktop with
+GTK 3 and WebKitGTK 4.1 (Ubuntu 22.04 or later; Fedora 40 or later). Windows
+setup installs Microsoft's WebView2 Runtime if it is missing, which requires
+internet access. Linux package managers resolve system GUI dependencies.
+The launcher does not install Claude or Codex themselves. On Linux, select an
+installed desktop application's executable in its settings; terminal commands
+on `PATH` are not treated as desktop apps.
+
+Unsigned builds may show an operating-system publisher warning. macOS release
+builds require maintainer signing and notarization credentials to avoid
+Gatekeeper warnings; see [desktop build instructions](packaging/desktop/README.md).
 
 ### Upgrading from code-ai / AI Launcher
 
@@ -54,25 +74,25 @@ The 0.2 series renames the distribution from `ai-code-switcher` to `claude-china
 the command from `code-ai` to `claudec`, and the desktop app to **Claude China**.
 The Python module is now `claude_china` (`python -m claude_china.cli`).
 
-Quit the old launcher from its tray menu, then run:
+For desktop use, quit the old launcher from its tray menu, remove the old
+Python-based **AI Launcher** / **Claude China** desktop shortcut, and install
+the native package from GitHub Releases. On macOS the old shortcut is an
+AppleScript `.app` on the Desktop; the new app belongs in Applications.
+
+For CLI use, run:
 
 ```bash
-python -m pip install --upgrade "claude-china[desktop]"
-claudec desktop install
-claudec desktop run
+python -m pip install --upgrade claude-china
 ```
 
-For CLI-only use, install `claude-china` without the extra. Existing profiles,
-login directories, desktop settings and the single-instance lock continue to
-use `~/.code-ai/`; no credentials need to be copied. Installing the desktop
-shortcut replaces the old **AI Launcher** shortcuts on Windows and macOS.
+Existing profiles, login directories, desktop settings and the single-instance
+lock continue to use `~/.code-ai/`; no credentials need to be copied.
 You can then remove the old distribution with `python -m pip uninstall ai-code-switcher`.
 
 For existing scripts that still use `code-ai`, upgrade the compatibility package:
 
 ```bash
 python -m pip install --upgrade ai-code-switcher
-# Desktop users: python -m pip install --upgrade "ai-code-switcher[desktop]"
 ```
 
 Starting with `ai-code-switcher` 0.1.24, the old package automatically installs
@@ -207,21 +227,24 @@ claudec roll-claude-buddy claude-api --type legendary
 
 ## Desktop launcher
 
-The optional desktop launcher provides a graphical interface for detected
-Claude and Codex desktop apps. It is supported on Windows and macOS.
+The standalone desktop launcher provides a graphical interface for Claude and
+Codex desktop apps. Install it from GitHub Releases and open **Claude China**
+from the Start Menu, Applications, or your Linux application menu.
 
 ```bash
-python -m pip install "claude-china[desktop]"
-claudec desktop install       # create or recreate the shortcut
-claudec desktop run           # open the launcher
-claudec desktop uninstall     # remove the shortcut
+claudec desktop download     # optional: print the Release download URL
 ```
 
-Only one launcher runs per user. Opening the shortcut or running
-`claudec desktop run` again restores and brings the existing window forward.
-Closing the window hides it in the system tray (the menu bar on macOS).
+`claudec desktop install` and `uninstall` are retired and display migration
+instructions. The operating system owns installation, shortcuts and removal.
+
+Only one launcher runs per user. Opening the app again restores and brings
+the existing window forward. On Windows and macOS, closing the window hides it
+in the system tray (the menu bar on macOS).
 Click the tray icon or choose **打开 Claude China** to reopen the window;
 choose **退出** from the tray menu to exit the launcher completely.
+On Linux, closing the window exits the launcher, including on desktops without
+a notification tray.
 
 The launcher uses the terracotta **Claude China** mark for its window, shortcut,
 tray and footer. The tray/menu-bar and footer marks briefly breathe and turn
@@ -231,8 +254,8 @@ and [asset notes](docs/branding/README.md).
 
 On Windows, the launcher and its shortcuts share a taskbar identity. Icon files
 use a content-based filename so new artwork gets a fresh Shell cache entry.
-After upgrading, run `claudec desktop install` and restart the launcher to
-refresh existing shortcuts and the taskbar icon.
+The Windows installer updates the Start Menu shortcut and optional desktop
+shortcut. Restart the launcher after upgrading to refresh the taskbar icon.
 
 Desktop settings are stored separately in `~/.code-ai/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
@@ -246,6 +269,19 @@ Run the test suite and build the distribution locally with:
 python -m pytest tests/ -q
 python -m build
 ```
+
+To run the desktop UI from source:
+
+```bash
+python -m pip install -e ".[desktop]"
+claudec desktop run
+```
+
+Linux source development also needs PyGObject, GTK 3 and WebKitGTK 4.1. Native
+installer builds and release validation are documented in
+[packaging/desktop/README.md](packaging/desktop/README.md). Pushing a `v*` tag
+builds the desktop packages for GitHub Releases and independently publishes
+the CLI distribution to PyPI.
 
 ## License
 

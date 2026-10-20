@@ -13,14 +13,10 @@ python -m pip install --upgrade claude-china
 claudec --help
 ```
 
-For the Windows or macOS desktop launcher, quit the old launcher from its tray
-menu first, then run:
-
-```bash
-python -m pip install --upgrade "claude-china[desktop]"
-claudec desktop install
-claudec desktop run
-```
+For the Windows, macOS or Linux desktop launcher, download a standalone native
+installer from [GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
+Quit the old launcher and remove its Python-based shortcut before installing.
+Use the operating system's normal uninstall flow for the new desktop app.
 
 The desktop app is now named **Claude China**. Profiles, credentials and desktop
 settings continue to use `~/.code-ai/`; no manual migration is needed.
@@ -28,20 +24,19 @@ settings continue to use `~/.code-ai/`; no manual migration is needed.
 ## Compatibility for existing users
 
 Starting with version **0.1.24**, installing `ai-code-switcher` automatically
-installs `claude-china` as a dependency. The `desktop` extra forwards to
-`claude-china[desktop]`.
+installs `claude-china` as a dependency. The `desktop` extra still forwards to
+`claude-china[desktop]` for source development; end users should use the native
+installers.
 
 ```bash
 python -m pip install --upgrade ai-code-switcher
-# Desktop users:
-python -m pip install --upgrade "ai-code-switcher[desktop]"
 ```
 
 The old `code-ai` command and `python -m code_ai.cli` entry point continue to
 work, forwarding to the new CLI. They print a deprecation warning to stderr;
 arguments, stdout and exit codes are preserved. Existing desktop shortcuts
-using the old module can still launch the app; reinstalling shortcuts with
-`claudec desktop install` updates their name and icon.
+using the old module can still launch a Python installation. The old
+`desktop install` / `uninstall` commands now display migration instructions.
 
 The compatibility package does not preserve other internal `code_ai` Python
 APIs. Update Python imports to `claude_china`.

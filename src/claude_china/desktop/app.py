@@ -30,11 +30,11 @@ def _window_icon_path() -> str:
     return str(_ui_asset_path("icon.png"))
 
 
-def run_gui():
+def run_gui(smoke_report=None):
     """Open the launcher window. Imports webview lazily (optional [desktop] extra)."""
     backend = get_backend()
     if backend is None:
-        print("claudec desktop is supported on Windows and macOS only.")
+        print("Claude China desktop supports Windows, macOS and Linux.")
         return
 
     with DesktopInstance() as instance:
@@ -53,6 +53,7 @@ def run_gui():
         # this is just a close first guess so the window does not visibly jump.
         window = webview.create_window(
             "Claude China", url=_ui_url(), js_api=bridge, width=600, height=276,
+            **({"hidden": True} if smoke_report else {}),
         )
         try:
             screen_height = int(webview.screens[0].height)
@@ -63,8 +64,14 @@ def run_gui():
         bridge._activity = tray.play_activity
         try:
             tray.start()
+            callback = instance.listen
+            arguments = (window, tray.play_activity)
+            if smoke_report:
+                from .smoke import verify_window
+                callback = verify_window
+                arguments = (window, tray, smoke_report)
             webview.start(
-                func=instance.listen, args=(window, tray.play_activity), icon=_window_icon_path(),
+                func=callback, args=arguments, icon=_window_icon_path(),
             )
         finally:
             tray.stop()

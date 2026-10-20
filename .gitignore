@@ -30,6 +30,8 @@ MANIFEST
 # PyInstaller
 *.manifest
 *.spec
+!packaging/desktop/claude-china.spec
+!packaging/desktop/linux/*.spec
 
 # Installer logs
 pip-log.txt

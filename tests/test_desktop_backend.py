@@ -15,6 +15,12 @@ def test_returns_mac_backend_on_darwin(monkeypatch):
     assert type(backend).__name__ == "MacBackend"
 
 
-def test_returns_none_on_other(monkeypatch):
+def test_returns_linux_backend(monkeypatch):
     monkeypatch.setattr(sys, "platform", "linux")
+    backend = get_backend()
+    assert type(backend).__name__ == "LinuxBackend"
+
+
+def test_returns_none_on_other(monkeypatch):
+    monkeypatch.setattr(sys, "platform", "freebsd")
     assert get_backend() is None

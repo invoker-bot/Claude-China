@@ -165,12 +165,13 @@ def run_command(
 
 
 desktop_app = typer.Typer(
-    help="AI desktop launcher: install / run / uninstall",
+    help="Download the desktop app, or run it from a development environment",
     add_completion=False,
 )
 app.add_typer(desktop_app, name="desktop")
 
-_DESKTOP_UNSUPPORTED = "claudec desktop is supported on Windows and macOS only."
+_DESKTOP_UNSUPPORTED = "Claude China desktop supports Windows, macOS and Linux."
+_DESKTOP_RELEASES = "https://github.com/invoker-bot/Claude-China/releases/latest"
 
 
 def _require_desktop_extra() -> None:
@@ -180,38 +181,28 @@ def _require_desktop_extra() -> None:
         import pystray  # noqa: F401
         from PIL import Image  # noqa: F401
     except ImportError:
-        typer.echo("The desktop launcher needs extra dependencies.")
-        typer.echo("Install them with: pip install claude-china[desktop]")
+        typer.echo(f"Download the standalone desktop installer: {_DESKTOP_RELEASES}")
+        typer.echo('For source development only: pip install "claude-china[desktop]"')
         raise typer.Exit(1)
 
 
-@desktop_app.command("install")
+@desktop_app.command("download")
+def desktop_download():
+    """Show the GitHub Releases download page for native desktop installers."""
+    typer.echo(_DESKTOP_RELEASES)
+
+
+@desktop_app.command("install", hidden=True)
 def desktop_install():
-    """Create or recreate the double-click desktop shortcut."""
-    from .desktop.platforms import get_backend
-
-    backend = get_backend()
-    if backend is None:
-        typer.echo(_DESKTOP_UNSUPPORTED)
-        raise typer.Exit(1)
-
-    _require_desktop_extra()
-
-    for removed_path in backend.remove_shortcut():
-        typer.echo(f"Removed existing shortcut: {removed_path}")
-
-    path = backend.create_shortcut()
-    if path:
-        typer.echo(f"Shortcut ready: {path}")
-        typer.echo("Open the launcher anytime with: claudec desktop run")
-    else:
-        typer.echo("Could not create the shortcut.")
-        raise typer.Exit(1)
+    """Compatibility hint for the retired shortcut installer."""
+    typer.echo("Desktop installation has moved to native installers on GitHub Releases.")
+    typer.echo(_DESKTOP_RELEASES)
+    raise typer.Exit(1)
 
 
 @desktop_app.command("run")
 def desktop_run():
-    """Open the AI launcher GUI window."""
+    """Run the GUI from a source/Python development installation."""
     from .desktop.platforms import get_backend
 
     backend = get_backend()
@@ -224,43 +215,22 @@ def desktop_run():
     run_gui()
 
 
-@desktop_app.command("uninstall")
+@desktop_app.command("uninstall", hidden=True)
 def desktop_uninstall(
     purge: bool = typer.Option(
-        False, "--purge", help="Also delete ~/.code-ai/desktop.yaml without asking"
+        False, "--purge", hidden=True,
     ),
     keep_config: bool = typer.Option(
-        False, "--keep-config", help="Keep ~/.code-ai/desktop.yaml without asking"
+        False, "--keep-config", hidden=True,
     ),
 ):
-    """Remove the shortcut, then optionally delete launcher settings."""
-    from .desktop.platforms import get_backend
-    from .desktop import config as desktop_config
-
-    backend = get_backend()
-    if backend is None:
-        typer.echo(_DESKTOP_UNSUPPORTED)
-        raise typer.Exit(1)
-
-    removed = backend.remove_shortcut()
-    if removed:
-        for path in removed:
-            typer.echo(f"Removed: {path}")
-    else:
-        typer.echo("No shortcut found — nothing to remove.")
-
-    config_path = desktop_config.DESKTOP_CONFIG_FILE
-    if not config_path.exists() or keep_config:
-        return
-
-    delete = purge
-    if not purge:
-        delete = typer.confirm(
-            f"Also delete launcher settings ({config_path})?", default=False
-        )
-    if delete:
-        config_path.unlink()
-        typer.echo("Deleted launcher settings.")
+    """Compatibility hint; the operating system owns desktop installations."""
+    typer.echo("Uninstall Claude China using your operating system:")
+    typer.echo("  Windows: Settings > Apps > Installed apps > Claude China > Uninstall")
+    typer.echo("  macOS: quit Claude China, then move it from Applications to Trash")
+    typer.echo("  Linux: remove claude-china-desktop with your package manager")
+    typer.echo("Your profiles and settings in ~/.code-ai/ are preserved.")
+    raise typer.Exit(1)
 
 
 def version_callback(value: bool):

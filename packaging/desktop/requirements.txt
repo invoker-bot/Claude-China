@@ -1,0 +1,4 @@
+# Build in an isolated environment so unrelated GUI toolkits are not bundled.
+pyinstaller==6.16.0
+pywebview==6.2.1
+pystray==0.19.5

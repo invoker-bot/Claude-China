@@ -3,10 +3,10 @@ import os
 import plistlib
 import shlex
 import shutil
-import subprocess
 import sys
 
 from . import base
+from .. import process as subprocess
 from .base import AppStatus
 
 _IGNORED_RUNNING_PROCESS_NAMES = {"browser_crashpad_handler"}

@@ -1,10 +1,10 @@
 import json
 import os
-import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
 from . import base
+from .. import process as subprocess
 from .windows_shell import launcher_icon_path, set_shortcut_app_id
 from .base import AppStatus
 

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Iterable, List, Protocol, runtime_checkable
 
 # Lazy, cached psutil handle. NEVER import psutil at module top — that would
-# force the [desktop] extra on every code path (install/uninstall, tests).
+# force the [desktop] extra on every code path (CLI help, tests).
 # Tests override this attribute directly: monkeypatch.setattr(base, "psutil", fake)
 psutil = None
 
@@ -132,10 +132,4 @@ class PlatformBackend(Protocol):
         ...
 
     def pick_path_filter(self) -> tuple:
-        ...
-
-    def create_shortcut(self) -> str:
-        ...
-
-    def remove_shortcut(self) -> list:
         ...

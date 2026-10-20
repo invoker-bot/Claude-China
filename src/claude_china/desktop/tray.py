@@ -21,6 +21,27 @@ class LauncherTray:
         window.events.closing += self._on_closing
 
     def start(self) -> None:
+        try:
+            self._start()
+        except Exception:
+            logging.getLogger(__name__).exception(
+                "System tray unavailable; closing the window will exit the launcher."
+            )
+            self._ready = False
+            if self._icon is not None:
+                try:
+                    self._icon.stop()
+                except Exception:
+                    pass
+                self._icon = None
+            if self._animation is not None:
+                self._animation.close()
+                self._animation = None
+            if self._image is not None:
+                self._image.close()
+                self._image = None
+
+    def _start(self) -> None:
         # Optional desktop dependencies must not be imported by CLI-only users.
         import pystray
         from PIL import Image
@@ -109,7 +130,9 @@ class LauncherTray:
                     )
 
     def _on_closing(self):
-        if self._quitting.is_set():
+        # A Linux notification host can be absent even when the tray library
+        # reports success (e.g. GNOME without AppIndicator support).
+        if self._quitting.is_set() or sys.platform == "linux":
             return True
         with self._state_lock:
             can_hide = self._ready and not self._stopped

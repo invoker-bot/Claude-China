@@ -127,6 +127,24 @@ def test_close_hides_window_but_keeps_launcher_and_tray_alive(running_tray):
     assert not icon.stopped
 
 
+def test_linux_close_exits_even_without_a_notification_host(running_tray, monkeypatch):
+    tray, window, icon = running_tray
+    monkeypatch.setattr(tray_mod, "sys", types.SimpleNamespace(platform="linux"))
+    window.close()
+    assert window.destroyed
+    assert not window.hidden
+
+
+def test_missing_tray_dependency_keeps_gui_usable(tray_environment, monkeypatch):
+    monkeypatch.setitem(sys.modules, "pystray", None)
+    window = FakeWindow()
+    tray = tray_mod.LauncherTray(window, "icon.png")
+    tray.start()
+    window.close()
+    assert window.destroyed
+    tray.stop()
+
+
 def test_default_tray_action_restores_hidden_window(running_tray):
     tray, window, icon = running_tray
     window.close()
