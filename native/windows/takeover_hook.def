@@ -1,0 +1,4 @@
+LIBRARY claudec-child-hook
+EXPORTS
+    Anchor @1
+    Inject

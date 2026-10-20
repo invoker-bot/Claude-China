@@ -43,8 +43,12 @@ This checks the configured region policy, **not official provider eligibility or
 proxy exit does not prove the user's physical location, residency or eligibility.
 It does not evaluate account history, IP reputation, legal/organization
 eligibility, DNS-based application split routing, or the app's own network
-configuration. It only guards starts requested through this launcher; it does
-not change system settings or block opening an app elsewhere.
+configuration. By default it guards starts requested through this launcher.
+On Windows, enabling [Grok Bot original-entry takeover](windows-launch-takeover.md)
+also checks that application's original EXE, shortcuts and update restarts.
+That opt-in feature registers a Windows launch filter; it does not change the
+system proxy or the user's global environment variables. Other applications'
+external entries are unaffected.
 
 ## Shared region policy
 

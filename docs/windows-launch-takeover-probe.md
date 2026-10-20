@@ -1,5 +1,11 @@
 # Windows launch takeover experiment
 
+Historical record: the Python-only candidate below failed. A subsequent native
+child-process compatibility hook passed the real-app and vendor-upgrade gates
+and is now included in the Windows installer. See
+[the implemented Grok Bot takeover](windows-launch-takeover.md) for current
+behavior and validation. The statements below describe only the earlier probe.
+
 Status: experimental; the IFEO candidate failed the real-app compatibility gate.
 It is not included in the installer or enabled by the desktop UI.
 Validation date: 2026-10-21. Target: installed Grok Bot 0.72.0, conventional EXE.

@@ -44,7 +44,7 @@ Build on the target OS and CPU architecture. PyInstaller cannot cross-compile.
 Start with an isolated environment so other installed GUI toolkits do not
 enter the bundle.
 
-Windows (Python 3.12 and Inno Setup 6):
+Windows (Python 3.12, Inno Setup 6 and Visual Studio C++ x64 Build Tools):
 
 ```powershell
 python -m venv .venv
@@ -53,6 +53,18 @@ $env:ISCC_EXE = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
 .venv/Scripts/python tools/build_desktop.py --smoke
 python tools/test_windows_installer.py dist/installers/Claude-China-<version>-windows-x64-setup.exe
 ```
+
+The Windows build first compiles the Grok Bot child-process hook using MSVC.
+`tools/build_windows_hook.py` downloads Microsoft Detours v4.0.1 from its
+official repository, verifies a pinned SHA-256, and builds it locally. The DLL
+and Detours MIT license are bundled in the installer. CI builds the DLL before
+running the native child-identity test. No native hook is included on macOS or
+Linux. See [Windows launch takeover](../../docs/windows-launch-takeover.md).
+
+When takeover is enabled, Windows uninstallation first removes its owned
+launch filter, requesting administrator authorization as needed. Failed cleanup
+stops uninstallation so the original Grok entry cannot be left pointing at a
+deleted launcher. Previously disabled takeover needs no additional elevation.
 
 The last command requires a clean Windows user: it refuses to overwrite an
 existing native installation. It installs into a unique temporary directory,

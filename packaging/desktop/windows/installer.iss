@@ -45,6 +45,17 @@ Name: "{autodesktop}\Claude China"; Filename: "{app}\claude-china-desktop.exe"; 
 Filename: "{app}\claude-china-desktop.exe"; Description: "Open Claude China"; Flags: nowait postinstall skipifsilent
 
 [Code]
+function InitializeUninstall(): Boolean;
+var
+  ExitCode: Integer;
+begin
+  Result := Exec(ExpandConstant('{app}\claude-china-desktop.exe'),
+                 '--takeover-uninstall', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
+  Result := Result and (ExitCode = 0);
+  if not Result then
+    MsgBox('Disable Grok Bot launch takeover in Claude China before uninstalling, or allow its administrator cleanup request.', mbError, MB_OK);
+end;
+
 function HasWebView2: Boolean;
 var
   Version: String;

@@ -40,6 +40,7 @@ async function init() {
       renderAppEditor(app.id);
       rerenderBay(app.id);
     }));
+    await refreshTakeover();
     renderUpdate(await api().get_update_status());
     READY = true;
     lastRefresh = Date.now();
@@ -58,6 +59,7 @@ window.openLauncherPanel = panel => {
   else if (panel === "updates" || panel === "update-status") openUpdates(panel === "updates");
 };
 function showDialog(panel) {
+  if (panel === 'grok-bot' && READY) refreshTakeover();
   const overlay = document.getElementById("launcher-overlay");
   const opening = overlay.hidden;
   if (opening) dialogFocus = document.activeElement;

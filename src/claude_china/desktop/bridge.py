@@ -20,9 +20,10 @@ class LauncherBridge:
     _SCREEN_MARGIN = 60
     _MIN_HEIGHT = 200
 
-    def __init__(self, backend, apps=APP_REGISTRY):
+    def __init__(self, backend, apps=APP_REGISTRY, base_env=None):
         self._backend = backend
         self._apps = apps
+        self._base_env = base_env
         self._window = None
         self._open_dialog = 20  # pywebview OPEN_DIALOG; overridden in app.py
         self._screen_height = None
@@ -117,7 +118,7 @@ class LauncherBridge:
         self._status[app_id] = status
         if not status.found:
             return {"ok": False, "error": "未检测到应用，请先配置路径"}
-        env = merge_env(os.environ,
+        env = merge_env(os.environ if self._base_env is None else self._base_env,
                         cfg.get_common_env(data),
                         cfg.get_app_env(data, app_id), proxy_url=proxy_url)
         settings = cfg.get_safety_settings(data)
@@ -151,6 +152,23 @@ class LauncherBridge:
         return {"ok": True}
 
     # ---- settings ----
+    def get_takeover_status(self):
+        from .takeover_windows import get_status
+        return get_status()
+
+    def set_grok_takeover(self, enabled):
+        from .takeover_windows import set_enabled
+        if not isinstance(enabled, bool):
+            return {"ok": False, "error": "无效的接管设置。"}
+        data = cfg.load_desktop_config()
+        status = self._backend.detect(get_app('grok-bot'), cfg.get_app_path(data, 'grok-bot'))
+        try:
+            if enabled and (not status.found or not status.direct):
+                raise ValueError('未找到可接管的 Grok Bot EXE。')
+            return {"ok": True, "state": set_enabled(enabled, status.launch_target)}
+        except (ValueError, OSError) as exc:
+            return {"ok": False, "error": str(exc)}
+
     def get_safety_settings(self):
         return {**cfg.get_safety_settings(cfg.load_desktop_config()),
                 "policy": safety.region_policy(),

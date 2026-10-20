@@ -14,6 +14,7 @@ data += collect_data_files("webview")
 data += copy_metadata("pywebview") + copy_metadata("proxy_tools")
 data += [(str(root / "LICENSE"), "licenses/claude-china")]
 hidden = []
+binaries = []
 excluded = ["tkinter", "pytest", "PyQt5", "PyQt6", "PySide2", "PySide6",
             "webview.platforms.qt", "webview.platforms.cef", "webview.platforms.android"]
 if sys.platform == "linux":
@@ -21,13 +22,15 @@ if sys.platform == "linux":
                "pystray._appindicator", "pystray._gtk", "pystray._xorg"]
 elif sys.platform == "win32":
     hidden += ["pystray._win32", "webview.platforms.winforms"]
+    binaries += [(str(root / "build/desktop/native/claudec-child-hook.dll"), "claude_china/desktop/native")]
+    data += [(str(root / "build/desktop/native/detours/LICENSE.md"), "licenses/detours")]
 else:
     hidden += ["pystray._darwin", "webview.platforms.cocoa"]
 
 a = Analysis(
     [str(root / "packaging/desktop/entry.py")],
     pathex=[str(root / "src")],
-    binaries=[], datas=data, hiddenimports=hidden,
+    binaries=binaries, datas=data, hiddenimports=hidden,
     hookspath=[], runtime_hooks=[], excludes=excluded,
     hooksconfig={"gi": {"module-versions": {"Gtk": "3.0", "WebKit2": "4.1", "Soup": "3.0"}}},
     noarchive=False,

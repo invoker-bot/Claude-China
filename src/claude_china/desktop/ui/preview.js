@@ -26,7 +26,12 @@ if (new URLSearchParams(location.search).has("preview")) {
   let timer;
   let maximized = false;
   const clone = value => JSON.parse(JSON.stringify(value));
+  let takeoverEnabled = false;
+  const takeoverState = () => ({ supported: true, enabled: takeoverEnabled,
+    message: takeoverEnabled ? '已接管原入口；每次启动和更新后重启都会重新检查并注入变量。（预览）' : '未接管原入口。（预览）' });
   window.pywebview = { api: {
+    get_takeover_status: async () => takeoverState(),
+    set_grok_takeover: async enabled => { takeoverEnabled = enabled; return { ok: true, state: takeoverState() }; },
     get_window_state: async () => ({ custom_titlebar: true, maximized }),
     window_action: async action => {
       if (action === "maximize") maximized = !maximized;

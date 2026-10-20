@@ -78,6 +78,11 @@ def windows_version_file():
 def freeze():
     env = os.environ.copy()
     if sys.platform == "win32":
+        if __package__:
+            from .build_windows_hook import build
+        else:
+            from build_windows_hook import build
+        build()
         env["CLAUDE_CHINA_VERSION_FILE"] = str(windows_version_file())
     if sys.platform == "darwin":
         env["PYINSTALLER_STRICT_BUNDLE_CODESIGN_ERROR"] = "1"

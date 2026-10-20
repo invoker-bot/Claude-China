@@ -14,6 +14,8 @@ on:
       - 'tools/*desktop*'
       - 'tools/setup_macos_signing.py'
       - 'tools/test_windows_installer.py'
+      - 'tools/build_windows_hook.py'
+      - 'native/windows/**'
       - 'tests/**'
       - 'pyproject.toml'
       - 'LICENSE'
@@ -71,6 +73,9 @@ jobs:
           python -m pip install --upgrade pip "setuptools>=64" wheel
           python -m pip install ".[desktop]" -r packaging/desktop/requirements.txt pytest
           python -c "import sys, claude_china; print(sys.executable, claude_china.__version__)"
+      - name: Build Windows launch hook
+        if: runner.os == 'Windows'
+        run: python tools/build_windows_hook.py
       - name: Test source and check release version
         shell: bash
         env:

@@ -16,6 +16,7 @@ function renderAppSettingsPanels() {
       `<div class="field"><h3 class="field-label">应用路径</h3><p class="field-hint">默认自动检测，也可以手动选择。保存后生效。</p>` +
       `<div class="path-row"><code class="path-value" id="path-${id}"></code><button class="btn" id="pick-${id}" type="button">${icon("folder")}选择路径</button></div>` +
       `<button class="text-button path-reset" id="reset-${id}" type="button">恢复自动检测</button></div>` +
+      (app.id === 'grok-bot' ? `<div class="field"><h3 class="field-label">接管原入口</h3><p class="field-hint">从原快捷方式、EXE 或更新后重启时，使用已保存的启动检查和环境变量。启用或停用需要管理员授权，立即生效。</p><p id="takeover-status" role="status">正在读取接管状态…</p><button class="btn" id="takeover-toggle" type="button" disabled>启用接管</button><p class="form-error" id="takeover-error" role="alert" hidden></p></div>` : '') +
       `<div class="field"><h3 class="field-label">专有环境变量</h3><p class="field-hint">只对 ${name} 生效，同名变量优先于通用设置。</p>` +
       `<div class="env-columns" aria-hidden="true"><span>变量名</span><span>值</span></div><div class="env-list" id="env-${id}"></div>` +
       `<button class="add-row" id="add-${id}" type="button">${icon("plus")}添加变量</button></div>` +
@@ -29,6 +30,30 @@ function renderAppSettingsPanels() {
     document.getElementById(`cancel-${app.id}`).onclick = () => cancelSettings(app.id);
     document.getElementById(`save-${app.id}`).onclick = () => saveEditor(app.id);
   }
+}
+
+let GROK_TAKEOVER = { supported: false, enabled: false };
+async function refreshTakeover() {
+  if (!document.getElementById('takeover-toggle')) return;
+  try { GROK_TAKEOVER = await api().get_takeover_status(); }
+  catch (_) { GROK_TAKEOVER = { supported: false, enabled: false, message: '无法读取接管状态。' }; }
+  document.getElementById('takeover-status').textContent = GROK_TAKEOVER.message;
+  const button = document.getElementById('takeover-toggle');
+  button.textContent = GROK_TAKEOVER.enabled ? '停用接管' : '启用接管';
+  button.disabled = !GROK_TAKEOVER.supported;
+  button.onclick = async () => {
+    const error = document.getElementById('takeover-error');
+    error.hidden = true;
+    if (hasUnsavedSettings()) {
+      error.textContent = '请先保存或取消修改，再设置原入口接管。'; error.hidden = false; return;
+    }
+    button.disabled = true;
+    try {
+      const result = await api().set_grok_takeover(!GROK_TAKEOVER.enabled);
+      if (!result.ok) throw new Error(result.error || '无法修改接管设置。');
+    } catch (reason) { error.textContent = reason.message; error.hidden = false; }
+    finally { await refreshTakeover(); }
+  };
 }
 
 function envContainer(id) { return id === "common" ? "common-env" : `env-${id}`; }

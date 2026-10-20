@@ -76,7 +76,7 @@
                 <p class="field-hint">使用已保存的启动设置，通过 HTTPS 向 ipwho.is 查询出口 IP；不会上传本机语言、时区或配置。</p>
                 <div class="safety-result" id="safety-result" role="status" aria-live="polite"><p>尚未检查。启动时会重新检测。</p></div>
                 <button class="text-button safety-source" id="safety-source" type="button">查看应用官方说明<span data-icon="external"></span></button>
-                <p class="field-hint safety-limit">地区检查通过仅代表本次检测出口符合地区清单，不保证账号安全或实际所在地资格，也无法验证应用自己的网络分流。仅拦截从本启动器发起的启动。</p>
+                <p class="field-hint safety-limit">地区检查通过仅代表本次检测出口符合地区清单，不保证账号安全或实际所在地资格，也无法验证应用自己的网络分流。默认检查本启动器发起的启动；启用 Grok Bot 原入口接管后，也检查它的外部启动和更新后重启。</p>
               </div>
               <p class="form-error" id="error-safety" role="alert" hidden></p>
             </div>
