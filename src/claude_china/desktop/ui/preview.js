@@ -13,8 +13,17 @@ if (new URLSearchParams(location.search).has("preview")) {
   };
   let state = { phase: "idle", current: "0.3.0", latest: "", can_install: true, message: "手动检查新版本", progress: 0 };
   let timer;
+  let maximized = false;
   const clone = value => JSON.parse(JSON.stringify(value));
   window.pywebview = { api: {
+    get_window_state: async () => ({ custom_titlebar: true, maximized }),
+    window_action: async action => {
+      if (action === "maximize") maximized = !maximized;
+      else toast(action === "minimize" ? "界面预览：最小化窗口" : "界面预览：关闭窗口");
+      return { ok: true, custom_titlebar: true, maximized };
+    },
+    begin_window_resize: async () => ({ ok: true }),
+    move_window: async () => ({ ok: true }),
     list_apps: async () => clone(apps),
     get_settings: async () => clone(settings),
     get_app_settings: async id => clone(perApp[id]),

@@ -28,6 +28,7 @@ function animateBrand() {
 }
 async function init() {
   try {
+    await initWindowControls();
     APPS = await api().list_apps();
     renderApps();
     SETTINGS = await api().get_settings();
@@ -84,7 +85,7 @@ function showDialog(panel) {
   // Move focus before hiding the previous focused surface from assistive tech.
   if (opening) document.getElementById("dialog-close").focus();
   else if (document.activeElement.closest(".settings-panel[hidden]")) document.getElementById("dialog-title").closest(".dialog").focus();
-  for (const id of ["app-header", "launcher-main", "foot"]) {
+  for (const id of ["home-button", "open-settings", "open-updates", "launcher-main", "foot"]) {
     const el = document.getElementById(id);
     el.inert = true;
     el.setAttribute("aria-hidden", "true");
@@ -94,7 +95,7 @@ function closeDialog() {
   const overlay = document.getElementById("launcher-overlay");
   if (overlay.hidden) return;
   overlay.hidden = true;
-  for (const id of ["app-header", "launcher-main", "foot"]) {
+  for (const id of ["home-button", "open-settings", "open-updates", "launcher-main", "foot"]) {
     const el = document.getElementById(id); el.inert = false; el.removeAttribute("aria-hidden");
   }
   document.querySelectorAll('[id^="gear-"]').forEach(el => el.setAttribute("aria-expanded", "false"));
@@ -102,7 +103,7 @@ function closeDialog() {
   if (dialogFocus && dialogFocus.isConnected && dialogFocus.getClientRects().length) dialogFocus.focus();
   else document.getElementById("open-settings").focus();
 }
-// Fit once to account for native title/menu bars and small screens. Opening an
+// Fit once for the initial layout and small screens. Opening an
 // editor or adding rows must never resize a window the user has already sized.
 function fitWindow() {
   if (fitted || !window.pywebview || !api().fit_window) return;
@@ -267,7 +268,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (overlay.hidden) return;
     if (event.key === "Escape") { event.preventDefault(); closeDialog(); }
     if (event.key === "Tab") {
-      const controls = Array.from(overlay.querySelectorAll("button, input, [tabindex='0']")).filter(el => !el.disabled && el.getClientRects().length && !el.closest("[inert]"));
+      const controls = [...document.querySelectorAll("[data-window-action]"), ...overlay.querySelectorAll("button, input, [tabindex='0']")].filter(el => !el.disabled && el.getClientRects().length && !el.closest("[inert]"));
       const first = controls[0], last = controls[controls.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }

@@ -96,6 +96,47 @@ def verify_window(window, tray, report):
                 or result["update_version"] != "v" + __version__
                 or result["update_action"] != "检查更新"):
             raise RuntimeError("The packaged UI is incomplete")
+        result["integrated_titlebar"] = window.evaluate_js(
+            "document.body.classList.contains('custom-titlebar')"
+            " && !document.getElementById('window-controls').hidden")
+        if result["integrated_titlebar"] != (sys.platform != "darwin"):
+            raise RuntimeError("Wrong platform titlebar policy")
+        if sys.platform == "win32":
+            import ctypes
+            from System import Action
+            from System.Windows.Forms import FormWindowState
+
+            frame = []
+            def inspect_frame():
+                get_style = ctypes.WinDLL("user32").GetWindowLongPtrW
+                get_style.argtypes = [ctypes.c_void_p, ctypes.c_int]
+                get_style.restype = ctypes.c_ssize_t
+                style = get_style(window.native.Handle.ToInt64(), -16)
+                frame.append(bool(style & 0x00040000) and not bool(style & 0x00C00000)
+                             and window.native.Padding.Left > 0)
+            window.native.Invoke(Action(inspect_frame))
+            if frame != [True]:
+                raise RuntimeError("Borderless Windows frame lost native edge resizing")
+            result["native_resize_frame"] = True
+
+            def check_native(expected):
+                state = []
+                window.native.Invoke(Action(lambda: state.append(window.native.WindowState)))
+                if state != [expected]:
+                    raise RuntimeError("Window button did not change the native window state")
+
+            window.evaluate_js("document.getElementById('window-maximize').click()")
+            _wait_js(window, "!windowActionPending && document.body.classList.contains('is-maximized')")
+            check_native(FormWindowState.Maximized)
+            window.evaluate_js("document.getElementById('window-maximize').click()")
+            _wait_js(window, "!windowActionPending && !document.body.classList.contains('is-maximized')")
+            check_native(FormWindowState.Normal)
+            window.evaluate_js("document.getElementById('window-minimize').click()")
+            _wait_js(window, "!windowActionPending")
+            check_native(FormWindowState.Minimized)
+            window.restore()
+            window.hide()
+            result["native_window_buttons"] = True
         window.evaluate_js("document.getElementById('gear-grok-bot').click()")
         _wait_js(window, "document.getElementById('editor-grok-bot').classList.contains('is-open')")
         result["grok_bot_settings"] = window.evaluate_js(
@@ -119,6 +160,15 @@ def verify_window(window, tray, report):
             window.evaluate_js("document.getElementById('open-settings').click()")
             _wait_js(window, "document.getElementById('editor-common').classList.contains('is-open')")
         result["settings_entry"] = True
+        if sys.platform != "darwin":
+            result["window_controls_with_settings"] = window.evaluate_js("""(() => {
+                const button = document.getElementById('window-close');
+                const bounds = button.getBoundingClientRect();
+                return !button.closest('[inert]') && button.contains(document.elementFromPoint(
+                    bounds.x + bounds.width / 2, bounds.y + bounds.height / 2));
+            })()""")
+            if not result["window_controls_with_settings"]:
+                raise RuntimeError("Settings blocks the native window controls")
         window.evaluate_js("document.getElementById('proxy').checked = !SETTINGS.check_system_proxy")
         tray._commands._dispatch("settings")
         result["menu_preserves_edits"] = window.evaluate_js(

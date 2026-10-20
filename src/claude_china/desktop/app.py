@@ -9,6 +9,7 @@ from .platforms.windows_shell import launcher_icon_path, set_process_app_id as _
 from .single_instance import DesktopInstance
 from .tray import LauncherTray
 from .updates import UpdateManager
+from .window_controls import WindowControls
 
 
 def _ui_asset_path(name: str) -> pathlib.Path:
@@ -54,9 +55,13 @@ def run_gui(smoke_report=None):
         # Keep a stable application window; settings scroll within their panel.
         window = webview.create_window(
             "Claude China", url=_ui_url(), js_api=bridge, width=1000, height=720,
+            frameless=sys.platform != "darwin", easy_drag=False,
+            min_size=(600, 480), background_color="#181d40", shadow=True,
             **({"hidden": True} if smoke_report else {}),
         )
         bridge._attach_window(window, webview.OPEN_DIALOG)
+        controls = WindowControls(window)
+        bridge._window_controls = controls
         tray = LauncherTray(window, _ui_asset_path("icon.png"))
         bridge._activity = tray.play_activity
         updater = UpdateManager(lambda: tray._quit(None, None))
@@ -65,6 +70,7 @@ def run_gui(smoke_report=None):
         tray._commands = commands
 
         def on_start(window, activity):
+            controls.configure()
             # Querying webview.screens initializes GTK. Wait until start(menu=)
             # has configured the menu before initializing that backend.
             try:

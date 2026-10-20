@@ -10,12 +10,18 @@
 </head>
 <body>
   <header class="app-header" id="app-header">
-    <div class="brand"><img id="brand-mark" src="icon.png" width="36" height="36" alt="" draggable="false"><span>Claude China</span></div>
+    <div class="brand window-drag"><img id="brand-mark" src="icon.png" width="36" height="36" alt="" draggable="false"><span>Claude China</span></div>
     <nav class="top-nav" aria-label="主导航">
       <button class="top-link is-active" id="home-button" type="button" aria-current="page">我的应用</button>
       <button class="top-link" id="open-settings" type="button">设置<span class="draft-dot" aria-hidden="true"></span></button>
     </nav>
+    <div class="header-space window-drag" aria-hidden="true"></div>
     <button class="btn header-update" id="open-updates" type="button"><span data-icon="refresh"></span>检查更新</button>
+    <div class="window-controls" id="window-controls" role="group" aria-label="窗口控制" hidden>
+      <button class="window-button" id="window-minimize" type="button" data-window-action="minimize" aria-label="最小化" title="最小化"><span data-icon="minimize"></span></button>
+      <button class="window-button" id="window-maximize" type="button" data-window-action="maximize" aria-label="最大化" title="最大化"><span data-icon="maximize"></span></button>
+      <button class="window-button window-button--close" id="window-close" type="button" data-window-action="close" aria-label="关闭窗口" title="关闭窗口"><span data-icon="close"></span></button>
+    </div>
   </header>
   <main class="panel" id="launcher-main">
     <div class="page-heading">
@@ -73,6 +79,6 @@
       </div>
     </section>
   </div>
-  <script src="icons.js"></script><script src="settings.js"></script><script src="app.js"></script><script src="preview.js"></script>
+  <script src="icons.js"></script><script src="settings.js"></script><script src="app.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
 </body>
 </html>

@@ -27,6 +27,7 @@ class LauncherBridge:
         self._status = {}
         self._activity = None
         self._updater = None
+        self._window_controls = None
         self._refresh_detection()
 
     def _attach_window(self, window, open_dialog, screen_height=None):
@@ -159,6 +160,20 @@ class LauncherBridge:
         return {"ok": True}
 
     # ---- window ----
+    def get_window_state(self):
+        return self._window_controls.state() if self._window_controls else {
+            "custom_titlebar": False, "maximized": False,
+        }
+
+    def window_action(self, action):
+        return self._window_controls.action(action) if self._window_controls else {"ok": False}
+
+    def begin_window_resize(self, edge):
+        return self._window_controls.resize(edge) if self._window_controls else {"ok": False}
+
+    def move_window(self, dx, dy, start=False):
+        return self._window_controls.move(dx, dy, start) if self._window_controls else {"ok": False}
+
     def fit_window(self, payload):
         """Resize the window so the page content fits without scrolling.
 

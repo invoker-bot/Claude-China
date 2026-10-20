@@ -56,7 +56,9 @@ Checks are manual and use the latest
 stable GitHub Release for your OS and architecture. Downloads show progress,
 can be cancelled and must pass SHA-256 verification before installation.
 Save or cancel any unsaved settings changes before restarting.
-Windows/Linux use the page navigation without an extra native window menu bar.
+Windows/Linux integrate the titlebar into the page navigation, with minimize,
+maximize/restore and close buttons, header dragging and edge resizing. Closing
+still follows the platform's tray policy. There is no extra native window menu bar.
 The tray also provides **设置…** (Settings), **发布页面** (Release page) and
 **退出** (Quit). On macOS the standard application menu retains Settings,
 Check for updates, About, Hide and Quit (Cmd+Q).

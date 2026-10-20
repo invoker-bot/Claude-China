@@ -93,7 +93,9 @@ Outputs go to `dist/installers/`, with a SHA-256 sidecar for each package.
 `--smoke` opens an actual hidden native webview, loads the bundled HTML/CSS/JS
 and icon, waits for the UI to initialize through the real Python bridge, and
 verifies update-dialog dispatch, unsaved-edit protection and Escape handling.
-On Windows/Linux it checks that no native menu bar is present and opens Settings
+On Windows/Linux it checks the integrated titlebar, usable window controls while
+Settings is open, and the absence of a native menu bar. On Windows it also exercises
+the real minimize and maximize/restore commands. It opens Settings
 through the page navigation. On macOS it activates the native Settings menu and
 checks the standard Quit binding.
 It writes `build/desktop/smoke.json`, uses temporary configuration and does not

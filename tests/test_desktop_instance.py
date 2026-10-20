@@ -431,7 +431,7 @@ def test_gui_holds_lock_until_event_loop_exits_and_releases_on_error(
         raise RuntimeError("GUI startup failed")
 
     monkeypatch.setitem(sys.modules, "webview", Mock(
-        create_window=Mock(return_value=window), start=start, OPEN_DIALOG=20,
+        create_window=Mock(return_value=window), start=start, OPEN_DIALOG=20, settings={},
     ))
 
     with pytest.raises(RuntimeError, match="GUI startup failed"):

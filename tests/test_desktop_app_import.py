@@ -110,7 +110,9 @@ class _FakeWindow:
             return self
 
     def __init__(self):
-        self.events = types.SimpleNamespace(shown=self._Event(), closing=self._Event())
+        self.frameless = False
+        self.events = types.SimpleNamespace(shown=self._Event(), closing=self._Event(),
+                                            maximized=self._Event(), restored=self._Event())
 
     def create_file_dialog(self, *args, **kwargs):
         return []
@@ -120,6 +122,7 @@ class _FakeWindow:
 def fake_tray(monkeypatch):
     calls = []
     monkeypatch.setattr(app_mod, "_set_windows_app_id", lambda: None)
+    monkeypatch.setattr(app_mod.WindowControls, "configure", lambda self: None)
     monkeypatch.setattr(app_mod.DesktopMenu, "native_menu", lambda self: ["native menus"])
 
     class FakeTray:
@@ -267,7 +270,7 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
     captured = {}
     fake_window = _FakeWindow()
 
-    def create_window(title, url, js_api, width, height):
+    def create_window(title, url, js_api, width, height, **kwargs):
         assert title == "Claude China"
         captured["js_api"] = js_api
         return fake_window
@@ -304,6 +307,10 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
     assert len(fake_window.events.shown.items) == 0
     assert _pywebview_exposed_functions(captured["js_api"]) == {
         "fit_window",
+        "get_window_state",
+        "window_action",
+        "begin_window_resize",
+        "move_window",
         "get_update_status",
         "check_for_updates",
         "download_update",
@@ -327,7 +334,7 @@ def test_run_gui_does_not_start_background_status_poll(monkeypatch, tmp_path, fa
     captured = {"threads": []}
     fake_window = _FakeWindow()
 
-    def create_window(_title, url, js_api, width, height):
+    def create_window(_title, url, js_api, width, height, **kwargs):
         return fake_window
 
     class Thread:
@@ -354,3 +361,24 @@ def test_run_gui_does_not_start_background_status_poll(monkeypatch, tmp_path, fa
     app_mod.run_gui()
 
     assert captured["threads"] == []
+
+
+@pytest.mark.parametrize("platform,frameless", [("win32", True), ("linux", True), ("darwin", False)])
+def test_integrated_titlebar_policy(monkeypatch, tmp_path, fake_tray, platform, frameless):
+    captured = {}
+    monkeypatch.setattr(app_mod, "sys", types.SimpleNamespace(platform=platform))
+    monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+
+    def create_window(*args, **kwargs):
+        captured.update(kwargs)
+        return _FakeWindow()
+
+    webview = types.SimpleNamespace(create_window=create_window, OPEN_DIALOG=20,
+                                    start=lambda **kwargs: None, settings={})
+    monkeypatch.setitem(sys.modules, "webview", webview)
+    app_mod.run_gui()
+    assert captured["frameless"] is frameless
+    assert captured["easy_drag"] is False
+    assert captured["min_size"] == (600, 480)
+    assert captured["background_color"] == "#181d40"
