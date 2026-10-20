@@ -1,6 +1,7 @@
 # Windows launch takeover experiment
 
-Status: experimental; not included in the installer or enabled by the desktop UI.
+Status: experimental; the IFEO candidate failed the real-app compatibility gate.
+It is not included in the installer or enabled by the desktop UI.
 Validation date: 2026-10-21. Target: installed Grok Bot 0.72.0, conventional EXE.
 Claude and Codex were excluded from execution and registration changes.
 
@@ -11,10 +12,11 @@ proxy and regional checks before any target process starts. This is separate fro
 replacing shortcuts. Use a temporary Windows Image File Execution Options (IFEO)
 Debugger registration filtered to the exact Grok Bot executable path.
 
-The production launcher is unchanged. This experiment does not establish MSIX
-compatibility, Electron renderer/sandbox compatibility, successful environment
-injection into a running Grok Bot, or survival of a real vendor upgrade. An
-external restart simulation is not an actual upgrade test.
+The production launch mechanism is unchanged. The shared region policy was
+updated separately at the user's request. This experiment does not establish
+MSIX compatibility, Electron renderer/sandbox compatibility, or survival of a
+real vendor upgrade. An external restart simulation is not an actual upgrade
+test. A successful guarded direct launch is not a successful IFEO launch.
 
 ## Implementation
 
@@ -25,8 +27,11 @@ external restart simulation is not an actual upgrade test.
   settings, expired experiments, and native creation failures fail closed.
 - An allowed launch uses `DEBUG_ONLY_THIS_PROCESS | CREATE_SUSPENDED`, detaches
   the debugger, and resumes the initial thread. It does not temporarily remove
-  IFEO registration. The calling program still sees the broker PID, which is an
-  important unresolved compatibility constraint for Electron and updaters.
+  IFEO registration. It forwards inheritable IPC handles and keeps the broker
+  alive until the target exits, returning the target's exit code. Both were
+  locked down with failing native fixture tests before being fixed. The caller
+  still sees the broker PID; the observed sandbox failure is consistent with
+  this remaining process-identity mismatch.
 - `tools/windows_takeover_probe_registry.ps1` needs elevation for the temporary
   HKLM registration. The broker refuses elevated target launches. The helper
   refuses an existing Grok Bot IFEO key, uses `FilterFullPath`, and rolls back
@@ -51,18 +56,37 @@ external restart simulation is not an actual upgrade test.
 | Another executable named `Grok Bot.exe` in a different directory | Ran normally; exact-path filter did not intercept it |
 | Expired broker manifest | Original application remained blocked |
 | Native Windows process fixture | Reached entry point with injected marker, original working directory, spaces, embedded quote, and Unicode arguments intact |
-| Real Grok Bot main/renderer environment and UI | Pending authorization for a temporary isolated allow test |
+| Guarded direct launch of real Grok Bot under the shared region policy | Passed without a test override; current exit country was JP; isolated onboarding window rendered |
+| Real main process and network/GPU utility environments | Marker and HTTP_PROXY/HTTPS_PROXY matched the configured environment |
+| Sandboxed renderer environment | Chromium sanitized it; does not contain the injected variables |
+| IFEO launch of real Grok Bot | Failed: GPU subprocess launch error 57, followed by fatal shutdown, exit code 0x80000003 |
 | Real Grok Bot self-relaunch and vendor update | Not tested |
 
-Grok Bot currently has no verified product-specific supported-region list in the
-launcher. Under the user's strict policy, this is `unknown` and must block. An
-isolated permissive experiment requires a separate explicit decision; production
-policy is not silently relaxed to obtain a successful launch result.
+The first blocked-entry tests used the former provider policy, which classified
+Grok Bot as unknown. The user then specified a common denylist for all three
+apps (CN/HK/MO/RU/IR/KP; unknown IP/location still blocks). The real launch tests
+used that updated policy with strict mode enabled, not the `test_allow` override.
+Both Grok Bot's user-data and data-root directories were isolated.
 
-Automated validation: `python -m pytest tests/ -q` — 528 passed, 2 skipped,
-including 13 focused gate/native tests. Live reports are saved under
+Logs reported `GPU process launch failed: error_code=57` and
+`GPU process isn't usable. Goodbye.` Chromium defines result 57 as
+`SBOX_ERROR_CANNOT_WRITE_VARIABLE_VALUE`. Together with IFEO returning the
+debugger process handle instead of the requested child's handle, this is
+consistent with sandbox setup targeting the wrong executable/process. Forwarding
+inherited handles and waiting for the real exit code did not resolve it. No
+sandbox-disabling flags were used. This candidate must not be presented as an
+available global takeover mode.
+
+After both runs, temporary IFEO registration was removed and verified absent.
+The Grok executable and all existing YAML configurations retained their hashes.
+All 22 baseline Claude/Codex processes were still alive with matching creation
+times. Only the isolated Grok test tree was stopped.
+
+Automated validation: `python -m pytest tests/ -q` — 563 passed, 2 skipped,
+including 15 focused gate/native tests. Live reports are saved under
 `build/desktop/takeover-grok-<run-id>/`; `takeover-current.txt` identifies this run.
-The fixture is distinct from proof that Grok Bot itself consumes proxy variables.
+Environment presence is distinct from proof that every Grok network request
+honors proxy variables; the latter was not claimed or tested through an account.
 
 ## Reproducing and recovering the temporary registration
 
@@ -102,3 +126,4 @@ leave this source-based debugger registration installed as a product feature.
 - [Microsoft: IFEO debugger command-line and process identity semantics](https://devblogs.microsoft.com/oldnewthing/20070702-00/?p=26193/)
 - [Windows process creation flags](https://learn.microsoft.com/en-us/windows/win32/procthread/process-creation-flags)
 - [DebugActiveProcessStop](https://learn.microsoft.com/en-us/windows/win32/api/debugapi/nf-debugapi-debugactiveprocessstop)
+- [Chromium Windows sandbox result codes](https://github.com/chromium/chromium/blob/main/sandbox/win/src/sandbox_types.h)

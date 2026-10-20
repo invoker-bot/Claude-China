@@ -123,6 +123,7 @@ def test_temporary_test_override_never_saves_or_mutates_real_settings(gate, monk
     check.assert_not_called()
     assert launch.call_args.args[1]["CLAUDEC_TAKEOVER_PROBE"] == "test-only"
     assert launch.call_args.args[1]["SAND_USER_DATA_DIR"] == str(tmp_path / "isolated")
+    assert launch.call_args.args[1]["SAND_DATA_ROOT"] == str(tmp_path / "isolated" / "data-root")
 
 
 def test_temporary_allow_requires_isolated_profile(gate):
@@ -163,3 +164,54 @@ class Probe {
     assert report.read_text(encoding="utf-8-sig").splitlines() == [
         "entrypoint-marker", str(tmp_path), "spaces stay together", 'literal"quote', "中文",
     ]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Native Windows inherited IPC handle")
+def test_native_launch_preserves_inheritable_handles_used_by_helpers(tmp_path):
+    import msvcrt
+    compiler = Path(os.environ["WINDIR"]) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+    if not compiler.is_file():
+        pytest.skip("Windows C# compiler unavailable")
+    source = tmp_path / "HandleProbe.cs"
+    source.write_text('''using System; using System.IO; using Microsoft.Win32.SafeHandles;
+class Probe { static int Main(string[] args) {
+    try {
+        using(var handle=new SafeFileHandle(new IntPtr(long.Parse(args[0])), false))
+        using(var stream=new FileStream(handle, FileAccess.Write)) {
+            var value=System.Text.Encoding.UTF8.GetBytes("inherited-ipc-handle");
+            stream.Write(value, 0, value.Length); stream.Flush();
+        }
+        return 0;
+    } catch { return 2; }
+} }''', encoding="utf-8")
+    target = tmp_path / "Handle Probe.exe"
+    subprocess.run([str(compiler), "/nologo", "/target:exe", "/out:" + str(target), str(source)],
+                   check=True, capture_output=True, timeout=30)
+    report = tmp_path / "handle-result.txt"
+    with report.open("wb", buffering=0) as output:
+        handle = msvcrt.get_osfhandle(output.fileno())
+        os.set_handle_inheritable(handle, True)
+        try:
+            probe.launch_detached_debugger([str(target), str(handle)], dict(os.environ), str(tmp_path))
+            deadline = time.monotonic() + 5
+            while report.stat().st_size == 0 and time.monotonic() < deadline:
+                time.sleep(0.05)
+        finally:
+            os.set_handle_inheritable(handle, False)
+    assert report.read_text() == "inherited-ipc-handle"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Native Windows exit-code forwarding")
+def test_native_broker_waits_and_forwards_the_real_exit_code(tmp_path):
+    compiler = Path(os.environ["WINDIR"]) / "Microsoft.NET/Framework64/v4.0.30319/csc.exe"
+    if not compiler.is_file():
+        pytest.skip("Windows C# compiler unavailable")
+    source = tmp_path / "ExitProbe.cs"
+    source.write_text('class Probe { static int Main() { System.Threading.Thread.Sleep(400); return 17; } }')
+    target = tmp_path / "Exit Probe.exe"
+    subprocess.run([str(compiler), "/nologo", "/target:exe", "/out:" + str(target), str(source)],
+                   check=True, capture_output=True, timeout=30)
+    pid = probe.launch_detached_debugger([str(target)], dict(os.environ), str(tmp_path))
+    started = time.monotonic()
+    assert probe.wait_for_process_exit(pid) == 17
+    assert time.monotonic() - started >= 0.2

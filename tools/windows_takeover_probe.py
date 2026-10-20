@@ -46,7 +46,10 @@ def launch_detached_debugger(argv, env, cwd):
     # the suspended process is terminated; no unchecked launch fallback exists.
     flags = 0x00000002 | 0x00000004 | 0x00000400  # DEBUG_ONLY_THIS_PROCESS, SUSPENDED, UNICODE
     process, thread, pid, _tid = _winapi.CreateProcess(
-        argv[0], subprocess.list2cmdline(argv), None, None, False, flags,
+        # IFEO passes the original caller's inheritable IPC handles to this
+        # broker. Electron helpers refer to them by value; dropping them breaks
+        # startup even when command-line arguments and env are preserved.
+        argv[0], subprocess.list2cmdline(argv), None, None, True, flags,
         external_environment(env), cwd, subprocess.STARTUPINFO(),
     )
     try:
@@ -88,6 +91,7 @@ class _ProbeBackend(WindowsBackend):
             env["CLAUDEC_TAKEOVER_PROBE"] = self.marker
         if self.isolated_profile:
             env["SAND_USER_DATA_DIR"] = str(self.isolated_profile)
+            env["SAND_DATA_ROOT"] = str(Path(self.isolated_profile) / "data-root")
         try:
             self.pid = self.spawn(self.argv, env, os.getcwd())
         except Exception:
@@ -115,6 +119,13 @@ def gated_launch(target, argv, *, launch=launch_detached_debugger,
     result = bridge.launch_app("grok-bot")
     result.update(pid=backend.pid, test_override=bool(test_allow))
     return result
+
+
+def wait_for_process_exit(pid):
+    # Parents/updaters wait on the IFEO broker handle, not the actual target.
+    # Exiting immediately makes Electron believe a healthy helper has died.
+    import psutil
+    return psutil.Process(pid).wait()
 
 
 def main(argv=None):
@@ -149,9 +160,19 @@ def main(argv=None):
                      error=result.get("error", ""))
     except Exception as exc:
         event.update(ok=False, error="Takeover probe failed closed", error_type=type(exc).__name__)
-    (audit / (str(os.getpid()) + ".json")).write_text(
+    report_path = audit / (str(os.getpid()) + ".json")
+    report_path.write_text(
         json.dumps(event, ensure_ascii=False, indent=2), encoding="utf-8")
-    return 0 if event.get("ok") else 1
+    if not event.get("ok"):
+        return 1
+    try:
+        exit_code = wait_for_process_exit(event["target_pid"])
+        event.update(target_exit_code=exit_code, exited_at=time.time())
+    except Exception as exc:
+        exit_code = 1
+        event.update(wait_error=type(exc).__name__)
+    report_path.write_text(json.dumps(event, ensure_ascii=False, indent=2), encoding="utf-8")
+    return exit_code
 
 
 if __name__ == "__main__":
