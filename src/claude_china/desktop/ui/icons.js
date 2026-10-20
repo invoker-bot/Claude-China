@@ -9,7 +9,6 @@ const ICON_PATHS = {
   plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8m-4-4h8"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
   external: '<path d="M14 3h7v7m0-7L10 14M10 4H4v16h16v-6"/>',
-  terminal: '<path d="m8 6-6 6 6 6m8-12 6 6-6 6"/>',
   orbit: '<circle cx="12" cy="12" r="7"/><path d="M2 22 22 2"/>',
   document: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6m-6 4h6m-6 4h4"/>',
   sliders: '<path d="M3 5h4m4 0h10M3 12h10m4 0h4M3 19h4m4 0h10"/><circle cx="9" cy="5" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="19" r="2"/>',
@@ -22,7 +21,9 @@ function icon(name) {
 }
 
 function appSymbol(id) {
-  return id === "claude" ? '<img src="icon.png" alt="" draggable="false">' : icon(id === "codex" ? "terminal" : "orbit");
+  if (id === "claude") return '<img src="icon.png" alt="" draggable="false">';
+  if (id === "codex") return '<img src="codex.png" alt="" draggable="false">';
+  return icon("orbit");
 }
 
 document.querySelectorAll("[data-icon]").forEach(el => { el.innerHTML = icon(el.dataset.icon); });

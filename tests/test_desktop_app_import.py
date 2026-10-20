@@ -25,6 +25,7 @@ def test_ui_assets_are_packaged():
     assert (ui / "settings.js").is_file()
     assert (ui / "icons.js").is_file()
     assert (ui / "preview.js").is_file()
+    assert (ui / "codex.png").is_file()
 
 
 def test_ui_lists_launch_and_stop_actions_without_status_push_hook():

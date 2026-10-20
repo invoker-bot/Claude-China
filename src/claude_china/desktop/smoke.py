@@ -86,11 +86,16 @@ def verify_window(window, tray, report):
         if not window.events.loaded.wait(30):
             raise RuntimeError("The bundled UI did not load within 30 seconds")
         _wait_js(window, "typeof READY !== 'undefined' && READY")
+        _wait_js(window, """(() => {
+            const logos = document.querySelectorAll('#bay-codex img, #nav-codex img');
+            return logos.length === 2 && Array.from(logos).every(img => img.naturalWidth > 0);
+        })()""")
         result.update(window.evaluate_js("""({
             title: document.title,
             cards: document.querySelectorAll('.bay--app').length,
             apps: Array.from(document.querySelectorAll('.bay--app'), bay => bay.id),
             icon_loaded: document.getElementById('brand-mark').naturalWidth > 0,
+            codex_icons_loaded: true,
             stylesheet: document.styleSheets.length > 0,
             update_hidden: document.getElementById('launcher-overlay').hidden,
             update_version: document.getElementById('update-version').textContent,
