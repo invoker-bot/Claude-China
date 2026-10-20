@@ -15,7 +15,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-desktop = ["pywebview>=6", "psutil>=5.9"]
+desktop = ["pywebview>=6", "psutil>=5.9", "pystray>=0.19.5", "Pillow>=9"]
 
 [project.scripts]
 code-ai = "code_ai.cli:app"

@@ -180,6 +180,9 @@ code-ai desktop uninstall     # remove the shortcut
 
 Only one launcher runs per user. Opening the shortcut or running
 `code-ai desktop run` again restores and brings the existing window forward.
+Closing the window hides it in the system tray (the menu bar on macOS).
+Click the tray icon or choose **打开 AI Launcher** to reopen the window;
+choose **退出** from the tray menu to exit the launcher completely.
 
 Desktop settings are stored separately in `~/.code-ai/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application

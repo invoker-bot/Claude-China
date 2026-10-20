@@ -177,6 +177,8 @@ def _require_desktop_extra() -> None:
     try:
         import webview  # noqa: F401
         import psutil  # noqa: F401
+        import pystray  # noqa: F401
+        from PIL import Image  # noqa: F401
     except ImportError:
         typer.echo("The desktop launcher needs extra dependencies.")
         typer.echo("Install them with: pip install ai-code-switcher[desktop]")

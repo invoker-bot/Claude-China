@@ -99,10 +99,51 @@ class _FakeWindow:
             return self
 
     def __init__(self):
-        self.events = types.SimpleNamespace(shown=self._Event())
+        self.events = types.SimpleNamespace(shown=self._Event(), closing=self._Event())
 
     def create_file_dialog(self, *args, **kwargs):
         return []
+
+
+@pytest.fixture
+def fake_tray(monkeypatch):
+    calls = []
+
+    class FakeTray:
+        def __init__(self, window, icon_path):
+            calls.append(("create", window, icon_path))
+
+        def start(self):
+            calls.append("start")
+
+        def stop(self):
+            calls.append("stop")
+
+    monkeypatch.setattr(app_mod, "LauncherTray", FakeTray, raising=False)
+    return calls
+
+
+def test_run_gui_keeps_tray_until_gui_exits(monkeypatch, tmp_path, fake_tray):
+    window = _FakeWindow()
+
+    def start(**kwargs):
+        assert fake_tray[-1] == "start"
+        assert callable(kwargs["func"])
+        fake_tray.append("gui")
+
+    monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
+    monkeypatch.setattr(
+        "src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml",
+    )
+    monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace(
+        create_window=lambda *args, **kwargs: window, OPEN_DIALOG=20, start=start,
+    ))
+
+    app_mod.run_gui()
+
+    assert fake_tray[0][0:2] == ("create", window)
+    assert fake_tray[0][2].name == "icon.png"
+    assert fake_tray[1:] == ["start", "gui", "stop"]
 
 
 def test_repeated_run_activates_existing_window_without_creating_another(monkeypatch, tmp_path):
@@ -136,7 +177,7 @@ def test_repeated_run_activates_existing_window_without_creating_another(monkeyp
     assert calls == ["activated", "closed"]
 
 
-def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path):
+def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path, fake_tray):
     captured = {}
     fake_window = _FakeWindow()
 
@@ -180,7 +221,7 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path)
     }
 
 
-def test_run_gui_does_not_start_background_status_poll(monkeypatch, tmp_path):
+def test_run_gui_does_not_start_background_status_poll(monkeypatch, tmp_path, fake_tray):
     captured = {"threads": []}
     fake_window = _FakeWindow()
 

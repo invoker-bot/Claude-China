@@ -5,6 +5,7 @@ from .apps import APP_REGISTRY
 from .bridge import LauncherBridge
 from .platforms import get_backend
 from .single_instance import DesktopInstance
+from .tray import LauncherTray
 
 
 def _ui_asset_path(name: str) -> pathlib.Path:
@@ -52,4 +53,9 @@ def run_gui():
         except Exception:  # headless / unknown screen: fit_window skips clamping
             screen_height = None
         bridge._attach_window(window, webview.OPEN_DIALOG, screen_height=screen_height)
-        webview.start(func=instance.listen, args=(window,), icon=_window_icon_path())
+        tray = LauncherTray(window, _ui_asset_path("icon.png"))
+        try:
+            tray.start()
+            webview.start(func=instance.listen, args=(window,), icon=_window_icon_path())
+        finally:
+            tray.stop()

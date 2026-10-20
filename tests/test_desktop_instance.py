@@ -280,12 +280,19 @@ def test_windows_foreground_permission_targets_only_owner(monkeypatch):
     allow.assert_called_once_with(42)
 
 
-def test_gui_holds_lock_until_event_loop_exits_and_releases_on_error(monkeypatch, tmp_path):
+@pytest.mark.parametrize("failure_stage", ["tray", "gui"])
+def test_gui_holds_lock_until_event_loop_exits_and_releases_on_error(
+    monkeypatch, tmp_path, failure_stage,
+):
     from tests.test_desktop_app_import import _FakeBackend, _FakeWindow
 
     path = tmp_path / "desktop.lock"
     monkeypatch.setattr(instance_mod.cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
+    tray = Mock()
+    if failure_stage == "tray":
+        tray.start.side_effect = RuntimeError("GUI startup failed")
+    monkeypatch.setattr(app_mod, "LauncherTray", Mock(return_value=tray))
     window = _FakeWindow()
 
     def start(**kwargs):
@@ -303,5 +310,6 @@ def test_gui_holds_lock_until_event_loop_exits_and_releases_on_error(monkeypatch
     with pytest.raises(RuntimeError, match="GUI startup failed"):
         app_mod.run_gui()
 
+    tray.stop.assert_called_once_with()
     with instance_mod.DesktopInstance(path) as next_instance:
         assert next_instance.acquire_or_activate()

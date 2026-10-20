@@ -5,6 +5,7 @@ import sys
 import types
 from uuid import uuid4
 
+import pytest
 from typer.testing import CliRunner
 
 from src.code_ai.cli import app
@@ -39,6 +40,8 @@ class FakeBackend:
 def fake_desktop_extra(monkeypatch):
     monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace())
     monkeypatch.setitem(sys.modules, "psutil", types.SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "pystray", types.SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "PIL", types.SimpleNamespace(Image=object()))
 
 
 def test_install_creates_shortcut(monkeypatch):
@@ -128,15 +131,17 @@ def test_uninstall_nothing_to_remove(monkeypatch):
         assert "nothing to remove" in result.output
 
 
-def test_run_missing_extra_prints_hint(monkeypatch):
+@pytest.mark.parametrize("missing_module", ["webview", "pystray", "PIL"])
+def test_run_missing_extra_prints_hint(monkeypatch, missing_module):
+    fake_desktop_extra(monkeypatch)
     monkeypatch.setattr("src.code_ai.desktop.platforms.get_backend", lambda: FakeBackend())
     # Force the optional-extra import check to fail.
     import builtins
     real_import = builtins.__import__
 
     def fake_import(name, *args, **kwargs):
-        if name == "webview":
-            raise ImportError("no webview")
+        if name == missing_module:
+            raise ImportError("missing desktop dependency")
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(builtins, "__import__", fake_import)
