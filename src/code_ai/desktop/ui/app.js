@@ -4,6 +4,20 @@ let SETTINGS = { check_system_proxy: true, env_vars: {} };
 const APP_SETTINGS = {}; // id -> { env_vars, path }
 let READY = false;
 let lastRefresh = 0;
+let brandAnimation;
+
+function animateBrand() {
+  const mark = document.getElementById("brand-mark");
+  if (!mark || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (brandAnimation && brandAnimation.playState === "running") return;
+  const frames = Array.from({ length: 14 }, (_, i) => {
+    const t = i / 13;
+    const breath = Math.sin(Math.PI * t);
+    const angle = -12 * Math.sin(2 * Math.PI * t) * breath;
+    return { transform: `rotate(${angle}deg) scale(${1 - 0.09 * breath})` };
+  });
+  brandAnimation = mark.animate(frames, { duration: 960, iterations: 1 });
+}
 
 const GEAR_SVG =
   `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">` +
@@ -28,6 +42,7 @@ async function init() {
   READY = true;
   lastRefresh = Date.now();
   fitWindow();
+  animateBrand();
 }
 
 // ---- window fit ----
@@ -154,6 +169,7 @@ function updateBay(id, found, running) {
 }
 
 async function onAction(id, mode) {
+  animateBrand();
   if (mode === "config") {
     const r = await api().pick_app_path(id);
     if (r && r.ok) {
@@ -289,6 +305,7 @@ function renderCommon() {
 }
 
 async function saveSettings() {
+  animateBrand();
   const payload = {
     check_system_proxy: document.getElementById("proxy").checked,
     env_vars: collectEnv("common-env"),
@@ -321,6 +338,7 @@ function renderAppEditor(id) {
 }
 
 async function saveAppSettings(id) {
+  animateBrand();
   const env_vars = collectEnv(`env-${id}`);
   await api().save_app_settings(id, { env_vars });
   APP_SETTINGS[id] = { ...(APP_SETTINGS[id] || {}), env_vars };
@@ -339,6 +357,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Escape") closeAllEditors();
   });
   window.addEventListener("focus", refreshOnReturn);
+  window.addEventListener("focus", animateBrand);
   document.addEventListener("visibilitychange", refreshOnReturn);
 });
 

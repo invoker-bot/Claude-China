@@ -184,6 +184,12 @@ Closing the window hides it in the system tray (the menu bar on macOS).
 Click the tray icon or choose **打开 AI Launcher** to reopen the window;
 choose **退出** from the tray menu to exit the launcher completely.
 
+The launcher uses the terracotta **Anti-Claude** mark for its window, shortcut,
+tray and footer. The tray/menu-bar and footer marks briefly breathe and turn
+when the launcher opens or an action runs, then return to rest. Shortcut and
+window-title icons stay static. See the [icon preview](docs/branding/preview.html)
+and [asset notes](docs/branding/README.md).
+
 Desktop settings are stored separately in `~/.code-ai/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
 environment variables; per-application values take precedence.

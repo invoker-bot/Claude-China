@@ -1,8 +1,10 @@
 from contextlib import contextmanager
 from pathlib import Path
 import shutil
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from uuid import uuid4
+
+import pytest
 
 from src.code_ai.desktop.apps import APP_REGISTRY
 from src.code_ai.desktop.bridge import LauncherBridge
@@ -136,6 +138,41 @@ def test_settings_round_trip():
             b.save_app_settings("codex", {"env_vars": {"X": "Y"}})
             a = b.get_app_settings("codex")
             assert a["env_vars"] == {"X": "Y"}
+
+
+@pytest.mark.parametrize("action,args", [
+    ("launch_app", ("claude",)),
+    ("stop_app", ("claude",)),
+    ("save_settings", ({"check_system_proxy": False},)),
+    ("save_app_settings", ("claude", {"env_vars": {}})),
+    ("pick_app_path", ("claude",)),
+])
+def test_user_actions_signal_icon_activity_without_animating_queries(
+    tmp_path, monkeypatch, action, args,
+):
+    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+    bridge = LauncherBridge(FakeBackend())
+    bridge._activity = Mock()
+    getattr(bridge, action)(*args)
+    bridge._activity.assert_called_once_with()
+
+    bridge.list_apps()
+    bridge.get_settings()
+    bridge.get_app_settings("claude")
+    bridge.fit_window({})
+    bridge._activity.assert_called_once_with()
+
+
+def test_animation_failure_cannot_prevent_an_app_from_launching(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+    backend = FakeBackend()
+    bridge = LauncherBridge(backend)
+    bridge._activity = Mock(side_effect=OSError("tray unavailable"))
+
+    assert bridge.launch_app("claude") == {"ok": True}
+    assert backend.calls == ["stop", "launch"]
 
 
 class FakeWindow:

@@ -99,6 +99,7 @@ def tray_environment(monkeypatch):
         Image=types.SimpleNamespace(open=Mock(return_value=source)),
     ))
     monkeypatch.setattr(tray_mod.sys, "platform", "win32")
+    monkeypatch.setattr(tray_mod, "IconAnimation", Mock(), raising=False)
     return factory, image
 
 
@@ -137,6 +138,51 @@ def test_default_tray_action_restores_hidden_window(running_tray):
     assert window.calls == ["hide", "restore", "show"]
     assert not window.hidden
     assert not window.destroyed
+
+
+def test_tray_animates_on_start_and_open_then_stops_on_shutdown(running_tray):
+    tray, window, icon = running_tray
+    tray._animation.play.assert_called_once_with()
+
+    tray._show_window(icon, None)
+    assert tray._animation.play.call_count == 2
+    tray.stop()
+    tray.play_activity()
+    assert tray._animation.play.call_count == 2
+    tray._animation.close.assert_called_once_with()
+
+
+def test_animation_never_replaces_the_icon_after_quit(running_tray):
+    tray, _, icon = running_tray
+    frame = object()
+    tray._apply_frame(frame)
+    assert icon.icon is frame
+
+    tray._quit(icon, None)
+    tray._apply_frame(object())
+    tray.play_activity()
+    assert icon.icon is frame
+    tray._animation.play.assert_called_once_with()
+
+
+def test_macos_frames_are_dispatched_to_main_thread_and_ignored_after_stop(
+    running_tray, monkeypatch,
+):
+    tray, _, icon = running_tray
+    monkeypatch.setattr(tray_mod.sys, "platform", "darwin")
+    call_after = Mock()
+    monkeypatch.setitem(sys.modules, "PyObjCTools", types.SimpleNamespace(
+        AppHelper=types.SimpleNamespace(callAfter=call_after),
+    ))
+    frame = object()
+    tray._update_frame(frame)
+    call_after.assert_called_once_with(tray._apply_frame, frame)
+    assert not hasattr(icon, "icon")
+
+    tray.stop()
+    callback, *args = call_after.call_args.args
+    callback(*args)
+    assert not hasattr(icon, "icon")
 
 
 def test_hidden_launcher_still_receives_single_instance_activation(running_tray, tmp_path):

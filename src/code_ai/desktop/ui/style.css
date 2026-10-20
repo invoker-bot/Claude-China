@@ -475,6 +475,14 @@ code { font-family: var(--font-mono); font-size: 0.95em; }
 
 .foot code { color: var(--text-2); }
 
+.brand-mark {
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+  object-fit: contain;
+}
+
 .foot-msg {
   display: none;
   color: var(--text);

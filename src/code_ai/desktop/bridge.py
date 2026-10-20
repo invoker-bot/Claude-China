@@ -1,3 +1,4 @@
+import logging
 import os
 
 from .apps import APP_REGISTRY, get_app
@@ -24,6 +25,7 @@ class LauncherBridge:
         self._open_dialog = 20  # pywebview OPEN_DIALOG; overridden in app.py
         self._screen_height = None
         self._status = {}
+        self._activity = None
         self._refresh_detection()
 
     def _attach_window(self, window, open_dialog, screen_height=None):
@@ -59,7 +61,15 @@ class LauncherBridge:
         ]
 
     # ---- actions ----
+    def _notify_activity(self):
+        if self._activity is not None:
+            try:
+                self._activity()
+            except Exception:
+                logging.getLogger(__name__).debug("Icon activity failed", exc_info=True)
+
     def launch_app(self, app_id):
+        self._notify_activity()
         data = cfg.load_desktop_config()
         if cfg.get_check_system_proxy(data) and not self._backend.proxy_enabled():
             return {"ok": False, "error": "系统代理未开启，已取消启动"}
@@ -83,6 +93,7 @@ class LauncherBridge:
         return {"ok": True}
 
     def stop_app(self, app_id):
+        self._notify_activity()
         status = self._status.get(app_id)
         if not status or not status.found:
             return {"ok": False, "error": "未检测到应用"}
@@ -99,6 +110,7 @@ class LauncherBridge:
                 "env_vars": cfg.get_common_env(data)}
 
     def save_settings(self, payload):
+        self._notify_activity()
         data = cfg.load_desktop_config()
         cfg.set_check_system_proxy(data, bool(payload.get("check_system_proxy", True)))
         cfg.set_common_env(data, dict(payload.get("env_vars", {})))
@@ -111,6 +123,7 @@ class LauncherBridge:
                 "path": cfg.get_app_path(data, app_id) or ""}
 
     def save_app_settings(self, app_id, payload):
+        self._notify_activity()
         data = cfg.load_desktop_config()
         cfg.set_app_env(data, app_id, dict(payload.get("env_vars", {})))
         cfg.save_desktop_config(data)
@@ -155,6 +168,7 @@ class LauncherBridge:
         return {"ok": True, "height": new_height}
 
     def pick_app_path(self, app_id):
+        self._notify_activity()
         if self._window is None:
             return {"ok": False}
         file_types = self._backend.pick_path_filter()

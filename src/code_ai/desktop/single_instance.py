@@ -118,7 +118,7 @@ class DesktopInstance:
             # shutting down. Recheck ownership before attempting activation again.
             return False
 
-    def listen(self, window) -> None:
+    def listen(self, window, on_activate=None) -> None:
         """Serve activation requests in pywebview.start's worker thread."""
         listener = self._listener
         while not self._closed.is_set():
@@ -139,6 +139,13 @@ class DesktopInstance:
                     # Do not mutate window.native or toggle WinForms TopMost here.
                     window.restore()
                     window.show()
+                    if on_activate is not None:
+                        try:
+                            on_activate()
+                        except Exception:
+                            logging.getLogger(__name__).debug(
+                                "Window activation animation failed", exc_info=True,
+                            )
                     client.sendall(b"ok\n")
                 except OSError:
                     continue

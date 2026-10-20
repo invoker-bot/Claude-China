@@ -119,6 +119,9 @@ def fake_tray(monkeypatch):
         def stop(self):
             calls.append("stop")
 
+        def play_activity(self):
+            calls.append("activity")
+
     monkeypatch.setattr(app_mod, "LauncherTray", FakeTray, raising=False)
     return calls
 
@@ -219,6 +222,8 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
         "save_settings",
         "stop_app",
     }
+    # Keep the native animation callback private from the JavaScript API.
+    assert captured["js_api"]._activity == captured["start_kwargs"]["args"][1]
 
 
 def test_run_gui_does_not_start_background_status_poll(monkeypatch, tmp_path, fake_tray):

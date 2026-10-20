@@ -54,8 +54,11 @@ def run_gui():
             screen_height = None
         bridge._attach_window(window, webview.OPEN_DIALOG, screen_height=screen_height)
         tray = LauncherTray(window, _ui_asset_path("icon.png"))
+        bridge._activity = tray.play_activity
         try:
             tray.start()
-            webview.start(func=instance.listen, args=(window,), icon=_window_icon_path())
+            webview.start(
+                func=instance.listen, args=(window, tray.play_activity), icon=_window_icon_path(),
+            )
         finally:
             tray.stop()

@@ -4,6 +4,8 @@ import logging
 import sys
 import threading
 
+from .animation import IconAnimation
+
 
 class LauncherTray:
     def __init__(self, window, icon_path):
@@ -11,6 +13,7 @@ class LauncherTray:
         self._icon_path = icon_path
         self._icon = None
         self._image = None
+        self._animation = None
         self._ready = False
         self._stopped = False
         self._state_lock = threading.Lock()
@@ -24,6 +27,13 @@ class LauncherTray:
 
         with Image.open(self._icon_path) as source:
             self._image = source.copy()
+        self._image.thumbnail((64, 64))
+        try:
+            self._animation = IconAnimation(self._image, self._update_frame)
+        except Exception:
+            logging.getLogger(__name__).debug(
+                "Icon animation unavailable; using the static icon", exc_info=True,
+            )
         options = {}
         if sys.platform == "darwin":
             from AppKit import NSApplication
@@ -50,19 +60,53 @@ class LauncherTray:
             self._on_ready(icon)
 
     def _on_ready(self, icon) -> None:
+        ready = False
         try:
             with self._state_lock:
                 if not self._stopped:
                     icon.visible = True
                     self._ready = True
-                    return
+                    ready = True
         except Exception:
             logging.getLogger(__name__).exception(
                 "System tray unavailable; closing the window will exit the launcher."
             )
             return
+        if ready:
+            self.play_activity()
+            return
         # Also handles shutdown racing with the asynchronous tray setup.
         icon.stop()
+
+    def play_activity(self) -> None:
+        with self._state_lock:
+            enabled = self._ready and not self._stopped and not self._quitting.is_set()
+        if enabled and self._animation is not None:
+            try:
+                self._animation.play()
+            except Exception:
+                logging.getLogger(__name__).debug(
+                    "Could not start icon animation", exc_info=True,
+                )
+
+    def _update_frame(self, frame) -> None:
+        if sys.platform == "darwin":
+            from PyObjCTools import AppHelper
+
+            AppHelper.callAfter(self._apply_frame, frame)
+        else:
+            self._apply_frame(frame)
+
+    def _apply_frame(self, frame) -> None:
+        with self._state_lock:
+            # Cocoa may still have queued frames when the window quits.
+            if self._ready and not self._stopped and not self._quitting.is_set():
+                try:
+                    self._icon.icon = frame
+                except Exception:
+                    logging.getLogger(__name__).debug(
+                        "Could not update tray animation frame", exc_info=True,
+                    )
 
     def _on_closing(self):
         if self._quitting.is_set():
@@ -79,6 +123,7 @@ class LauncherTray:
         if not self._quitting.is_set():
             self._window.restore()
             self._window.show()
+            self.play_activity()
 
     def _quit(self, icon, item) -> None:
         if self._quitting.is_set():
@@ -98,6 +143,8 @@ class LauncherTray:
             self._stopped = True
             self._ready = False
         try:
+            if self._animation is not None:
+                self._animation.close()
             if self._icon is not None:
                 try:
                     self._icon.visible = False

@@ -52,6 +52,26 @@ def test_second_instance_restores_and_shows_existing_window(tmp_path, monkeypatc
     assert not thread.is_alive()
 
 
+@pytest.mark.parametrize("animation_error", [None, OSError("tray unavailable")])
+def test_activation_notifies_animation_without_blocking_ack(tmp_path, animation_error):
+    window = FakeWindow()
+    activity = Mock(side_effect=animation_error)
+    path = tmp_path / "desktop.lock"
+    with instance_mod.DesktopInstance(path) as owner:
+        assert owner.acquire_or_activate()
+        listener = threading.Thread(target=owner.listen, args=(window, activity), daemon=True)
+        listener.start()
+        try:
+            with instance_mod.DesktopInstance(path) as duplicate:
+                assert not duplicate.acquire_or_activate(timeout=1)
+            assert window.calls == ["restore", "show"]
+            activity.assert_called_once_with()
+        finally:
+            owner.close()
+            listener.join(timeout=3)
+    assert not listener.is_alive()
+
+
 def test_duplicate_launch_waits_for_first_window_to_be_ready(tmp_path, monkeypatch):
     path = tmp_path / "desktop.lock"
     window = FakeWindow()
@@ -296,7 +316,7 @@ def test_gui_holds_lock_until_event_loop_exits_and_releases_on_error(
     window = _FakeWindow()
 
     def start(**kwargs):
-        assert kwargs["args"] == (window,)
+        assert kwargs["args"] == (window, tray.play_activity)
         assert callable(kwargs["func"])
         with instance_mod.DesktopInstance(path) as contender:
             with pytest.raises(RuntimeError, match="already running"):
