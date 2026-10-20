@@ -2,14 +2,21 @@ name: Desktop installers
 
 on:
   workflow_dispatch:
+    inputs:
+      macos_signing:
+        description: 'Sign and notarize macOS artifacts using repository credentials'
+        type: boolean
+        default: false
   pull_request:
     paths:
       - 'src/claude_china/**'
       - 'packaging/desktop/**'
       - 'tools/*desktop*'
+      - 'tools/setup_macos_signing.py'
       - 'tools/test_windows_installer.py'
       - 'tests/**'
       - 'pyproject.toml'
+      - 'LICENSE'
       - '.github/workflows/desktop-release.yml'
   push:
     tags: ['v*']
@@ -19,7 +26,7 @@ permissions:
 
 jobs:
   build:
-    timeout-minutes: 25
+    timeout-minutes: 60
     defaults:
       run:
         shell: bash
@@ -87,9 +94,25 @@ jobs:
       - name: Build Windows installer
         if: runner.os == 'Windows'
         run: python tools/build_desktop.py
+      - name: Prepare macOS signing credentials
+        if: runner.os == 'macOS' && (github.event_name == 'push' || inputs.macos_signing == true)
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_TEAM_ID: ${{ vars.MACOS_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: python tools/setup_macos_signing.py setup
       - name: Build and test macOS bundle
         if: runner.os == 'macOS'
-        run: python tools/build_desktop.py --smoke
+        env:
+          REQUIRE_MACOS_SIGNING: ${{ github.event_name == 'push' || inputs.macos_signing == true }}
+        run: |
+          if [ "$REQUIRE_MACOS_SIGNING" = "true" ]; then
+            python tools/build_desktop.py --smoke --signed
+          else
+            python tools/build_desktop.py --smoke
+          fi
       - name: Build and test Linux bundle
         if: runner.os == 'Linux'
         run: xvfb-run -a dbus-run-session -- python tools/build_desktop.py --smoke
@@ -125,6 +148,9 @@ jobs:
             --volume "$PWD/dist/installers:/packages:ro" \
             --volume "$PWD/packaging/desktop/linux:/checks:ro" \
             fedora:44 bash /checks/test-rpm.sh
+      - name: Remove temporary macOS signing keychain
+        if: always() && runner.os == 'macOS' && env.MACOS_SIGNING_TEMP_DIRECTORY != ''
+        run: python tools/setup_macos_signing.py cleanup
       - uses: actions/upload-artifact@v4
         timeout-minutes: 5
         with:
@@ -141,6 +167,9 @@ jobs:
             build/desktop/dmg-smoke.json
             build/desktop/deb-smoke.json
             build/desktop/rpm-files.txt
+            build/desktop/signing.json
+            build/desktop/*-notary.json
+            build/desktop/*-notary-log.json
             build/desktop/installer-test-*/*smoke.json
             build/desktop/installer-test-*/*.log
           if-no-files-found: ignore

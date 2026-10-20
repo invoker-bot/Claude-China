@@ -8,8 +8,10 @@ Windows setup installs Microsoft's WebView2 Runtime if missing (internet require
 Linux requires GTK 3 and WebKitGTK 4.1; select an installed desktop executable in
 the launcher settings. The packages do not include Claude or Codex themselves.
 
-The Windows and macOS downloads are not publisher-signed/notarized and may
-show operating-system trust warnings. Check downloads against `SHA256SUMS`.
+macOS release builds must pass Developer ID signing and Apple notarization.
+Windows signing service enrollment is pending; Windows downloads currently
+remain unsigned and may show trust warnings. Check downloads against
+`SHA256SUMS`. See the [signing setup and status](https://github.com/invoker-bot/Claude-China/blob/main/packaging/desktop/SIGNING.md).
 
 The old `claudec desktop install` / `uninstall` commands now show migration
 instructions. Quit the old Python launcher and remove its shortcut before

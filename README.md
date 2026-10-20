@@ -64,9 +64,11 @@ The launcher does not install Claude or Codex themselves. On Linux, select an
 installed desktop application's executable in its settings; terminal commands
 on `PATH` are not treated as desktop apps.
 
-Unsigned builds may show an operating-system publisher warning. macOS release
-builds require maintainer signing and notarization credentials to avoid
-Gatekeeper warnings; see [desktop build instructions](packaging/desktop/README.md).
+The v0.3.0 installers have no verified publisher signature. Windows signing
+service enrollment is pending. Future macOS release builds require Developer ID
+signing and Apple notarization; see the
+[signing setup guide](packaging/desktop/SIGNING.md). A valid Windows signature
+does not guarantee that a new download has sufficient SmartScreen reputation.
 
 ### Upgrading from code-ai / AI Launcher
 
@@ -285,4 +287,4 @@ the CLI distribution to PyPI.
 
 ## License
 
-MIT
+[MIT](LICENSE)

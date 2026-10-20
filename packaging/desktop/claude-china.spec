@@ -10,6 +10,7 @@ root = Path(SPECPATH).resolve().parents[1]
 version = runpy.run_path(str(root / "src/claude_china/__init__.py"))["__version__"]
 data = collect_data_files("claude_china") + collect_data_files("webview")
 data += copy_metadata("pywebview") + copy_metadata("proxy_tools")
+data += [(str(root / "LICENSE"), "licenses/claude-china")]
 hidden = []
 excluded = ["tkinter", "pytest", "PyQt5", "PyQt6", "PySide2", "PySide6",
             "webview.platforms.qt", "webview.platforms.cef", "webview.platforms.android"]
@@ -53,6 +54,8 @@ exe = EXE(
     icon=str(icon) if sys.platform != "linux" else None,
     version=os.environ.get("CLAUDE_CHINA_VERSION_FILE") if sys.platform == "win32" else None,
     codesign_identity=os.environ.get("MACOS_SIGNING_IDENTITY") or None,
+    entitlements_file=str(root / "packaging/desktop/macos/entitlements.plist")
+    if sys.platform == "darwin" else None,
 )
 collection = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False,
                      name="claude-china-desktop")

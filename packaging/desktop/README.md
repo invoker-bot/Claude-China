@@ -113,21 +113,21 @@ compiled search paths and library versions are incompatible with Fedora.
 
 ## Signing
 
-Default builds are unsigned on Windows and ad-hoc signed on macOS. Publisher
-reputation and Gatekeeper approval are separate from a successful build.
-Users may see OS warnings; public releases should be signed by their maintainer.
-Do not claim a release is signed or notarized unless its artifacts are verified.
+See [SIGNING.md](SIGNING.md) for certificate creation, GitHub credentials,
+notarization checks and the Windows open-source signing application process.
+The existing v0.3.0 downloads are unsigned on Windows and ad-hoc signed on macOS.
 
-For macOS, import a Developer ID Application certificate into the build user's
-keychain and export `MACOS_SIGNING_IDENTITY` before building. Optionally set
-`MACOS_NOTARY_PROFILE` to an existing `xcrun notarytool store-credentials`
-keychain profile; the builder submits the DMG, waits for notarization and staples
-the result. Hosted CI does not provision credentials automatically. Keep
-certificates and passwords in CI secrets, never in this repository.
+PR builds and default manual builds remain unsigned/ad-hoc. Manual runs can
+enable `macos_signing` to exercise Developer ID signing and notarization.
+Every future `v*` tag requires those macOS credentials: missing credentials or
+failed signature/notarization/Gatekeeper checks stop the desktop release.
+The workflow never falls back to an ad-hoc macOS release.
 
-Windows maintainers can sign the frozen executable before running
-`tools/build_desktop.py --skip-freeze`, then sign the resulting setup EXE and
-regenerate its SHA-256 sidecar before uploading. The bundled WebView2 bootstrapper
+Windows signing still requires an approved signing provider and its workflow
+integration. Its default build currently remains unsigned. `--signed` is
+implemented only for macOS and fails explicitly on other platforms. Do not
+describe a Windows release as signed until the application, installer and
+uninstaller have all been signed and verified. The bundled WebView2 bootstrapper
 is independently checked against Microsoft's Authenticode signature.
 
 ## Packaging references

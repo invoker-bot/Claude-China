@@ -13,6 +13,11 @@ import subprocess
 import sys
 import urllib.request
 
+if __package__:
+    from . import desktop_signing
+else:
+    import desktop_signing
+
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGING = ROOT / "packaging/desktop"
 WORK = ROOT / "build/desktop"
@@ -74,6 +79,8 @@ def freeze():
     env = os.environ.copy()
     if sys.platform == "win32":
         env["CLAUDE_CHINA_VERSION_FILE"] = str(windows_version_file())
+    if sys.platform == "darwin":
+        env["PYINSTALLER_STRICT_BUNDLE_CODESIGN_ERROR"] = "1"
     # Fixed paths under the project; --noconfirm replaces only this app bundle.
     command([sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
              "--distpath", DIST, "--workpath", WORK / "pyinstaller",
@@ -133,7 +140,10 @@ def windows_installer():
     return [OUTPUT / f"Claude-China-{VERSION}-windows-x64-setup.exe"]
 
 
-def macos_installer(arch):
+def macos_installer(arch, signing=None):
+    if signing:
+        desktop_signing.verify_macos_signature(DIST / "Claude China.app", signing.team, app=True)
+        desktop_signing.notarize_macos_app(DIST / "Claude China.app", signing, WORK)
     staging = WORK / "dmg"
     reset_directory(staging)
     command(["ditto", DIST / "Claude China.app", staging / "Claude China.app"])
@@ -142,12 +152,13 @@ def macos_installer(arch):
     target.unlink(missing_ok=True)
     command(["hdiutil", "create", "-volname", "Claude China", "-srcfolder", staging,
              "-format", "UDZO", target])
-    # A notarytool keychain profile is optional for local builds. Release
-    # maintainers can provision it on the runner to publish notarized images.
-    profile = os.environ.get("MACOS_NOTARY_PROFILE")
-    if profile:
-        command(["xcrun", "notarytool", "submit", target, "--keychain-profile", profile, "--wait"])
-        command(["xcrun", "stapler", "staple", target])
+    if signing:
+        desktop_signing.sign_macos_dmg(target, signing, WORK)
+        (WORK / "signing.json").write_text(json.dumps({
+            "version": VERSION, "platform": "darwin", "architecture": arch,
+            "team": signing.team, "signed": True, "notarized": True,
+            "gatekeeper": True,
+        }, indent=2), encoding="utf-8")
     return [target]
 
 
@@ -203,14 +214,22 @@ def main():
     parser.add_argument("--skip-freeze", action="store_true")
     parser.add_argument("--freeze-only", action="store_true")
     parser.add_argument("--smoke", action="store_true", help="Test the bundled GUI before packaging")
+    parser.add_argument("--signed", action="store_true",
+                        help="Require Developer ID signing and notarization (macOS)")
     args = parser.parse_args()
+    if args.signed and sys.platform != "darwin":
+        parser.error("--signed currently supports macOS only; Windows needs a signing provider")
     if not re.fullmatch(r"\d+\.\d+\.\d+", VERSION):
         parser.error("Native installer versions must have the form X.Y.Z")
     arch = architecture()
+    (WORK / "signing.json").unlink(missing_ok=True)
+    mac_signing = desktop_signing.macos_config(required=args.signed) if sys.platform == "darwin" else None
     WORK.mkdir(parents=True, exist_ok=True)
     OUTPUT.mkdir(parents=True, exist_ok=True)
     if not args.skip_freeze:
         freeze()
+    if mac_signing:
+        desktop_signing.verify_macos_signature(DIST / "Claude China.app", mac_signing.team, app=True)
     if args.smoke:
         smoke_test(executable())
     if args.freeze_only:
@@ -218,7 +237,7 @@ def main():
     if sys.platform == "win32":
         artifacts = windows_installer()
     elif sys.platform == "darwin":
-        artifacts = macos_installer(arch)
+        artifacts = macos_installer(arch, mac_signing)
     elif sys.platform == "linux":
         artifacts = linux_installers()
     else:
