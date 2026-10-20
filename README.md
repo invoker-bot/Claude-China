@@ -178,6 +178,9 @@ code-ai desktop run           # open the launcher
 code-ai desktop uninstall     # remove the shortcut
 ```
 
+Only one launcher runs per user. Opening the shortcut or running
+`code-ai desktop run` again restores and brings the existing window forward.
+
 Desktop settings are stored separately in `~/.code-ai/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
 environment variables; per-application values take precedence.

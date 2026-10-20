@@ -2,6 +2,8 @@ import inspect
 import sys
 import types
 
+import pytest
+
 import src.code_ai.desktop.app as app_mod
 from src.code_ai.desktop.platforms.base import AppStatus
 
@@ -101,6 +103,37 @@ class _FakeWindow:
 
     def create_file_dialog(self, *args, **kwargs):
         return []
+
+
+def test_repeated_run_activates_existing_window_without_creating_another(monkeypatch, tmp_path):
+    calls = []
+
+    class ExistingInstance:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            calls.append("closed")
+
+        def acquire_or_activate(self):
+            calls.append("activated")
+            return False
+
+    def create_window(*args, **kwargs):
+        pytest.fail("a repeated launch must not create a second window")
+
+    monkeypatch.setattr(app_mod, "DesktopInstance", ExistingInstance, raising=False)
+    monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
+    monkeypatch.setattr(
+        "src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml",
+    )
+    monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace(
+        create_window=create_window,
+    ))
+
+    app_mod.run_gui()
+
+    assert calls == ["activated", "closed"]
 
 
 def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path):

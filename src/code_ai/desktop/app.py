@@ -4,6 +4,7 @@ import sys
 from .apps import APP_REGISTRY
 from .bridge import LauncherBridge
 from .platforms import get_backend
+from .single_instance import DesktopInstance
 
 
 def _ui_asset_path(name: str) -> pathlib.Path:
@@ -34,17 +35,21 @@ def run_gui():
         print("code-ai desktop is supported on Windows and macOS only.")
         return
 
-    import webview  # lazy: only needed to actually show the GUI
+    with DesktopInstance() as instance:
+        if not instance.acquire_or_activate():
+            return
 
-    bridge = LauncherBridge(backend, APP_REGISTRY)
-    # The page fits the window to its content once loaded (bridge.fit_window);
-    # this is just a close first guess so the window does not visibly jump.
-    window = webview.create_window(
-        "AI Launcher", url=_ui_url(), js_api=bridge, width=600, height=276,
-    )
-    try:
-        screen_height = int(webview.screens[0].height)
-    except Exception:  # headless / unknown screen: fit_window skips clamping
-        screen_height = None
-    bridge._attach_window(window, webview.OPEN_DIALOG, screen_height=screen_height)
-    webview.start(icon=_window_icon_path())
+        import webview  # lazy: only needed to actually show the GUI
+
+        bridge = LauncherBridge(backend, APP_REGISTRY)
+        # The page fits the window to its content once loaded (bridge.fit_window);
+        # this is just a close first guess so the window does not visibly jump.
+        window = webview.create_window(
+            "AI Launcher", url=_ui_url(), js_api=bridge, width=600, height=276,
+        )
+        try:
+            screen_height = int(webview.screens[0].height)
+        except Exception:  # headless / unknown screen: fit_window skips clamping
+            screen_height = None
+        bridge._attach_window(window, webview.OPEN_DIALOG, screen_height=screen_height)
+        webview.start(func=instance.listen, args=(window,), icon=_window_icon_path())
