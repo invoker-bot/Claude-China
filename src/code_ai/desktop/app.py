@@ -4,6 +4,7 @@ import sys
 from .apps import APP_REGISTRY
 from .bridge import LauncherBridge
 from .platforms import get_backend
+from .platforms.windows_shell import launcher_icon_path, set_process_app_id as _set_windows_app_id
 from .single_instance import DesktopInstance
 from .tray import LauncherTray
 
@@ -25,7 +26,7 @@ def _ui_url() -> str:
 
 def _window_icon_path() -> str:
     if sys.platform == "win32":
-        return str(_ui_asset_path("icon.ico"))
+        return launcher_icon_path()
     return str(_ui_asset_path("icon.png"))
 
 
@@ -39,6 +40,11 @@ def run_gui():
     with DesktopInstance() as instance:
         if not instance.acquire_or_activate():
             return
+
+        if sys.platform == "win32":
+            # Set before pywebview/pystray create any native windows. Otherwise
+            # the taskbar can reuse the Python host's identity and cached icon.
+            _set_windows_app_id()
 
         import webview  # lazy: only needed to actually show the GUI
 

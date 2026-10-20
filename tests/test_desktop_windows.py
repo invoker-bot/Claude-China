@@ -1,7 +1,15 @@
 import os
 
+import pytest
+
 from src.code_ai.desktop.apps import get_app
 from src.code_ai.desktop.platforms import windows
+
+
+@pytest.fixture(autouse=True)
+def isolated_icon_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / ".code-ai" / "desktop.yaml")
 
 
 def test_detect_override_path_wins(tmp_path):
@@ -411,4 +419,4 @@ def test_create_shortcut_sets_packaged_icon(monkeypatch, tmp_path):
 
     script = captured["argv"][-1]
     assert "$s.IconLocation = " in script
-    assert "icon.ico" in script
+    assert be._icon_path() in script

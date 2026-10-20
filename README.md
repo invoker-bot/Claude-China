@@ -190,6 +190,11 @@ when the launcher opens or an action runs, then return to rest. Shortcut and
 window-title icons stay static. See the [icon preview](docs/branding/preview.html)
 and [asset notes](docs/branding/README.md).
 
+On Windows, the launcher and its shortcuts share a taskbar identity. Icon files
+use a content-based filename so new artwork gets a fresh Shell cache entry.
+After upgrading, run `code-ai desktop install` and restart the launcher to
+refresh existing shortcuts and the taskbar icon.
+
 Desktop settings are stored separately in `~/.code-ai/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
 environment variables; per-application values take precedence.

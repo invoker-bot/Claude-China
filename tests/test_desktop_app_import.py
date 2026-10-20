@@ -108,6 +108,7 @@ class _FakeWindow:
 @pytest.fixture
 def fake_tray(monkeypatch):
     calls = []
+    monkeypatch.setattr(app_mod, "_set_windows_app_id", lambda: None)
 
     class FakeTray:
         def __init__(self, window, icon_path):
@@ -147,6 +148,45 @@ def test_run_gui_keeps_tray_until_gui_exits(monkeypatch, tmp_path, fake_tray):
     assert fake_tray[0][0:2] == ("create", window)
     assert fake_tray[0][2].name == "icon.png"
     assert fake_tray[1:] == ["start", "gui", "stop"]
+
+
+def test_windows_identity_is_set_before_creating_any_window(monkeypatch, tmp_path, fake_tray):
+    calls = []
+    monkeypatch.setattr(app_mod, "_set_windows_app_id",
+                        lambda: calls.append("identity"), raising=False)
+    monkeypatch.setattr(app_mod, "sys", types.SimpleNamespace(platform="win32"))
+    monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
+    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+
+    def create_window(*args, **kwargs):
+        assert calls == ["identity"]
+        calls.append("window")
+        return _FakeWindow()
+
+    monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace(
+        create_window=create_window, OPEN_DIALOG=20, start=lambda **kwargs: None,
+    ))
+    app_mod.run_gui()
+    assert calls == ["identity", "window"]
+
+
+def test_macos_does_not_initialize_windows_shell(monkeypatch, tmp_path, fake_tray):
+    def fail():
+        pytest.fail("macOS must not call a Windows Shell API")
+
+    captured = {}
+    monkeypatch.setattr(app_mod, "_set_windows_app_id", fail)
+    monkeypatch.setattr(app_mod, "sys", types.SimpleNamespace(platform="darwin"))
+    monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
+    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+    monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace(
+        create_window=lambda *args, **kwargs: _FakeWindow(),
+        OPEN_DIALOG=20, start=lambda **kwargs: captured.update(kwargs),
+    ))
+    app_mod.run_gui()
+    assert captured["icon"].endswith("icon.png")
 
 
 def test_repeated_run_activates_existing_window_without_creating_another(monkeypatch, tmp_path):
@@ -204,7 +244,14 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
 
     app_mod.run_gui()
 
-    assert captured["start_kwargs"]["icon"].endswith("icon.ico")
+    from pathlib import Path
+    icon = Path(captured["start_kwargs"]["icon"])
+    if app_mod.sys.platform == "win32":
+        assert icon.name.startswith("launcher-")
+        assert icon.suffix == ".ico"
+        assert icon.read_bytes() == app_mod._ui_asset_path("icon.ico").read_bytes()
+    else:
+        assert icon == app_mod._ui_asset_path("icon.png")
     # No `shown` handler may touch the native window. pywebview dispatches shown
     # callbacks on a background thread; mutating a WinForms control (e.g.
     # native.Icon) off the GUI/STA thread issues a cross-thread SendMessage that

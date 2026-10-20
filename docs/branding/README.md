@@ -20,10 +20,17 @@ The tray (Windows) / menu bar (macOS) and footer mark make a gentle 960 ms turn 
 
 The footer uses the same motion curve on actions and focus, and respects `prefers-reduced-motion`. Window-title, taskbar, Dock and shortcut icons are static. Native macOS frame updates use `AppHelper.callAfter` with the shared NSApplication.
 
+## Windows taskbar
+
+The process sets `CodeAI.DesktopLauncher` as its explicit AppUserModelID before creating native windows. Desktop and Start Menu shortcuts store the same ID, so the Shell can associate the launcher with its own shortcut and icon. Window and shortcut icons use the same content-addressed ICO in `~/.code-ai/icons/`; changing the artwork changes its cache key without deleting older pinned shortcuts' resources.
+
+Run `code-ai desktop install` after upgrading to refresh existing shortcuts, then quit and reopen the launcher. No global icon-cache reset or Explorer restart is required.
+
 ## Validation
 
-- Full pytest suite: **211 passed, 1 skipped** (Python 3.13.13, Windows).
+- Full pytest suite: **219 passed, 1 skipped** (Python 3.13.13, Windows).
 - Native pywebview / pystray smoke test (Python 3.12.10, Windows): startup and action animations return to the static mark; rapid requests share one worker; closing hides the window; a second launch restores it and animates; quitting during animation removes the tray and releases the instance lock.
+- Windows Shell readback confirms the process identity and both installed shortcuts use the same AppUserModelID; the shortcut ICO bytes match the packaged artwork. Native shortcut tests also check command preservation and COM cleanup on failure. Taskbar pixels were not captured by the available window-only screenshot tool.
 - Browser preview checked on light/dark surfaces and at 16 / 24 / 32 / 48 / 64 px.
 - Wheel build verified to contain the current animation module and all three platform icon assets.
 - Python 3.9 syntax checked. macOS dispatch and asset packaging are covered by tests; macOS native execution has not been performed on this Windows host.

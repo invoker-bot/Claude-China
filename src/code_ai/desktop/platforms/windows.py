@@ -1,4 +1,3 @@
-import importlib.resources
 import json
 import os
 import subprocess
@@ -6,6 +5,7 @@ import sys
 import xml.etree.ElementTree as ET
 
 from . import base
+from .windows_shell import launcher_icon_path, set_shortcut_app_id
 from .base import AppStatus
 
 try:
@@ -187,11 +187,9 @@ class WindowsBackend:
 
     def _icon_path(self):
         try:
-            icon = importlib.resources.files("code_ai.desktop").joinpath(
-                "ui", "icon.ico")
-        except (ModuleNotFoundError, FileNotFoundError, TypeError):
+            return launcher_icon_path()
+        except OSError:
             return ""
-        return str(icon)
 
     @staticmethod
     def _shortcut_python():
@@ -248,6 +246,10 @@ class WindowsBackend:
         )
         subprocess.run(["powershell", "-NoProfile", "-Command", script],
                        check=False, creationflags=_NO_WINDOW)
+        if os.path.isfile(path):
+            # The same ID on the process and .lnk preserves taskbar grouping
+            # and makes pinning/relaunching use the launcher command and icon.
+            set_shortcut_app_id(path)
 
     def remove_shortcut(self) -> list:
         removed = []
