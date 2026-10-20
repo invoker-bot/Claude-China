@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a `src`-layout Python package. Core CLI and profile logic lives in `src/claude_china/`, with `cli.py` as the Typer entry point, `config.py` for `~/.code-ai/config.yaml`, `models.py` for profile dataclasses, and `launcher.py` for environment setup and process launch. Desktop launcher code is under `src/claude_china/desktop/`; static desktop UI assets are in `src/claude_china/desktop/ui/` and are packaged via `pyproject.toml`. Tests live in `tests/`, and design notes/plans live in `docs/superpowers/`.
+This is a `src`-layout Python package. Core CLI and profile logic lives in `src/claude_china/`, with `cli.py` as the Typer entry point, `config.py` for `~/.claudec/config.yaml`, `config_paths.py` for shared paths and one-time imports from `~/.code-ai/`, `models.py` for profile dataclasses, and `launcher.py` for environment setup and process launch. Desktop launcher code is under `src/claude_china/desktop/`; static desktop UI assets are in `src/claude_china/desktop/ui/` and are packaged via `pyproject.toml`. Tests live in `tests/`, and design notes/plans live in `docs/superpowers/`.
 
 The deprecated `ai-code-switcher` distribution is built separately from `compat/ai-code-switcher/`. It only provides the old CLI/module bridge and depends on `claude-china`; do not copy application code into it. Tags `legacy-v<version>` run its cross-platform upgrade checks and publish that package, while `v<version>` tags publish the main distribution.
 
@@ -29,4 +29,4 @@ Recent commits use concise conventional-style messages such as `fix(desktop): ..
 
 ## Security & Configuration Tips
 
-Do not commit real tokens, profile configs, or generated user settings from `~/.code-ai/`. `launcher.py` deliberately clears managed environment variables before setting profile-specific values; when adding new provider env vars, update the central env-var tables so cross-profile leakage stays covered by tests.
+Do not commit real tokens, profile configs, or generated user settings from `~/.claudec/` or legacy `~/.code-ai/`. `launcher.py` deliberately clears managed environment variables before setting profile-specific values; when adding new provider env vars, update the central env-var tables so cross-profile leakage stays covered by tests.

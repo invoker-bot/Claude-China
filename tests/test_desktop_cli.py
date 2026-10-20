@@ -36,6 +36,8 @@ def test_uninstall_redirects_to_os_and_preserves_settings(monkeypatch, tmp_path,
     assert "Installed apps" in result.output
     assert "Trash" in result.output
     assert "package manager" in result.output
+    assert "~/.claudec/" in result.output
+    assert "~/.code-ai/" in result.output
     assert settings.read_text() == "check_system_proxy: true\n"
 
 

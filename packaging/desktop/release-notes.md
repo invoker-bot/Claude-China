@@ -15,7 +15,10 @@ remain unsigned and may show trust warnings. Check downloads against
 
 The old `claudec desktop install` / `uninstall` commands now show migration
 instructions. Quit the old Python launcher and remove its shortcut before
-installing. Existing profiles, credentials and settings in `~/.code-ai/` are
-reused and preserved during uninstall.
+installing. Configuration now lives in `~/.claudec/`. Missing profile and
+desktop settings files are automatically imported from `~/.code-ai/` on first
+use; existing new files take priority and the old files remain as a backup.
+Login credential paths stay unchanged. Uninstalling preserves both directories
+and your credentials.
 
 The CLI remains available with `python -m pip install --upgrade claude-china`.

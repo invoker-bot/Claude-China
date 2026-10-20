@@ -229,7 +229,7 @@ def desktop_uninstall(
     typer.echo("  Windows: Settings > Apps > Installed apps > Claude China > Uninstall")
     typer.echo("  macOS: quit Claude China, then move it from Applications to Trash")
     typer.echo("  Linux: remove claude-china-desktop with your package manager")
-    typer.echo("Your profiles and settings in ~/.code-ai/ are preserved.")
+    typer.echo("Your profiles and settings in ~/.claudec/ (and legacy ~/.code-ai/) are preserved.")
     raise typer.Exit(1)
 
 

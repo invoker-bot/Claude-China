@@ -1,10 +1,10 @@
-from pathlib import Path
 from typing import Optional
 
 import yaml
 
-# Also keeps the single-instance lock shared with pre-rename installations.
-DESKTOP_CONFIG_FILE = Path.home() / ".code-ai" / "desktop.yaml"
+from ..config_paths import config_dir, ensure_config_file
+
+DESKTOP_CONFIG_FILE = config_dir() / "desktop.yaml"
 
 DEFAULTS = {
     "check_system_proxy": True,
@@ -14,10 +14,8 @@ DEFAULTS = {
 
 
 def load_desktop_config() -> dict:
-    """Load desktop.yaml, creating it with defaults on first use."""
-    if not DESKTOP_CONFIG_FILE.exists():
-        save_desktop_config({k: (dict(v) if isinstance(v, dict) else v)
-                             for k, v in DEFAULTS.items()})
+    """Load desktop.yaml, importing legacy settings or creating first-use defaults."""
+    ensure_config_file(DESKTOP_CONFIG_FILE, DEFAULTS)
     with open(DESKTOP_CONFIG_FILE, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
     # Coerce, don't just default: a hand-written `apps:` / `env_vars:` with no
@@ -32,7 +30,7 @@ def load_desktop_config() -> dict:
 
 
 def save_desktop_config(data: dict) -> None:
-    DESKTOP_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    DESKTOP_CONFIG_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with open(DESKTOP_CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 

@@ -1,19 +1,14 @@
-import os
-import sys
-from pathlib import Path
-
 import yaml
 
+from .config_paths import config_dir, ensure_config_file
 from .models import profile_from_dict, profile_to_dict, BaseProfile
 
-# Preserve existing profiles and credentials through the Claude China rename.
-CONFIG_DIR = Path.home() / ".code-ai"
+CONFIG_DIR = config_dir()
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
 def load_config():
-    if not CONFIG_FILE.exists():
-        init_config()
+    ensure_config_file(CONFIG_FILE, {"profiles": {}})
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
     if not data or "profiles" not in data:
@@ -35,7 +30,7 @@ def load_config():
 
 
 def save_config(data):
-    os.makedirs(CONFIG_DIR, exist_ok=True)
+    CONFIG_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     with open(CONFIG_FILE, "w", encoding="utf-8") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
 

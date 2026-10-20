@@ -18,9 +18,8 @@ def test_cli_reports_claudec_and_claude_china():
     assert "Claude China" in help_result.stdout
 
 
-def test_rename_reuses_existing_settings_and_instance_directory():
-    # Keeping the location also lets an old and a new launcher share one lock.
-    assert config.CONFIG_DIR == Path.home() / ".code-ai"
+def test_configuration_uses_claudec_directory():
+    assert config.CONFIG_DIR == Path.home() / ".claudec"
     assert desktop_config.DESKTOP_CONFIG_FILE == config.CONFIG_DIR / "desktop.yaml"
 
 

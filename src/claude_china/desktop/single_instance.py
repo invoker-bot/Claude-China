@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 
+from ..config_paths import legacy_config_file
 from . import config as cfg
 
 
@@ -46,7 +47,10 @@ class DesktopInstance:
         self._path = Path(path) if path is not None else cfg.DESKTOP_CONFIG_FILE.with_name(
             "desktop.lock"
         )
+        legacy = legacy_config_file(cfg.DESKTOP_CONFIG_FILE) if path is None else None
+        self._legacy_path = legacy.with_name("desktop.lock") if legacy is not None else None
         self._file = None
+        self._files = []
         self._listener = None
         self._token = secrets.token_hex(32).encode("ascii")
         self._closed = threading.Event()
@@ -64,22 +68,35 @@ class DesktopInstance:
         exits during startup, the OS releases its lock and this launch takes
         over. A live but unresponsive owner must never create a second GUI.
         """
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        fd = os.open(str(self._path), os.O_RDWR | os.O_CREAT, 0o600)
-        self._file = os.fdopen(fd, "r+b", buffering=0)
+        self._path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        paths = [self._path]
+        if self._legacy_path is not None and self._legacy_path.parent.is_dir():
+            # Existing installations may still launch an older executable. Own
+            # both locks in a fixed order and advertise the same activation
+            # endpoint to each version; never copy, rename or remove a lock.
+            # Users may have linked the two directories or lock files themselves.
+            same_file = self._legacy_path.parent.samefile(self._path.parent) or (
+                self._path.exists() and self._legacy_path.exists()
+                and self._legacy_path.samefile(self._path)
+            )
+            if not same_file:
+                paths.append(self._legacy_path)
         deadline = time.monotonic() + timeout
-        while True:
-            if _try_lock(self._file):
-                self._start_listener()
-                return True
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise RuntimeError(
-                    "Claude China is already running, but its window did not respond."
-                )
-            if self._activate_existing(min(remaining, 1.0)):
-                return False
-            time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+        for path in paths:
+            fd = os.open(str(path), os.O_RDWR | os.O_CREAT, 0o600)
+            self._file = os.fdopen(fd, "r+b", buffering=0)
+            self._files.append(self._file)
+            while not _try_lock(self._file):
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError(
+                        "Claude China is already running, but its window did not respond."
+                    )
+                if self._activate_existing(min(remaining, 1.0)):
+                    return False
+                time.sleep(min(0.05, max(0, deadline - time.monotonic())))
+        self._start_listener()
+        return True
 
     def _start_listener(self) -> None:
         self._listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -93,9 +110,10 @@ class DesktopInstance:
         }).encode("ascii")
         # Byte zero is locked on Windows; other processes can read the metadata
         # after it. Keep this file in place so contenders always lock the same file.
-        self._file.seek(1)
-        self._file.write(state)
-        self._file.truncate()
+        for stream in self._files:
+            stream.seek(1)
+            stream.write(state)
+            stream.truncate()
 
     def _activate_existing(self, timeout: float) -> bool:
         try:
@@ -159,7 +177,8 @@ class DesktopInstance:
         if self._listener is not None:
             self._listener.close()
             self._listener = None
-        if self._file is not None:
+        for stream in reversed(self._files):
             # Closing the handle releases the OS lock, even after startup errors.
-            self._file.close()
-            self._file = None
+            stream.close()
+        self._files.clear()
+        self._file = None

@@ -99,7 +99,8 @@ def main():
     group = root.name
     menu = Path(os.environ["APPDATA"]) / "Microsoft/Windows/Start Menu/Programs" / group
     settings = {path: hashlib.sha256(path.read_bytes()).digest()
-                for path in (Path.home() / ".code-ai").glob("*.yaml")}
+                for directory in (".claudec", ".code-ai")
+                for path in (Path.home() / directory).glob("*.yaml")}
     try:
         for phase in ("install", "repair"):
             run([installer, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/SP-",

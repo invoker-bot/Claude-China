@@ -18,8 +18,10 @@ installer from [GitHub Releases](https://github.com/invoker-bot/Claude-China/rel
 Quit the old launcher and remove its Python-based shortcut before installing.
 Use the operating system's normal uninstall flow for the new desktop app.
 
-The desktop app is now named **Claude China**. Profiles, credentials and desktop
-settings continue to use `~/.code-ai/`; no manual migration is needed.
+The desktop app is now named **Claude China**. Current releases store profiles
+and desktop settings in `~/.claudec/`, automatically importing missing YAML
+files from `~/.code-ai/`. Existing new files take priority, old files remain as
+a backup, and login credential paths stay unchanged.
 
 ## Compatibility for existing users
 

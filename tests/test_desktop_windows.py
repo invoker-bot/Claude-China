@@ -9,7 +9,7 @@ from src.claude_china.desktop.platforms import windows
 @pytest.fixture(autouse=True)
 def isolated_icon_cache(tmp_path, monkeypatch):
     monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
-                        tmp_path / ".code-ai" / "desktop.yaml")
+                        tmp_path / ".claudec" / "desktop.yaml")
 
 
 def test_detect_override_path_wins(tmp_path):

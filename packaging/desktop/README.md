@@ -14,8 +14,11 @@ contains the desktop application, Python and its Python dependencies.
 
 The Windows AppId and macOS bundle ID remain constant across versions.
 Installing a newer package upgrades the same app. The application never
-installs its own shortcuts. No installer or uninstaller deletes `~/.code-ai/`,
-which contains shared CLI profiles, credentials and desktop settings.
+installs its own shortcuts. No installer or uninstaller deletes `~/.claudec/`,
+legacy `~/.code-ai/` files, or login credential directories. Shared CLI profiles
+and desktop settings now live in `~/.claudec/`; missing YAML files are imported
+from the legacy directory on first use without overwriting existing new files
+or removing the originals.
 
 Quit the old Python launcher and remove its old Desktop/Start Menu shortcut
 before migrating. A macOS AppleScript shortcut on the Desktop is not the new
@@ -142,7 +145,7 @@ installer filename and its `.sha256` sidecar. Downloads use HTTPS with a GitHub
 redirect allowlist, bounded size/time, SHA-256 and the GitHub asset digest when
 provided. No profiles, credentials or settings are sent to GitHub.
 
-Each download has an isolated UUID staging directory in `~/.code-ai/updates`.
+Each download has an isolated UUID staging directory in `~/.claudec/updates`.
 Only a completely verified download enables **安装并重启**. A copy of the current
 runtime starts outside the installation directory, acknowledges readiness and
 waits for the original PID (including creation time) to exit. It then rechecks

@@ -33,6 +33,104 @@ def start_listener(instance, window):
     return thread
 
 
+@pytest.fixture
+def migrated_instance_home(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+    current = tmp_path / ".claudec" / "desktop.lock"
+    legacy = tmp_path / ".code-ai" / "desktop.lock"
+    monkeypatch.setattr(instance_mod.cfg, "DESKTOP_CONFIG_FILE", current.with_name("desktop.yaml"))
+    return current, legacy
+
+
+def test_new_install_locks_claudec_without_creating_legacy_directory(migrated_instance_home):
+    current, legacy = migrated_instance_home
+    with instance_mod.DesktopInstance() as instance:
+        assert instance.acquire_or_activate()
+        assert current.is_file()
+        assert not legacy.parent.exists()
+
+
+@pytest.mark.parametrize("alias_directory", [False, True])
+def test_aliased_legacy_path_is_not_locked_twice(migrated_instance_home, alias_directory):
+    current, legacy = migrated_instance_home
+    legacy.parent.mkdir()
+    try:
+        if alias_directory:
+            current.parent.symlink_to(legacy.parent, target_is_directory=True)
+        else:
+            current.parent.mkdir()
+            legacy.touch()
+            current.symlink_to(legacy)
+    except OSError:
+        pytest.skip("Creating symbolic links is unavailable")
+    with instance_mod.DesktopInstance() as owner:
+        assert owner.acquire_or_activate(timeout=0.1)
+
+
+def test_new_launcher_activates_running_legacy_launcher(migrated_instance_home):
+    current, legacy = migrated_instance_home
+    window = FakeWindow()
+    with instance_mod.DesktopInstance(legacy) as old:
+        assert old.acquire_or_activate()
+        listener = start_listener(old, window)
+        try:
+            with instance_mod.DesktopInstance() as new:
+                assert not new.acquire_or_activate(timeout=1)
+            assert window.calls == ["restore", "show"]
+        finally:
+            old.close()
+            listener.join(timeout=3)
+    with instance_mod.DesktopInstance() as replacement:
+        assert replacement.acquire_or_activate(timeout=1)
+        assert current.is_file()
+
+
+@pytest.mark.parametrize("contender_path", ["current", "legacy", "default"])
+def test_migrated_launcher_accepts_new_and_old_activation(migrated_instance_home, contender_path):
+    current, legacy = migrated_instance_home
+    legacy.parent.mkdir()
+    window = FakeWindow()
+    with instance_mod.DesktopInstance() as owner:
+        assert owner.acquire_or_activate()
+        listener = start_listener(owner, window)
+        try:
+            path = {"current": current, "legacy": legacy, "default": None}[contender_path]
+            with instance_mod.DesktopInstance(path) as contender:
+                assert not contender.acquire_or_activate(timeout=1)
+            assert window.calls == ["restore", "show"]
+        finally:
+            owner.close()
+            listener.join(timeout=3)
+    for path in (current, legacy):
+        with instance_mod.DesktopInstance(path) as replacement:
+            assert replacement.acquire_or_activate(timeout=1)
+
+
+def test_unresponsive_legacy_launcher_never_creates_second_gui(migrated_instance_home):
+    current, legacy = migrated_instance_home
+    with instance_mod.DesktopInstance(legacy) as old:
+        assert old.acquire_or_activate()
+        with instance_mod.DesktopInstance() as new:
+            with pytest.raises(RuntimeError, match="already running"):
+                new.acquire_or_activate(timeout=0.1)
+        # The failed attempt must also release the new directory's lock.
+        with instance_mod.DesktopInstance(current) as replacement:
+            assert replacement.acquire_or_activate(timeout=1)
+
+
+@pytest.mark.parametrize("explicit_path", [False, True])
+def test_custom_lock_path_does_not_activate_user_launcher(
+    migrated_instance_home, tmp_path, monkeypatch, explicit_path,
+):
+    _, legacy = migrated_instance_home
+    path = tmp_path / "smoke" / "desktop.lock"
+    monkeypatch.setattr(instance_mod.cfg, "DESKTOP_CONFIG_FILE", path.with_name("desktop.yaml"))
+    with instance_mod.DesktopInstance(legacy) as old:
+        assert old.acquire_or_activate()
+        with instance_mod.DesktopInstance(path if explicit_path else None) as isolated:
+            assert isolated.acquire_or_activate(timeout=0.1)
+
+
 def test_second_instance_restores_and_shows_existing_window(tmp_path, monkeypatch):
     path = tmp_path / "desktop.lock"
     allow_foreground = Mock()
@@ -111,8 +209,16 @@ def test_duplicate_launch_waits_for_first_window_to_be_ready(tmp_path, monkeypat
                 duplicate.join(timeout=5)
 
 
-def test_concurrent_launches_choose_one_owner(tmp_path):
+@pytest.mark.parametrize("legacy_directory", [False, True])
+def test_concurrent_launches_choose_one_owner(tmp_path, monkeypatch, legacy_directory):
     path = tmp_path / "desktop.lock"
+    if legacy_directory:
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
+        (tmp_path / ".code-ai").mkdir()
+        monkeypatch.setattr(
+            instance_mod.cfg, "DESKTOP_CONFIG_FILE", tmp_path / ".claudec" / "desktop.yaml",
+        )
+        path = None
     barrier = threading.Barrier(4)
     release_owner = threading.Event()
     launches_finished = threading.Event()

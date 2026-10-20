@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`claude-china` (CLI: `claudec`) is a Typer-based wrapper that selects an AI coding-tool profile and execs the matching upstream CLI (`claude`, `codex`, or `gemini`) with the right environment. Configuration lives in `~/.code-ai/config.yaml`. Distribution name is `claude-china`; the Python package is `claude_china`.
+`claude-china` (CLI: `claudec`) is a Typer-based wrapper that selects an AI coding-tool profile and execs the matching upstream CLI (`claude`, `codex`, or `gemini`) with the right environment. Configuration lives in `~/.claudec/config.yaml`. Distribution name is `claude-china`; the Python package is `claude_china`.
 
 ## Commands
 
@@ -33,7 +33,7 @@ The package is commonly installed globally (`pip install -e .` or via release). 
 The flow for `claudec run <profile> [extra_args...]`:
 
 1. **`cli.py`** (`run_command`) — Typer entry point. Uses `ignore_unknown_options=True` + `allow_extra_args=True` so unknown flags fall through into `ctx.args` and get forwarded to the underlying CLI verbatim. Declared options like `--no-default-args` are still parsed normally and do **not** leak into `ctx.args`.
-2. **`config.py`** loads `~/.code-ai/config.yaml`. `load_config` auto-migrates legacy profiles (back-fills missing `name`/`mode` fields and re-saves).
+2. **`config.py`** loads `~/.claudec/config.yaml`. `config_paths.py` imports missing profile and desktop YAML files from `~/.code-ai/` once, preserving originals and giving existing new files priority. `load_config` also migrates legacy profiles (back-fills missing `name`/`mode` fields and re-saves).
 3. **`models.py`** — `profile_from_dict` dispatches the raw dict to either `ApiProfile` or `LoginProfile` based on `type` + `mode`. `BaseProfile` holds shared fields (`name`, `type`, `proxy`, `default_args`).
 4. **`launcher.py`** — `prepare_environment` first **clears** every var in `MANAGED_ENV_VARS` from the inherited environment, then sets only what the active profile needs. This prevents stale `ANTHROPIC_*` / `OPENAI_*` / `CLAUDE_CONFIG_DIR` / proxy settings from a parent shell from leaking into the child CLI. `merge_launch_args(extra_args, profile.default_args, use_default_args)` produces the final argv: command-line args first, profile defaults appended last (so defaults win for last-occurrence-wins flags like `--model`).
 5. Spawn: on Windows uses `subprocess.run` (so npm-installed `.cmd` shims resolve correctly via `shutil.which(f"{cmd}.cmd")`); on Unix uses `os.execvp`.

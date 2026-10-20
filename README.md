@@ -69,7 +69,8 @@ Updating restarts only the launcher, leaving launched Claude/Codex apps running.
 Failures are shown in the launcher when it reopens.
 
 You can also install a newer package over the existing installation.
-Uninstalling preserves profiles, credentials and settings in `~/.code-ai/`.
+Uninstalling preserves profiles and settings in `~/.claudec/`, legacy files in
+`~/.code-ai/`, and your login credential directories.
 The existing v0.3.0 release predates the update controls; install the first
 release containing this feature manually once.
 
@@ -110,8 +111,17 @@ For CLI use, run:
 python -m pip install --upgrade claude-china
 ```
 
-Existing profiles, login directories, desktop settings and the single-instance
-lock continue to use `~/.code-ai/`; no credentials need to be copied.
+Configuration now lives in `~/.claudec/`. On first use, missing `config.yaml`
+and `desktop.yaml` files are automatically imported from `~/.code-ai/`.
+Existing files in the new directory take priority; files are never merged or
+overwritten by this import. Old files remain as a backup and are not kept in
+sync with subsequent changes. Login credential paths stay unchanged, so no
+credentials need to be copied.
+
+New icon and update caches also use `~/.claudec/`. Existing caches and active
+update jobs stay in their original locations. On an existing installation,
+the launcher also coordinates with the old instance lock to avoid opening
+two windows across versions.
 You can then remove the old distribution with `python -m pip uninstall ai-code-switcher`.
 
 For existing scripts that still use `code-ai`, upgrade the compatibility package:
@@ -180,7 +190,7 @@ when the npm package is absent. Login credentials still use the profile's own
 
 ## Profiles and configuration
 
-Profiles are stored in `~/.code-ai/config.yaml`. Use API mode when the profile
+Profiles are stored in `~/.claudec/config.yaml`. Use API mode when the profile
 should provide a token or API key. Use login mode when the CLI should use an
 isolated credentials directory.
 
@@ -282,7 +292,7 @@ use a content-based filename so new artwork gets a fresh Shell cache entry.
 The Windows installer updates the Start Menu shortcut and optional desktop
 shortcut. Restart the launcher after upgrading to refresh the taskbar icon.
 
-Desktop settings are stored separately in `~/.code-ai/desktop.yaml`. The
+Desktop settings are stored separately in `~/.claudec/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
 environment variables; per-application values take precedence.
 

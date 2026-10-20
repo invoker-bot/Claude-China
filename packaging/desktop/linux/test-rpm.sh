@@ -3,9 +3,11 @@
 set -eu
 dnf install -y /packages/*.rpm xorg-x11-server-Xvfb xorg-x11-xauth dbus-x11 shadow-utils
 useradd --create-home smoke
-install -d -o smoke -g smoke /home/smoke/.code-ai
-printf 'check_system_proxy: false\n' > /home/smoke/.code-ai/desktop.yaml
-chown smoke:smoke /home/smoke/.code-ai/desktop.yaml
+for directory in .claudec .code-ai; do
+  install -d -o smoke -g smoke "/home/smoke/$directory"
+  printf 'check_system_proxy: false\n' > "/home/smoke/$directory/desktop.yaml"
+  chown smoke:smoke "/home/smoke/$directory/desktop.yaml"
+done
 # Docker does not provide WebKit's user-namespace sandbox. This exception is
 # confined to the test process; it is never part of the shipped launcher.
 runuser -u smoke -- env WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 \
@@ -22,6 +24,8 @@ test ! -e /opt/claude-china/claude-china-desktop
 test ! -L /usr/bin/claude-china-desktop
 test ! -e /usr/share/applications/claude-china.desktop
 test ! -e /usr/share/icons/hicolor/256x256/apps/claude-china.png
-test "$(cat /home/smoke/.code-ai/desktop.yaml)" = 'check_system_proxy: false'
+for directory in .claudec .code-ai; do
+  test "$(cat "/home/smoke/$directory/desktop.yaml")" = 'check_system_proxy: false'
+done
 cat /tmp/rpm-smoke.json
 echo 'RPM installation, native GUI and package removal passed; user settings preserved.'
