@@ -76,7 +76,9 @@ class LauncherBridge:
     def open_release_page(self):
         return self._updater.open_release() if self._updater else {"ok": False}
 
-    def list_apps(self):
+    def list_apps(self, refresh=False):
+        if refresh:
+            self._refresh_detection()
         return [
             {"id": a.id, "display": a.display,
              "found": self._status[a.id].found, "running": self._running(a.id)}
@@ -149,7 +151,11 @@ class LauncherBridge:
         self._notify_activity()
         data = cfg.load_desktop_config()
         cfg.set_app_env(data, app_id, dict(payload.get("env_vars", {})))
+        if "path" in payload:
+            cfg.set_app_path(data, app_id, payload["path"] or "")
         cfg.save_desktop_config(data)
+        if "path" in payload:
+            self._refresh_detection()
         return {"ok": True}
 
     # ---- window ----
@@ -190,7 +196,7 @@ class LauncherBridge:
             return {"ok": False, "error": str(exc)}
         return {"ok": True, "height": new_height}
 
-    def pick_app_path(self, app_id):
+    def pick_app_path(self, app_id, persist=True):
         self._notify_activity()
         if self._window is None:
             return {"ok": False}
@@ -199,8 +205,9 @@ class LauncherBridge:
         if not result:
             return {"ok": False}
         path = result[0]
-        data = cfg.load_desktop_config()
-        cfg.set_app_path(data, app_id, path)
-        cfg.save_desktop_config(data)
-        self._refresh_detection()
+        if persist:
+            data = cfg.load_desktop_config()
+            cfg.set_app_path(data, app_id, path)
+            cfg.save_desktop_config(data)
+            self._refresh_detection()
         return {"ok": True, "path": path}

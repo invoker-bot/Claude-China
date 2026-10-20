@@ -3,98 +3,76 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark light">
+  <meta name="color-scheme" content="dark">
   <title>Claude China</title>
   <link rel="icon" type="image/png" href="icon.png">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main class="panel">
+  <header class="app-header" id="app-header">
+    <div class="brand"><img id="brand-mark" src="icon.png" width="36" height="36" alt="" draggable="false"><span>Claude China</span></div>
+    <nav class="top-nav" aria-label="主导航">
+      <button class="top-link is-active" id="home-button" type="button" aria-current="page">我的应用</button>
+      <button class="top-link" id="open-settings" type="button">设置<span class="draft-dot" aria-hidden="true"></span></button>
+    </nav>
+    <button class="btn header-update" id="open-updates" type="button"><span data-icon="refresh"></span>检查更新</button>
+  </header>
+  <main class="panel" id="launcher-main">
+    <div class="page-heading">
+      <div><h1>我的应用</h1><p>选择应用，开始工作。</p></div>
+      <button class="icon-button refresh-button" id="refresh-apps" type="button" aria-label="刷新应用状态" title="刷新应用状态"><span data-icon="refresh"></span></button>
+    </div>
     <div id="apps" class="bays"></div>
-
-    <section class="bay bay--common" id="bay-common">
-      <div class="bay-row">
-        <div class="bay-lamp" aria-hidden="true"></div>
-        <div class="bay-copy">
-          <h2 class="bay-name bay-name--small">通用设置</h2>
-          <p class="bay-status" id="common-summary"></p>
-        </div>
-        <div class="bay-actions">
-          <button class="gear" id="gear-common" type="button"
-                  aria-expanded="false" aria-controls="editor-common"
-                  aria-label="编辑通用设置" title="编辑通用设置">
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path fill="currentColor" d="M10.3 2.3h3.4l.4 2.2c.6.2 1.2.5 1.7.9l2.1-.8 1.7 2.9-1.7 1.4c.1.6.2 1.2.2 1.8s-.1 1.2-.2 1.8l1.7 1.4-1.7 2.9-2.1-.8c-.5.4-1.1.7-1.7.9l-.4 2.2h-3.4l-.4-2.2a7 7 0 0 1-1.7-.9l-2.1.8-1.7-2.9 1.7-1.4a7 7 0 0 1-.2-1.8c0-.6.1-1.2.2-1.8L4.4 7.5 6.1 4.6l2.1.8c.5-.4 1.1-.7 1.7-.9l.4-2.2ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div class="editor" id="editor-common" inert>
-        <div class="editor-inner"><div class="editor-body">
-          <label class="switch">
-            <input type="checkbox" id="proxy">
-            <span class="switch-ui" aria-hidden="true"></span>
-            <span class="switch-text">
-              <span class="switch-label">启动前检查系统代理</span>
-              <span class="switch-hint">系统代理未开启时取消启动</span>
-            </span>
-          </label>
-
-          <div class="field">
-            <div class="field-head">
-              <span class="field-label">通用环境变量</span>
-              <span class="field-hint">每个应用启动时都会注入</span>
-            </div>
-            <div id="common-env" class="env-list"></div>
-            <button class="add-row" id="add-common" type="button">添加变量</button>
-          </div>
-
-          <div class="editor-actions">
-            <button class="btn" id="cancel-common" type="button">取消</button>
-            <button class="btn btn--solid" id="save-settings" type="button">保存</button>
-          </div>
-        </div></div>
-      </div>
+    <section class="launch-settings" aria-labelledby="launch-settings-title">
+      <span class="settings-symbol" data-icon="network"></span>
+      <div><h2 id="launch-settings-title">启动设置</h2><p id="common-summary"></p></div>
+      <button class="text-button" id="gear-common" type="button" aria-expanded="false" aria-controls="editor-common">管理设置<span data-icon="arrow"></span></button>
     </section>
   </main>
-
   <footer class="foot" id="foot">
-    <img class="brand-mark" id="brand-mark" src="icon.png" width="24" height="24"
-         alt="Claude China" title="Claude China · 独立助手" draggable="false">
-    <span class="foot-info">设置保存在 <code>~/.claudec/desktop.yaml</code></span>
-    <span class="foot-msg" id="toast" role="status" aria-live="polite"></span>
+    <span id="app-count">正在读取应用…</span><span class="foot-info">设置仅保存在此设备</span>
+    <button id="footer-about" type="button" aria-label="关于 Claude China"><span id="footer-version"></span></button>
   </footer>
-
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <div class="overlay" id="launcher-overlay" hidden>
-    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
-      <div class="dialog-head">
-        <h2 id="dialog-title">桌面版更新</h2>
-        <button class="gear" id="dialog-close" type="button" aria-label="关闭弹窗" title="关闭">✕</button>
-      </div>
-      <div id="update-panel">
-        <p class="dialog-version" id="update-version"></p>
-        <p id="update-status" role="status" aria-live="polite">正在读取版本…</p>
-        <progress id="update-progress" max="100" value="0" aria-label="更新下载进度" hidden></progress>
-        <p class="dialog-hint" id="update-hint">安装更新会重启启动器，已启动的应用不受影响。</p>
-        <p class="dialog-warning" id="update-warning" role="alert" hidden></p>
-        <div class="dialog-actions">
-          <button class="btn btn--small" id="update-release" type="button">发布页面</button>
-          <span class="dialog-spacer"></span>
-          <button class="btn btn--small" id="update-cancel" type="button" hidden>取消下载</button>
-          <button class="btn btn--small" id="update-action" type="button" disabled>检查更新</button>
-        </div>
-      </div>
-      <div id="about-panel" hidden>
-        <p class="dialog-version">Claude China <span id="about-version"></span></p>
-        <p>统一启动 Claude、Codex 与 Grok Bot，管理代理和环境变量。</p>
-        <div class="dialog-actions">
-          <button class="btn btn--small" id="about-release" type="button">发布页面</button>
-          <button class="btn btn--small" id="about-updates" type="button">检查更新…</button>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
+      <aside class="settings-sidebar">
+        <h2 class="sidebar-title">设置</h2>
+        <nav aria-label="设置分类" class="settings-nav">
+          <button class="settings-link" id="nav-common" data-panel="common" type="button"><span data-icon="settings"></span>通用设置<span class="draft-dot" aria-hidden="true"></span></button>
+          <p class="nav-caption">应用设置</p><div id="settings-app-nav"></div><div class="nav-divider"></div>
+          <button class="settings-link" data-panel="updates" type="button"><span data-icon="refresh"></span>版本更新</button>
+          <button class="settings-link" data-panel="about" type="button"><span data-icon="info"></span>关于</button>
+        </nav>
+      </aside>
+      <div class="settings-main">
+        <div class="dialog-head"><div><h2 id="dialog-title">通用设置</h2><p id="dialog-description">应用启动时使用的共同配置。</p></div><button class="icon-button" id="dialog-close" type="button" aria-label="关闭设置" title="关闭设置"><span data-icon="close"></span></button></div>
+        <div id="settings-pages">
+          <section class="editor settings-panel" id="editor-common" hidden inert>
+            <div class="editor-body">
+              <label class="switch" for="proxy"><span class="switch-text"><span class="field-label">启动前检查系统代理</span><span class="field-hint">系统代理未开启时取消启动</span></span><input type="checkbox" id="proxy" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
+              <div class="field"><h3 class="field-label">通用环境变量</h3><p class="field-hint">每个应用启动时都会注入，专有设置优先。</p><div class="env-columns" aria-hidden="true"><span>变量名</span><span>值</span></div><div id="common-env" class="env-list"></div><button class="add-row" id="add-common" type="button"><span data-icon="plus"></span>添加变量</button></div>
+              <p class="form-error" id="error-common" role="alert" hidden></p>
+            </div>
+            <div class="editor-actions"><span class="save-state" id="save-state-common">仅保存在当前设备</span><button class="btn" id="cancel-common" type="button">取消</button><button class="btn btn--solid" id="save-settings" type="button">保存设置</button></div>
+          </section>
+          <div id="app-editors"></div>
+          <section class="settings-panel" id="update-panel" hidden>
+            <div class="editor-body">
+              <div class="update-banner"><span data-icon="refresh"></span><div><h3>Claude China</h3><p id="update-version"></p></div></div>
+              <p class="update-status" id="update-status" role="status" aria-live="polite">正在读取版本…</p><progress id="update-progress" max="100" value="0" aria-label="更新下载进度" hidden></progress>
+              <p class="field-hint" id="update-hint">安装更新会重启启动器，已启动的应用不受影响。</p><p class="dialog-warning" id="update-warning" role="alert" hidden></p>
+            </div>
+            <div class="editor-actions"><button class="text-button" id="update-release" type="button">发布页面<span data-icon="external"></span></button><span class="dialog-spacer"></span><button class="btn" id="update-cancel" type="button" hidden>取消下载</button><button class="btn btn--solid" id="update-action" type="button" disabled>检查更新</button></div>
+          </section>
+          <section class="settings-panel" id="about-panel" hidden>
+            <div class="editor-body about-content"><img src="icon.png" alt="" width="64" height="64"><h3>Claude China</h3><p class="dialog-version" id="about-version"></p><p>统一启动 Claude、Codex 与 Grok Bot，管理代理和环境变量。</p><div class="about-location"><span>配置文件</span><code>~/.claudec/desktop.yaml</code></div></div>
+            <div class="editor-actions"><button class="text-button" id="about-release" type="button">发布页面<span data-icon="external"></span></button><span class="dialog-spacer"></span><button class="btn btn--solid" id="about-updates" type="button">检查更新</button></div>
+          </section>
         </div>
       </div>
     </section>
   </div>
-  <script src="app.js"></script>
+  <script src="icons.js"></script><script src="settings.js"></script><script src="app.js"></script><script src="preview.js"></script>
 </body>
 </html>

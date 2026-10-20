@@ -1,0 +1,147 @@
+// Each category keeps its DOM draft until saved or explicitly cancelled.
+// Hiding the dialog and switching categories never write user configuration.
+const DRAFT_PATHS = {};
+const SAVED_DRAFTS = {};
+const SAVING = new Set();
+
+function renderAppSettingsPanels() {
+  const editors = document.getElementById("app-editors");
+  const nav = document.getElementById("settings-app-nav");
+  editors.innerHTML = ""; nav.innerHTML = "";
+  for (const app of APPS) {
+    const id = esc(app.id), name = esc(app.display);
+    nav.insertAdjacentHTML("beforeend", `<button class="settings-link" id="nav-${id}" data-panel="${id}" type="button"><span class="nav-app-symbol">${appSymbol(app.id)}</span>${name}<span class="draft-dot" aria-hidden="true"></span></button>`);
+    editors.insertAdjacentHTML("beforeend",
+      `<section class="editor settings-panel" id="editor-${id}" hidden inert><div class="editor-body">` +
+      `<div class="field"><h3 class="field-label">应用路径</h3><p class="field-hint">默认自动检测，也可以手动选择。保存后生效。</p>` +
+      `<div class="path-row"><code class="path-value" id="path-${id}"></code><button class="btn" id="pick-${id}" type="button">${icon("folder")}选择路径</button></div>` +
+      `<button class="text-button path-reset" id="reset-${id}" type="button">恢复自动检测</button></div>` +
+      `<div class="field"><h3 class="field-label">专有环境变量</h3><p class="field-hint">只对 ${name} 生效，同名变量优先于通用设置。</p>` +
+      `<div class="env-columns" aria-hidden="true"><span>变量名</span><span>值</span></div><div class="env-list" id="env-${id}"></div>` +
+      `<button class="add-row" id="add-${id}" type="button">${icon("plus")}添加变量</button></div>` +
+      `<p class="form-error" id="error-${id}" role="alert" hidden></p></div>` +
+      `<div class="editor-actions"><span class="save-state" id="save-state-${id}">仅保存在当前设备</span><button class="btn" id="cancel-${id}" type="button">取消</button><button class="btn btn--solid" id="save-${id}" type="button">保存设置</button></div></section>`);
+    document.getElementById(`pick-${app.id}`).onclick = () => pickPath(app.id);
+    document.getElementById(`reset-${app.id}`).onclick = () => {
+      DRAFT_PATHS[app.id] = ""; renderPath(app.id); markDrafts();
+    };
+    document.getElementById(`add-${app.id}`).onclick = () => addEnvRow(`env-${app.id}`);
+    document.getElementById(`cancel-${app.id}`).onclick = () => cancelSettings(app.id);
+    document.getElementById(`save-${app.id}`).onclick = () => saveEditor(app.id);
+  }
+}
+
+function envContainer(id) { return id === "common" ? "common-env" : `env-${id}`; }
+function draftSnapshot(id) {
+  return JSON.stringify({
+    setting: id === "common" ? document.getElementById("proxy").checked : DRAFT_PATHS[id] || "",
+    rows: Array.from(document.querySelectorAll(`#${envContainer(id)} .env-row`), row =>
+      [row.querySelector(".k").value, row.querySelector(".v").value]),
+  });
+}
+function isDirty(id) { return SAVED_DRAFTS[id] !== undefined && draftSnapshot(id) !== SAVED_DRAFTS[id]; }
+function hasUnsavedSettings() { return SAVING.size > 0 || ["common", ...APPS.map(a => a.id)].some(isDirty); }
+function markDrafts() {
+  for (const id of ["common", ...APPS.map(a => a.id)]) {
+    const dirty = isDirty(id);
+    const nav = document.getElementById(`nav-${id}`);
+    if (nav) nav.dataset.dirty = String(dirty);
+    const state = document.getElementById(`save-state-${id}`);
+    if (state) state.textContent = dirty ? "有未保存的修改" : "仅保存在当前设备";
+  }
+  document.getElementById("open-settings").dataset.dirty = String(hasUnsavedSettings());
+}
+function renderCommon() {
+  document.getElementById("proxy").checked = !!SETTINGS.check_system_proxy;
+  renderEnv("common-env", SETTINGS.env_vars);
+  document.getElementById("common-summary").textContent = SETTINGS.check_system_proxy ? "启动前检查系统代理" : "启动时不检查系统代理";
+  SAVED_DRAFTS.common = draftSnapshot("common");
+}
+function renderAppEditor(id) {
+  const settings = APP_SETTINGS[id] || { env_vars: {}, path: "" };
+  DRAFT_PATHS[id] = settings.path || "";
+  renderPath(id);
+  renderEnv(`env-${id}`, settings.env_vars);
+  SAVED_DRAFTS[id] = draftSnapshot(id);
+}
+function renderPath(id) {
+  const el = document.getElementById(`path-${id}`);
+  el.textContent = DRAFT_PATHS[id] || "自动检测";
+  el.classList.toggle("is-auto", !DRAFT_PATHS[id]);
+  document.getElementById(`reset-${id}`).hidden = !DRAFT_PATHS[id];
+}
+async function pickPath(id) {
+  const button = document.getElementById(`pick-${id}`);
+  button.disabled = true;
+  try {
+    const result = await api().pick_app_path(id, false);
+    if (result && result.ok) { DRAFT_PATHS[id] = result.path; renderPath(id); markDrafts(); }
+  } catch (_) { showFormError(id, "无法选择应用路径，请重试。"); }
+  finally { button.disabled = false; }
+}
+function renderEnv(containerId, vars) {
+  document.getElementById(containerId).innerHTML = "";
+  for (const [key, value] of Object.entries(vars || {})) addEnvRow(containerId, key, value, false);
+}
+function addEnvRow(containerId, key = "", value = "", focus = true) {
+  const row = document.createElement("div");
+  row.className = "env-row";
+  row.innerHTML = `<input class="k" aria-label="变量名" placeholder="变量名" spellcheck="false" autocomplete="off" value="${esc(key)}">` +
+    `<input class="v" aria-label="值" placeholder="值" spellcheck="false" autocomplete="off" value="${esc(value)}">` +
+    `<button class="icon-button del" type="button" aria-label="删除这个变量" title="删除">${icon("close")}</button>`;
+  row.querySelector(".del").onclick = () => { row.remove(); markDrafts(); };
+  document.getElementById(containerId).appendChild(row);
+  if (focus) { row.querySelector(".k").focus(); markDrafts(); }
+}
+function collectEnv(containerId) {
+  const vars = Object.create(null);
+  for (const row of document.querySelectorAll(`#${containerId} .env-row`)) {
+    const key = row.querySelector(".k").value.trim(), value = row.querySelector(".v").value;
+    if (!key && !value) continue;
+    if (!key || key.includes("=") || key.includes("\0") || value.includes("\0")) {
+      row.querySelector(".k").focus();
+      throw new Error("请填写有效的变量名，且不要包含等号或空字符。");
+    }
+    if (Object.prototype.hasOwnProperty.call(vars, key)) {
+      row.querySelector(".k").focus(); throw new Error(`变量 ${key} 重复，请合并后保存。`);
+    }
+    vars[key] = value;
+  }
+  return vars;
+}
+function showFormError(id, message) {
+  const error = document.getElementById(`error-${id}`);
+  error.textContent = message; error.hidden = !message;
+}
+function cancelSettings(id) {
+  if (SAVING.has(id)) return;
+  if (id === "common") renderCommon(); else renderAppEditor(id);
+  showFormError(id, ""); markDrafts(); closeDialog();
+}
+async function saveEditor(id) {
+  if (SAVING.has(id)) return;
+  showFormError(id, "");
+  let payload;
+  try {
+    payload = { env_vars: collectEnv(envContainer(id)) };
+    if (id === "common") payload.check_system_proxy = document.getElementById("proxy").checked;
+    else payload.path = DRAFT_PATHS[id] || "";
+  } catch (error) { showFormError(id, error.message); return; }
+  SAVING.add(id);
+  const editor = document.getElementById(`editor-${id}`);
+  const controls = Array.from(editor.querySelectorAll("input, button"));
+  controls.forEach(el => { el.disabled = true; });
+  try {
+    const result = id === "common" ? await api().save_settings(payload) : await api().save_app_settings(id, payload);
+    if (!result || !result.ok) throw new Error("保存失败");
+    if (id === "common") { SETTINGS = payload; renderCommon(); }
+    else { APP_SETTINGS[id] = payload; renderAppEditor(id); rerenderBay(id); }
+    animateBrand(); toast("设置已保存");
+    try { await refresh(); } catch (_) { toast("设置已保存，应用状态暂时无法刷新。"); }
+  } catch (_) { showFormError(id, "保存失败，修改仍已保留，请重试。"); }
+  finally {
+    SAVING.delete(id);
+    controls.forEach(el => { el.disabled = false; });
+    markDrafts();
+  }
+}

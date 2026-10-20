@@ -22,14 +22,17 @@ def test_ui_assets_are_packaged():
     assert (ui / "index.html").is_file()
     assert (ui / "style.css").is_file()
     assert (ui / "app.js").is_file()
+    assert (ui / "settings.js").is_file()
+    assert (ui / "icons.js").is_file()
+    assert (ui / "preview.js").is_file()
 
 
 def test_ui_lists_launch_and_stop_actions_without_status_push_hook():
     from pathlib import Path
     script = (Path(app_mod.__file__).parent / "ui" / "app.js").read_text(encoding="utf-8")
 
-    assert 'onAction(a.id, "launch")' in script
-    assert 'onAction(a.id, "stop")' in script
+    assert 'onAction(app.id, "launch")' in script
+    assert 'onAction(app.id, "stop")' in script
     assert "window.updateStatus" not in script
 
 

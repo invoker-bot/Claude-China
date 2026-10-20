@@ -51,10 +51,9 @@ def run_gui(smoke_report=None):
         import webview  # lazy: only needed to actually show the GUI
 
         bridge = LauncherBridge(backend, APP_REGISTRY)
-        # The page fits the window to its content once loaded (bridge.fit_window);
-        # this is just a close first guess so the window does not visibly jump.
+        # Keep a stable application window; settings scroll within their panel.
         window = webview.create_window(
-            "Claude China", url=_ui_url(), js_api=bridge, width=600, height=280,
+            "Claude China", url=_ui_url(), js_api=bridge, width=1000, height=720,
             **({"hidden": True} if smoke_report else {}),
         )
         bridge._attach_window(window, webview.OPEN_DIALOG)

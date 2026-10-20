@@ -11,6 +11,11 @@ the launcher settings. The packages do not include Claude, Codex or Grok Bot the
 The launcher now supports Grok Bot alongside Claude and Codex, including
 automatic detection, launch/restart, stop and per-application environment settings.
 
+The redesigned desktop window uses application cards and a separate settings
+panel with category navigation. Unsaved settings survive category changes and
+closing the panel; save or cancel each changed category before restarting for
+an update.
+
 macOS release builds must pass Developer ID signing and Apple notarization.
 Windows signing service enrollment is pending; Windows downloads currently
 remain unsigned and may show trust warnings. Check downloads against

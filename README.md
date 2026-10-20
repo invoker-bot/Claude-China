@@ -55,7 +55,7 @@ download or prepared update; closing it does not cancel a download.
 Checks are manual and use the latest
 stable GitHub Release for your OS and architecture. Downloads show progress,
 can be cancelled and must pass SHA-256 verification before installation.
-Save or cancel any open settings editor before restarting.
+Save or cancel any unsaved settings changes before restarting.
 The native application menu and tray also provide **设置…** (Settings),
 **发布页面** (Release page) and **退出** (Quit). On macOS the standard
 application menu retains About, Hide and Quit (Cmd+Q).
@@ -297,6 +297,15 @@ shortcut. Restart the launcher after upgrading to refresh the taskbar icon.
 Desktop settings are stored separately in `~/.claudec/desktop.yaml`. The
 launcher can check the system proxy and apply common or per-application
 environment variables; per-application values take precedence.
+
+The home window presents application cards with status, launch/restart and stop
+controls. **设置** opens a separate panel with categories for common settings,
+each application, updates and About. Switching categories or closing the panel
+keeps unsaved drafts in memory; **保存设置** applies the current category and
+**取消** restores its saved values. Application paths also take effect only
+after saving, and can be reset to automatic detection. Use the refresh button
+to detect newly installed applications. Smaller windows use a scrolling layout
+without resizing as fields are added.
 
 Grok Bot has its own launch/restart, stop and settings controls, stored under
 `apps.grok-bot`. On Windows, detection checks its registered installation and

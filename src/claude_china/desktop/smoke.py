@@ -109,7 +109,9 @@ def verify_window(window, tray, report):
             "document.getElementById('gear-grok-bot').getAttribute('aria-expanded') === 'true'"
             " && !document.getElementById('editor-grok-bot').inert"
             " && !!document.getElementById('env-grok-bot')"
-            " && !!document.getElementById('pick-grok-bot')")
+            " && !!document.getElementById('pick-grok-bot')"
+            " && !document.getElementById('launcher-overlay').hidden"
+            " && document.getElementById('nav-grok-bot').getAttribute('aria-current') === 'page'")
         window.evaluate_js("document.getElementById('cancel-grok-bot').click()")
         # Exercise the shared menu dispatch against the actual packaged webview,
         # without a network request or changing any saved settings.
@@ -120,11 +122,17 @@ def verify_window(window, tray, report):
         window.evaluate_js("closeDialog()")
         _activate_native_settings(window)
         result["native_menu_action"] = True
-        window.evaluate_js("document.getElementById('proxy').checked = false")
+        window.evaluate_js("document.getElementById('proxy').checked = !SETTINGS.check_system_proxy")
         tray._commands._dispatch("settings")
         result["menu_preserves_edits"] = window.evaluate_js(
             "document.getElementById('editor-common').classList.contains('is-open')"
-            " && !document.getElementById('proxy').checked")
+            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
+        window.evaluate_js("document.getElementById('nav-grok-bot').click()")
+        window.evaluate_js("document.getElementById('nav-common').click()")
+        result["category_preserves_edits"] = window.evaluate_js(
+            "document.getElementById('editor-common').classList.contains('is-open')"
+            " && hasUnsavedSettings()"
+            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
         tray._commands._dispatch("update-status")
         _wait_js(window, "!openingUpdates")
         # A prepared update must not bypass the unsaved-settings guard just
@@ -135,12 +143,21 @@ def verify_window(window, tray, report):
         window.evaluate_js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
         result["escape_preserves_edits"] = window.evaluate_js(
             "document.getElementById('launcher-overlay').hidden"
-            " && document.getElementById('editor-common').classList.contains('is-open')"
-            " && !document.getElementById('proxy').checked")
-        window.evaluate_js("setEditorOpen('common', false)")
+            " && hasUnsavedSettings()"
+            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
+        tray._commands._dispatch("settings")
+        result["reopen_preserves_edits"] = window.evaluate_js(
+            "document.getElementById('editor-common').classList.contains('is-open')"
+            " && document.getElementById('proxy').checked !== SETTINGS.check_system_proxy")
+        window.evaluate_js("document.getElementById('cancel-common').click()")
+        result["cancel_restores_settings"] = window.evaluate_js(
+            "document.getElementById('launcher-overlay').hidden"
+            " && !hasUnsavedSettings()"
+            " && document.getElementById('proxy').checked === SETTINGS.check_system_proxy")
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_dialog", "menu_preserves_edits",
-            "restart_guard", "escape_preserves_edits",
+            "category_preserves_edits", "restart_guard", "escape_preserves_edits",
+            "reopen_preserves_edits", "cancel_restores_settings",
         )):
             raise RuntimeError("Native menu commands did not reach the packaged UI")
         if sys.platform == "darwin":

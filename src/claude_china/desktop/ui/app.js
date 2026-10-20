@@ -1,7 +1,7 @@
 const api = () => window.pywebview.api;
 let APPS = [];
 let SETTINGS = { check_system_proxy: true, env_vars: {} };
-const APP_SETTINGS = {}; // id -> { env_vars, path }
+const APP_SETTINGS = {};
 let READY = false;
 let lastRefresh = 0;
 let brandAnimation;
@@ -10,98 +10,178 @@ let updatePoll;
 let pendingPanel;
 let dialogFocus;
 let openingUpdates = false;
+let currentPanel = "common";
+let fitted = false;
+const BUSY_APPS = new Set();
+const BAY_ERRORS = {};
 
+function esc(value) {
+  return String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#x27;");
+}
+function findApp(id) { return APPS.find(app => app.id === id); }
 function animateBrand() {
   const mark = document.getElementById("brand-mark");
-  if (!mark || document.hidden || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!mark || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
   if (brandAnimation && brandAnimation.playState === "running") return;
-  const frames = Array.from({ length: 14 }, (_, i) => {
-    const t = i / 13;
-    const breath = Math.sin(Math.PI * t);
-    const angle = -12 * Math.sin(2 * Math.PI * t) * breath;
-    return { transform: `rotate(${angle}deg) scale(${1 - 0.09 * breath})` };
-  });
-  brandAnimation = mark.animate(frames, { duration: 960, iterations: 1 });
+  brandAnimation = mark.animate([{ transform: "rotate(0)" }, { transform: "rotate(-15deg) scale(.92)" }, { transform: "rotate(0)" }], { duration: 700 });
 }
-
-const GEAR_SVG =
-  `<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">` +
-  `<path fill="currentColor" d="M10.3 2.3h3.4l.4 2.2c.6.2 1.2.5 1.7.9l2.1-.8 1.7 2.9-1.7 1.4c.1.6.2 1.2.2 1.8s-.1 1.2-.2 1.8l1.7 1.4-1.7 2.9-2.1-.8c-.5.4-1.1.7-1.7.9l-.4 2.2h-3.4l-.4-2.2a7 7 0 0 1-1.7-.9l-2.1.8-1.7-2.9 1.7-1.4a7 7 0 0 1-.2-1.8c0-.6.1-1.2.2-1.8L4.4 7.5 6.1 4.6l2.1.8c.5-.4 1.1-.7 1.7-.9l.4-2.2ZM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6Z"/>` +
-  `</svg>`;
-
-function esc(s) {
-  return String(s)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
-}
-
-function findApp(id) { return APPS.find((x) => x.id === id); }
-
 async function init() {
-  APPS = await api().list_apps();
-  renderApps();
-  await Promise.all([loadSettings(), ...APPS.map((a) => loadAppSettings(a.id))]);
-  renderUpdate(await api().get_update_status());
-  READY = true;
-  if (UPDATE.phase === "error" && !pendingPanel) pendingPanel = "update-status";
-  lastRefresh = Date.now();
-  fitWindow();
-  animateBrand();
-  if (pendingPanel) {
-    const panel = pendingPanel;
-    pendingPanel = null;
-    window.openLauncherPanel(panel);
-  }
+  try {
+    APPS = await api().list_apps();
+    renderApps();
+    SETTINGS = await api().get_settings();
+    renderCommon();
+    await Promise.all(APPS.map(async app => {
+      APP_SETTINGS[app.id] = await api().get_app_settings(app.id);
+      renderAppEditor(app.id);
+      rerenderBay(app.id);
+    }));
+    renderUpdate(await api().get_update_status());
+    READY = true;
+    lastRefresh = Date.now();
+    markDrafts();
+    fitWindow();
+    animateBrand();
+    if (UPDATE.phase === "error" && !pendingPanel) pendingPanel = "update-status";
+    if (pendingPanel) { const panel = pendingPanel; pendingPanel = null; window.openLauncherPanel(panel); }
+  } catch (_) { toast("无法读取应用设置，请重新打开启动器。"); }
 }
 
-// Native and tray callbacks only open panels. Installation still requires an
-// explicit click here, including the unsaved-settings guard below.
-window.openLauncherPanel = (panel) => {
+window.openLauncherPanel = panel => {
   if (!READY) { pendingPanel = panel; return; }
-  if (panel === "settings") {
-    closeDialog();
-    const editor = document.getElementById("editor-common");
-    // A second menu click must not overwrite the user's unfinished edits.
-    if (!editor.classList.contains("is-open")) setEditorOpen("common", true);
-    document.getElementById("proxy").focus();
-  } else if (panel === "about") {
-    showDialog("about");
-  } else if (panel === "updates" || panel === "update-status") {
-    openUpdates(panel === "updates");
-  }
+  if (panel === "settings") showDialog("common");
+  else if (panel === "about") showDialog("about");
+  else if (panel === "updates" || panel === "update-status") openUpdates(panel === "updates");
 };
-
 function showDialog(panel) {
   const overlay = document.getElementById("launcher-overlay");
-  if (overlay.hidden) dialogFocus = document.activeElement;
-  document.getElementById("dialog-title").textContent =
-    panel === "about" ? "关于 Claude China" : "桌面版更新";
-  document.getElementById("update-panel").hidden = panel !== "updates";
-  document.getElementById("about-panel").hidden = panel !== "about";
+  const opening = overlay.hidden;
+  if (opening) dialogFocus = document.activeElement;
+  currentPanel = panel;
+  const app = findApp(panel);
+  const headings = {
+    common: ["通用设置", "应用启动时使用的共同配置。"],
+    updates: ["版本更新", "获取 Claude China 桌面版的最新版本。"],
+    about: ["关于", "你的 AI 桌面应用，集中管理。"],
+  };
+  const heading = headings[panel] || [app.display, "管理此应用的启动路径和专有环境变量。"];
+  document.getElementById("dialog-title").textContent = heading[0];
+  document.getElementById("dialog-description").textContent = heading[1];
+  for (const section of document.querySelectorAll(".settings-panel")) {
+    const active = section.id === (panel === "updates" ? "update-panel" : panel === "about" ? "about-panel" : `editor-${panel}`);
+    section.hidden = !active;
+    section.inert = !active;
+    if (section.classList.contains("editor")) section.classList.toggle("is-open", active);
+  }
+  for (const link of document.querySelectorAll(".settings-link")) {
+    const active = link.dataset.panel === panel;
+    link.classList.toggle("is-active", active);
+    if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
+  }
+  for (const id of ["common", ...APPS.map(a => a.id)]) document.getElementById(`gear-${id}`).setAttribute("aria-expanded", String(panel === id));
   overlay.hidden = false;
-  for (const el of [document.querySelector("main"), document.getElementById("foot")]) {
+  // Move focus before hiding the previous focused surface from assistive tech.
+  if (opening) document.getElementById("dialog-close").focus();
+  else if (document.activeElement.closest(".settings-panel[hidden]")) document.getElementById("dialog-title").closest(".dialog").focus();
+  for (const id of ["app-header", "launcher-main", "foot"]) {
+    const el = document.getElementById(id);
     el.inert = true;
     el.setAttribute("aria-hidden", "true");
   }
-  fitWindow();
-  document.getElementById("dialog-close").focus();
 }
-
 function closeDialog() {
   const overlay = document.getElementById("launcher-overlay");
   if (overlay.hidden) return;
   overlay.hidden = true;
-  for (const el of [document.querySelector("main"), document.getElementById("foot")]) {
-    el.inert = false;
-    el.removeAttribute("aria-hidden");
+  for (const id of ["app-header", "launcher-main", "foot"]) {
+    const el = document.getElementById(id); el.inert = false; el.removeAttribute("aria-hidden");
   }
-  if (dialogFocus && dialogFocus.isConnected) dialogFocus.focus();
-  fitWindow();
+  document.querySelectorAll('[id^="gear-"]').forEach(el => el.setAttribute("aria-expanded", "false"));
+  markDrafts();
+  if (dialogFocus && dialogFocus.isConnected && dialogFocus.getClientRects().length) dialogFocus.focus();
+  else document.getElementById("open-settings").focus();
 }
-
+// Fit once to account for native title/menu bars and small screens. Opening an
+// editor or adding rows must never resize a window the user has already sized.
+function fitWindow() {
+  if (fitted || !window.pywebview || !api().fit_window) return;
+  fitted = true;
+  api().fit_window({ inner: window.innerHeight, wanted: 680 });
+}
+function renderApps() {
+  const list = document.getElementById("apps");
+  list.innerHTML = "";
+  for (const app of APPS) {
+    const id = esc(app.id), name = esc(app.display);
+    const bay = document.createElement("section");
+    bay.className = "bay bay--app";
+    bay.id = `bay-${id}`;
+    bay.setAttribute("aria-labelledby", `name-${id}`);
+    bay.innerHTML = `<div class="app-top"><div class="app-symbol app-symbol--${id}" aria-hidden="true">${appSymbol(app.id)}</div>` +
+      `<button class="icon-button" type="button" id="gear-${id}" aria-expanded="false" aria-controls="editor-${id}" aria-label="${name} 专有设置" title="${name} 专有设置">${icon("settings")}</button></div>` +
+      `<h2 class="bay-name" id="name-${id}">${name}</h2>` +
+      `<p class="bay-status"><span class="lamp" aria-hidden="true"></span><span id="status-${id}" role="status"></span></p>` +
+      `<p class="app-detail" id="detail-${id}"></p><div class="bay-actions">` +
+      `<button class="btn btn--key" id="btn-launch-${id}" type="button">启动</button>` +
+      `<button class="btn btn--stop" id="btn-stop-${id}" type="button" aria-label="停止 ${name}" title="停止 ${name}">${icon("stop")}<span class="stop-text">停止</span></button>` +
+      `<button class="btn btn-config" id="btn-config-${id}" type="button">${icon("folder")}选择路径</button></div>`;
+    list.appendChild(bay);
+    document.getElementById(`btn-launch-${app.id}`).onclick = () => onAction(app.id, "launch");
+    document.getElementById(`btn-stop-${app.id}`).onclick = () => onAction(app.id, "stop");
+    document.getElementById(`btn-config-${app.id}`).onclick = () => showDialog(app.id);
+    document.getElementById(`gear-${app.id}`).onclick = () => showDialog(app.id);
+    updateBay(app.id, app.found, app.running);
+  }
+  document.getElementById("app-count").textContent = `${APPS.length} 个应用`;
+  renderAppSettingsPanels();
+}
+function rerenderBay(id) { const app = findApp(id); if (app) updateBay(id, app.found, app.running); }
+function updateBay(id, found, running) {
+  const app = findApp(id);
+  if (app) { app.found = found; app.running = running; }
+  const bay = document.getElementById(`bay-${id}`);
+  if (!bay) return;
+  const error = BAY_ERRORS[id], busy = BUSY_APPS.has(id);
+  bay.classList.toggle("is-running", !!(found && running));
+  bay.classList.toggle("is-missing", !found);
+  bay.classList.toggle("has-error", !!error);
+  document.getElementById(`status-${id}`).textContent = error || (busy ? "正在处理…" : !found ? "未检测到安装" : running ? "运行中" : "未运行");
+  const count = Object.keys(APP_SETTINGS[id]?.env_vars || {}).length;
+  document.getElementById(`detail-${id}`).innerHTML = icon(!found ? "folder" : count ? "document" : "sliders") +
+    `<span>${!found ? "选择应用路径后即可启动" : count ? `专有环境变量 · ${count} 项` : "使用通用设置"}</span>`;
+  const launch = document.getElementById(`btn-launch-${id}`), stop = document.getElementById(`btn-stop-${id}`);
+  launch.hidden = !found; stop.hidden = !found;
+  document.getElementById(`btn-config-${id}`).hidden = found;
+  launch.innerHTML = icon(running ? "refresh" : "play") + `<span>${running ? "重启" : "启动"}</span>`;
+  launch.disabled = busy; stop.disabled = busy;
+  bay.setAttribute("aria-busy", String(busy));
+}
+async function onAction(id, mode) {
+  if (BUSY_APPS.has(id)) return;
+  BUSY_APPS.add(id); delete BAY_ERRORS[id]; rerenderBay(id); animateBrand();
+  try {
+    const result = await api()[mode === "stop" ? "stop_app" : "launch_app"](id);
+    if (!result.ok) BAY_ERRORS[id] = result.error || "操作失败，请重试";
+    await refresh();
+    if (result.ok) toast(mode === "stop" ? `已停止 ${findApp(id).display}` : `已发送 ${findApp(id).display} 启动请求`);
+  } catch (_) { BAY_ERRORS[id] = "操作失败，请重试"; }
+  finally { BUSY_APPS.delete(id); rerenderBay(id); }
+}
+async function refresh(redetect = false) {
+  lastRefresh = Date.now();
+  APPS = await api().list_apps(redetect);
+  for (const app of APPS) updateBay(app.id, app.found, app.running);
+}
+async function refreshOnReturn() {
+  if (!READY || document.hidden || Date.now() - lastRefresh < 1500) return;
+  try { await refresh(); } catch (_) { toast("暂时无法读取应用状态。"); }
+}
+function toast(message) {
+  const el = document.getElementById("toast");
+  el.textContent = message; el.classList.add("is-visible");
+  clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("is-visible"), 2800);
+}
 async function openUpdates(check) {
   showDialog("updates");
   document.getElementById("update-warning").hidden = true;
@@ -109,486 +189,92 @@ async function openUpdates(check) {
   openingUpdates = true;
   try {
     const state = await api().get_update_status();
-    // Reopening during a download or after it is ready preserves that work.
-    renderUpdate(check && ["idle", "latest", "error"].includes(state.phase)
-      ? await api().check_for_updates() : state);
-  } catch (_) {
-    renderUpdate({ ...UPDATE, phase: "error", message: "无法检查更新，请重试。" });
-  } finally {
-    openingUpdates = false;
-  }
+    renderUpdate(check && ["idle", "latest", "error"].includes(state.phase) ? await api().check_for_updates() : state);
+  } catch (_) { renderUpdate({ ...UPDATE, phase: "error", message: "无法检查更新，请重试。" }); }
+  finally { openingUpdates = false; }
 }
-
-// ---- launcher updates (only checked on request) ----
 function renderUpdate(state) {
   UPDATE = state;
   const busy = ["checking", "downloading", "installing"].includes(state.phase);
-  const button = document.getElementById("update-action");
-  const status = document.getElementById("update-status");
   const target = ["available", "downloading", "ready", "installing"].includes(state.phase) && state.latest;
-  document.getElementById("update-version").textContent =
-    (state.current ? `v${state.current}` : "") + (target ? ` → v${state.latest}` : "");
-  document.getElementById("about-version").textContent = state.current ? `v${state.current}` : "";
-  let message = state.message;
+  document.getElementById("update-version").textContent = (state.current ? `v${state.current}` : "") + (target ? ` → v${state.latest}` : "");
+  for (const id of ["about-version", "footer-version"]) document.getElementById(id).textContent = state.current ? `v${state.current}` : "";
+  let message = state.message || "手动检查新版本";
   if (state.phase === "available" && !state.can_install) message += ` · ${state.reason}`;
   if (state.phase === "downloading") message += ` ${state.progress || 0}%`;
-  status.textContent = message;
+  document.getElementById("update-status").textContent = message;
   document.getElementById("update-panel").classList.toggle("has-error", state.phase === "error");
-  document.getElementById("update-hint").textContent = state.phase === "downloading"
-    ? "关闭此弹窗后仍会继续下载，可从菜单或托盘再次打开。"
-    : "安装更新会重启启动器，已启动的应用不受影响。";
+  document.getElementById("update-hint").textContent = state.phase === "downloading" ? "关闭设置后仍会继续下载，可从菜单或托盘再次打开。" : "安装更新会重启启动器，已启动的应用不受影响。";
+  const button = document.getElementById("update-action");
   button.disabled = busy || (state.phase === "available" && !state.can_install);
-  button.classList.toggle("btn--solid", ["available", "ready"].includes(state.phase));
-  button.textContent = ({
-    checking: "正在检查…", downloading: "正在下载…", available: "下载更新",
-    ready: "安装并重启", installing: "正在重启…", error: "重试检查",
-  })[state.phase] || "检查更新";
+  button.textContent = ({checking: "正在检查…", downloading: "正在下载…", available: "下载更新", ready: "安装并重启", installing: "正在重启…", error: "重试检查"})[state.phase] || "检查更新";
   document.getElementById("update-cancel").hidden = state.phase !== "downloading";
   const progress = document.getElementById("update-progress");
-  progress.hidden = state.phase !== "downloading";
-  progress.value = state.progress || 0;
-  fitWindow();
+  progress.hidden = state.phase !== "downloading"; progress.value = state.progress || 0;
   clearTimeout(updatePoll);
   if (busy) updatePoll = setTimeout(refreshUpdate, 500);
 }
-
 async function refreshUpdate() {
-  try {
-    renderUpdate(await api().get_update_status());
-  } catch (_) {
-    renderUpdate({ ...UPDATE, phase: "error", message: "无法获取更新状态，请重试。" });
-  }
+  try { renderUpdate(await api().get_update_status()); }
+  catch (_) { renderUpdate({ ...UPDATE, phase: "error", message: "无法获取更新状态，请重试。" }); }
 }
-
 async function updateAction() {
   const phase = UPDATE.phase;
   if (openingUpdates || ["checking", "downloading", "installing"].includes(phase)) return;
   const warning = document.getElementById("update-warning");
   warning.hidden = true;
-  if (phase === "ready" && document.querySelector(".editor.is-open")) {
-    warning.textContent = "请先关闭此弹窗，保存或取消正在编辑的设置，再安装更新。";
-    warning.hidden = false;
-    fitWindow();
-    return;
+  if (phase === "ready" && hasUnsavedSettings()) {
+    warning.textContent = "请先保存或取消有修改的设置，再安装更新。"; warning.hidden = false; return;
   }
   document.getElementById("update-action").disabled = true;
   try {
-    const action = phase === "available" ? "download_update"
-      : phase === "ready" ? "install_update" : "check_for_updates";
+    const action = phase === "available" ? "download_update" : phase === "ready" ? "install_update" : "check_for_updates";
     renderUpdate(await api()[action]());
-  } catch (_) {
-    renderUpdate({ ...UPDATE, phase: "error", message: "无法完成操作，请重试。" });
-  }
+  } catch (_) { renderUpdate({ ...UPDATE, phase: "error", message: "无法完成操作，请重试。" }); }
 }
 
-// ---- window fit ----
-// The window is a palette: it is always exactly as tall as its content. The
-// page measures what it needs and the bridge applies the delta to the window.
-function contentHeight() {
-  let h = document.getElementById("foot").offsetHeight;
-  for (const bay of document.querySelectorAll(".bay")) h += bay.offsetHeight;
-  const overlay = document.getElementById("launcher-overlay");
-  if (!overlay.hidden) h = Math.max(h, overlay.querySelector(".dialog").scrollHeight + 26);
-  return h;
-}
-
-function fitWindow(extra = 0) {
-  if (!window.pywebview || !api().fit_window) return;
-  const wanted = Math.ceil(contentHeight() + extra);
-  api().fit_window({ inner: window.innerHeight, wanted });
-}
-
-// ---- app bays ----
-function renderApps() {
-  const list = document.getElementById("apps");
-  list.innerHTML = "";
-  for (const a of APPS) {
-    const id = esc(a.id);
-    const name = esc(a.display);
-    const bay = document.createElement("section");
-    bay.className = "bay bay--app";
-    bay.id = `bay-${id}`;
-    bay.innerHTML =
-      `<div class="bay-row">` +
-      `<div class="bay-lamp" aria-hidden="true"><span class="lamp"></span></div>` +
-      `<div class="bay-copy">` +
-      `<h2 class="bay-name">${name}</h2>` +
-      `<p class="bay-status" id="status-${id}"></p>` +
-      `</div>` +
-      `<div class="bay-actions">` +
-      `<button class="btn btn--key" type="button" id="btn-launch-${id}" data-mode="launch">启动</button>` +
-      `<button class="btn btn--stop" type="button" id="btn-stop-${id}" data-mode="stop">中止</button>` +
-      `<button class="btn btn--key" type="button" id="btn-config-${id}" data-mode="config">选择路径…</button>` +
-      `<button class="gear" type="button" id="gear-${id}" aria-expanded="false" ` +
-      `aria-controls="editor-${id}" aria-label="${name} 专有设置" title="${name} 专有设置">${GEAR_SVG}</button>` +
-      `</div>` +
-      `</div>` +
-      `<div class="editor" id="editor-${id}" inert>` +
-      `<div class="editor-inner"><div class="editor-body">` +
-      `<div class="field">` +
-      `<div class="field-head"><span class="field-label">应用路径</span>` +
-      `<span class="field-hint">默认自动检测，也可以手动指定可执行文件</span></div>` +
-      `<div class="path-row"><code class="path-value" id="path-${id}"></code>` +
-      `<button class="btn btn--small" type="button" id="pick-${id}">选择…</button></div>` +
-      `</div>` +
-      `<div class="field">` +
-      `<div class="field-head"><span class="field-label">专有环境变量</span>` +
-      `<span class="field-hint">只在启动 ${name} 时注入，与通用变量同名时以这里为准</span></div>` +
-      `<div class="env-list" id="env-${id}"></div>` +
-      `<button class="add-row" type="button" id="add-${id}">添加变量</button>` +
-      `</div>` +
-      `<div class="editor-actions">` +
-      `<button class="btn" type="button" id="cancel-${id}">取消</button>` +
-      `<button class="btn btn--solid" type="button" id="save-${id}">保存</button>` +
-      `</div>` +
-      `</div></div>` +
-      `</div>`;
-    list.appendChild(bay);
-    updateBay(a.id, a.found, a.running);
-    document.getElementById(`btn-launch-${a.id}`).onclick = () => onAction(a.id, "launch");
-    document.getElementById(`btn-stop-${a.id}`).onclick = () => onAction(a.id, "stop");
-    document.getElementById(`btn-config-${a.id}`).onclick = () => onAction(a.id, "config");
-    document.getElementById(`gear-${a.id}`).onclick = () => toggleEditor(a.id);
-    document.getElementById(`pick-${a.id}`).onclick = () => onAction(a.id, "config");
-    document.getElementById(`add-${a.id}`).onclick = () => addEnvRow(`env-${a.id}`);
-    document.getElementById(`cancel-${a.id}`).onclick = () => setEditorOpen(a.id, false);
-    document.getElementById(`save-${a.id}`).onclick = () => saveAppSettings(a.id);
-  }
-}
-
-const BAY_ERRORS = {}; // id -> { msg, timer }
-
-// A failed launch/stop is reported in the bay's own status line, next to the
-// key that was pressed, and clears itself after a few seconds.
-function setBayError(id, msg) {
-  const cur = BAY_ERRORS[id];
-  if (cur) clearTimeout(cur.timer);
-  BAY_ERRORS[id] = msg ? {
-    msg,
-    timer: setTimeout(() => { delete BAY_ERRORS[id]; rerenderBay(id); }, 6000),
-  } : undefined;
-  rerenderBay(id);
-}
-
-function rerenderBay(id) {
-  const a = findApp(id);
-  if (a) updateBay(id, a.found, a.running);
-}
-
-function statusText(a) {
-  const s = APP_SETTINGS[a.id];
-  const n = s ? Object.keys(s.env_vars || {}).length : 0;
-  const vars = n ? ` · ${n} 个专有环境变量` : "";
-  if (!a.found) return "未检测到安装，选择应用路径后即可启动";
-  if (a.running) return "运行中" + vars;
-  return "未运行" + vars;
-}
-
-function updateBay(id, found, running) {
-  const a = findApp(id);
-  if (a) { a.found = found; a.running = running; }
-  const bay = document.getElementById(`bay-${id}`);
-  const status = document.getElementById(`status-${id}`);
-  const launch = document.getElementById(`btn-launch-${id}`);
-  const stop = document.getElementById(`btn-stop-${id}`);
-  const config = document.getElementById(`btn-config-${id}`);
-  if (!bay || !status || !launch || !stop || !config) return;
-  const err = BAY_ERRORS[id];
-  bay.classList.toggle("is-missing", !found);
-  bay.classList.toggle("is-running", !!(found && running));
-  bay.classList.toggle("has-error", !!err);
-  status.textContent = err ? err.msg : statusText(a || { id, found, running });
-  // Status can be stale (no background poll), so both keys stay live once the
-  // app is found; launch always stops-then-starts, hence "重启" while running.
-  launch.hidden = !found;
-  stop.hidden = !found;
-  config.hidden = found;
-  launch.textContent = running ? "重启" : "启动";
-}
-
-async function onAction(id, mode) {
-  animateBrand();
-  if (mode === "config") {
-    const r = await api().pick_app_path(id);
-    if (r && r.ok) {
-      if (APP_SETTINGS[id]) APP_SETTINGS[id].path = r.path;
-      renderPath(id);
-      fitWindow(); // a long path may wrap
-      await refresh();
-    }
-    return;
-  }
-  let r = { ok: true };
-  if (mode === "launch") r = await api().launch_app(id);
-  else if (mode === "stop") r = await api().stop_app(id);
-  await refresh();
-  setBayError(id, r.ok ? "" : (r.error || "操作失败"));
-}
-
-async function refresh() {
-  lastRefresh = Date.now();
-  APPS = await api().list_apps();
-  for (const a of APPS) updateBay(a.id, a.found, a.running);
-}
-
-// No background status push (see bridge history); re-check when the window
-// comes back to the front instead, which is when a stale lamp would be noticed.
-function refreshOnReturn() {
-  if (!READY || document.hidden) return;
-  if (Date.now() - lastRefresh < 1500) return;
-  refresh();
-}
-
-// Confirmations surface in the footer status line rather than an overlay.
-function toast(msg) {
-  const foot = document.getElementById("foot");
-  document.getElementById("toast").textContent = msg;
-  foot.classList.add("has-msg");
-  clearTimeout(toast._timer);
-  toast._timer = setTimeout(() => foot.classList.remove("has-msg"), 2200);
-}
-
-// ---- inline editors ----
-function setEditorOpen(id, open) {
-  const editor = document.getElementById(`editor-${id}`);
-  const gear = document.getElementById(`gear-${id}`);
-  if (!editor || !gear) return;
-  if (open) {
-    // Re-render from the last saved state so a reopened editor never shows
-    // edits that were cancelled.
-    if (id === "common") renderCommon(); else renderAppEditor(id);
-    // Grow the window before the editor unfolds into the new space; the
-    // collapsed editor's scrollHeight is exactly the height it is about to take.
-    fitWindow(editor.firstElementChild.scrollHeight);
-  }
-  editor.classList.toggle("is-open", open);
-  editor.inert = !open;
-  gear.classList.toggle("is-active", open);
-  gear.setAttribute("aria-expanded", open ? "true" : "false");
-  if (open) {
-    // If the screen capped the window, keep the bay being edited in view.
-    const bay = editor.closest(".bay");
-    setTimeout(() => {
-      const panel = bay.closest(".panel");
-      const block = bay.offsetHeight > panel.clientHeight ? "start" : "nearest";
-      bay.scrollIntoView({ block, behavior: "smooth" });
-    }, 300);
-  } else {
-    // Shrink back once the fold animation has finished.
-    setTimeout(fitWindow, 300);
-  }
-}
-
-function toggleEditor(id) {
-  const editor = document.getElementById(`editor-${id}`);
-  setEditorOpen(id, !(editor && editor.classList.contains("is-open")));
-}
-
-function closeAllEditors() {
-  for (const ed of document.querySelectorAll(".editor.is-open")) {
-    setEditorOpen(ed.id.replace(/^editor-/, ""), false);
-  }
-}
-
-// ---- env rows ----
-function renderEnv(containerId, vars) {
-  const c = document.getElementById(containerId);
-  c.innerHTML = "";
-  for (const [k, v] of Object.entries(vars || {})) addEnvRow(containerId, k, v, false);
-}
-
-function addEnvRow(containerId, k = "", v = "", focus = true) {
-  const c = document.getElementById(containerId);
-  const row = document.createElement("div");
-  row.className = "env-row";
-  row.innerHTML =
-    `<input class="k" placeholder="KEY" spellcheck="false" autocomplete="off" value="${esc(k)}">` +
-    `<span class="eq" aria-hidden="true">=</span>` +
-    `<input class="v" placeholder="VALUE" spellcheck="false" autocomplete="off" value="${esc(v)}">` +
-    `<button class="del" type="button" aria-label="删除这个变量" title="删除">` +
-    `<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true">` +
-    `<path fill="currentColor" d="M6.4 5 5 6.4 10.6 12 5 17.6 6.4 19 12 13.4 17.6 19 19 17.6 13.4 12 19 6.4 17.6 5 12 10.6 6.4 5Z"/>` +
-    `</svg></button>`;
-  row.querySelector(".del").onclick = () => { row.remove(); fitWindow(); };
-  c.appendChild(row);
-  if (focus) {
-    fitWindow();
-    if (!k) row.querySelector(".k").focus();
-  }
-}
-
-function collectEnv(containerId) {
-  const out = {};
-  for (const row of document.querySelectorAll(`#${containerId} .env-row`)) {
-    const k = row.querySelector(".k").value.trim();
-    const v = row.querySelector(".v").value;
-    if (k) out[k] = v;
-  }
-  return out;
-}
-
-// ---- common settings ----
-async function loadSettings() {
-  SETTINGS = await api().get_settings();
-  renderCommon();
-}
-
-function renderCommon() {
-  document.getElementById("proxy").checked = !!SETTINGS.check_system_proxy;
-  renderEnv("common-env", SETTINGS.env_vars);
-  const n = Object.keys(SETTINGS.env_vars || {}).length;
-  document.getElementById("common-summary").textContent =
-    (SETTINGS.check_system_proxy ? "启动前检查系统代理" : "不检查系统代理") +
-    " · " + (n ? `${n} 个通用环境变量` : "没有通用环境变量");
-}
-
-async function saveSettings() {
-  animateBrand();
-  const payload = {
-    check_system_proxy: document.getElementById("proxy").checked,
-    env_vars: collectEnv("common-env"),
-  };
-  await api().save_settings(payload);
-  SETTINGS = payload;
-  setEditorOpen("common", false);
-  renderCommon();
-  toast("已保存");
-}
-
-// ---- per-app settings ----
-async function loadAppSettings(id) {
-  APP_SETTINGS[id] = await api().get_app_settings(id);
-  renderAppEditor(id);
-  rerenderBay(id);
-}
-
-function renderPath(id) {
-  const el = document.getElementById(`path-${id}`);
-  const s = APP_SETTINGS[id] || {};
-  el.textContent = s.path || "自动检测";
-  el.classList.toggle("is-auto", !s.path);
-}
-
-function renderAppEditor(id) {
-  const s = APP_SETTINGS[id] || { env_vars: {}, path: "" };
-  renderPath(id);
-  renderEnv(`env-${id}`, s.env_vars);
-}
-
-async function saveAppSettings(id) {
-  animateBrand();
-  const env_vars = collectEnv(`env-${id}`);
-  await api().save_app_settings(id, { env_vars });
-  APP_SETTINGS[id] = { ...(APP_SETTINGS[id] || {}), env_vars };
-  setEditorOpen(id, false);
-  rerenderBay(id);
-  toast("已保存");
-}
-
-// ---- wiring ----
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("gear-common").onclick = () => toggleEditor("common");
-  document.getElementById("cancel-common").onclick = () => setEditorOpen("common", false);
+  for (const id of ["open-settings", "gear-common"]) document.getElementById(id).onclick = () => window.openLauncherPanel("settings");
+  document.getElementById("home-button").onclick = closeDialog;
+  document.getElementById("open-updates").onclick = () => window.openLauncherPanel("updates");
+  document.getElementById("footer-about").onclick = () => window.openLauncherPanel("about");
+  document.getElementById("refresh-apps").onclick = async event => {
+    const button = event.currentTarget;
+    if (!READY || button.disabled) return;
+    button.disabled = true; button.classList.add("is-busy");
+    try { await refresh(true); toast("应用状态已刷新"); } catch (_) { toast("无法刷新应用状态，请重试。"); }
+    finally { button.disabled = false; button.classList.remove("is-busy"); }
+  };
+  document.querySelector(".settings-nav").onclick = event => {
+    const panel = event.target.closest("[data-panel]")?.dataset.panel;
+    if (panel) panel === "updates" ? openUpdates(false) : showDialog(panel);
+  };
+  document.getElementById("launcher-overlay").addEventListener("input", markDrafts);
+  document.getElementById("cancel-common").onclick = () => cancelSettings("common");
   document.getElementById("add-common").onclick = () => addEnvRow("common-env");
-  document.getElementById("save-settings").onclick = saveSettings;
+  document.getElementById("save-settings").onclick = () => saveEditor("common");
   document.getElementById("update-action").onclick = updateAction;
-  document.getElementById("update-cancel").onclick = async () => renderUpdate(await api().cancel_update());
-  document.getElementById("update-release").onclick = () => api().open_release_page();
+  document.getElementById("update-cancel").onclick = async () => {
+    try { renderUpdate(await api().cancel_update()); } catch (_) { toast("无法取消下载，请重试。"); }
+  };
+  for (const id of ["update-release", "about-release"]) document.getElementById(id).onclick = async () => {
+    try { const result = await api().open_release_page(); if (!result.ok) toast("无法打开发布页面。"); } catch (_) { toast("无法打开发布页面。"); }
+  };
   document.getElementById("dialog-close").onclick = closeDialog;
-  document.getElementById("about-release").onclick = () => api().open_release_page();
   document.getElementById("about-updates").onclick = () => openUpdates(true);
-  document.addEventListener("keydown", (e) => {
+  document.addEventListener("keydown", event => {
     const overlay = document.getElementById("launcher-overlay");
-    if (!overlay.hidden) {
-      if (e.key === "Escape") { e.preventDefault(); closeDialog(); }
-      if (e.key === "Tab") {
-        const buttons = Array.from(overlay.querySelectorAll("button"))
-          .filter((b) => !b.disabled && b.getClientRects().length);
-        const first = buttons[0], last = buttons[buttons.length - 1];
-        if (e.shiftKey && document.activeElement === first) {
-          e.preventDefault(); last.focus();
-        } else if (!e.shiftKey && document.activeElement === last) {
-          e.preventDefault(); first.focus();
-        }
-      }
-      return;
+    if (overlay.hidden) return;
+    if (event.key === "Escape") { event.preventDefault(); closeDialog(); }
+    if (event.key === "Tab") {
+      const controls = Array.from(overlay.querySelectorAll("button, input, [tabindex='0']")).filter(el => !el.disabled && el.getClientRects().length && !el.closest("[inert]"));
+      const first = controls[0], last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
     }
-    if (e.key === "Escape") closeAllEditors();
   });
   window.addEventListener("focus", refreshOnReturn);
   window.addEventListener("focus", animateBrand);
   document.addEventListener("visibilitychange", refreshOnReturn);
 });
-
 window.addEventListener("pywebviewready", init);
-
-if (new URLSearchParams(location.search).has("preview")) {
-  document.documentElement.classList.add("preview");
-  APPS = [
-    { id: "claude", display: "Claude", found: true, running: true },
-    { id: "codex", display: "Codex", found: false, running: false },
-    { id: "grok-bot", display: "Grok Bot", found: true, running: false },
-  ];
-  const appSettings = {
-    claude: { env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" }, path: "" },
-    codex: { env_vars: {}, path: "" },
-    "grok-bot": { env_vars: {}, path: "" },
-  };
-  let previewUpdate = {
-    phase: "idle", current: "0.3.0", latest: "", can_install: true,
-    message: "手动检查新版本", progress: 0,
-  };
-  let previewTimer;
-  window.pywebview = {
-    api: {
-      get_update_status: async () => previewUpdate,
-      check_for_updates: async () => {
-        const mode = new URLSearchParams(location.search).get("update");
-        previewUpdate = { ...previewUpdate, phase: "checking", message: "正在检查 GitHub Releases…" };
-        previewTimer = setTimeout(() => {
-          previewUpdate = { ...previewUpdate,
-            phase: mode === "error" ? "error" : mode === "latest" ? "latest" : "available",
-            latest: "0.4.0", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。"
-              : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.4.0",
-          };
-        }, 600);
-        return previewUpdate;
-      },
-      download_update: async () => {
-        previewUpdate = { ...previewUpdate, phase: "downloading", progress: 0, message: "正在下载安装包…" };
-        const tick = () => {
-          previewUpdate = { ...previewUpdate, progress: previewUpdate.progress + 20 };
-          if (previewUpdate.progress === 100) {
-            previewUpdate = { ...previewUpdate, phase: "ready", message: "更新已就绪，安装后将重新打开 Claude China。" };
-          } else previewTimer = setTimeout(tick, 500);
-        };
-        previewTimer = setTimeout(tick, 500);
-        return previewUpdate;
-      },
-      cancel_update: async () => {
-        clearTimeout(previewTimer);
-        previewUpdate = { ...previewUpdate, phase: "available", message: "已取消下载，可稍后重试。" };
-        return previewUpdate;
-      },
-      install_update: async () => {
-        toast("界面预览：此处会退出启动器，安装并重新打开");
-        return previewUpdate;
-      },
-      open_release_page: async () => ({ ok: true }),
-      list_apps: async () => APPS,
-      get_settings: async () => ({
-        check_system_proxy: true,
-        env_vars: { HTTP_PROXY: "http://127.0.0.1:7890", HTTPS_PROXY: "http://127.0.0.1:7890" },
-      }),
-      save_settings: async () => ({ ok: true }),
-      get_app_settings: async (id) => appSettings[id],
-      save_app_settings: async () => ({ ok: true }),
-      pick_app_path: async () => ({ ok: false }),
-      fit_window: async () => ({ ok: true }),
-      launch_app: async (id) =>
-        id === "claude" ? { ok: true } : { ok: false, error: "系统代理未开启，已取消启动" },
-      stop_app: async () => ({ ok: true }),
-    },
-  };
-  document.addEventListener("DOMContentLoaded", init);
-}

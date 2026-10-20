@@ -159,6 +159,51 @@ def test_settings_round_trip():
             assert a["env_vars"] == {"X": "Y"}
 
 
+def test_picking_path_can_leave_saved_settings_unchanged(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+    bridge = LauncherBridge(FakeBackend())
+    window = Mock()
+    window.create_file_dialog.return_value = [str(tmp_path / "Grok Bot.exe")]
+    bridge._attach_window(window, 20)
+    before = bridge.get_app_settings("grok-bot")
+
+    result = bridge.pick_app_path("grok-bot", persist=False)
+
+    assert result == {"ok": True, "path": str(tmp_path / "Grok Bot.exe")}
+    assert bridge.get_app_settings("grok-bot") == before
+
+
+def test_save_app_path_and_environment_together_and_restore_auto_detection(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+    backend = FakeBackend()
+    backend.detect = Mock(wraps=backend.detect)
+    bridge = LauncherBridge(backend)
+    path = str(tmp_path / "Grok Bot.exe")
+
+    bridge.save_app_settings("grok-bot", {"path": path, "env_vars": {"APP_TEST": "1"}})
+    assert bridge.get_app_settings("grok-bot") == {
+        "path": path, "env_vars": {"APP_TEST": "1"},
+    }
+    assert backend.detect.call_args.args[1] == path
+    bridge.save_app_settings("grok-bot", {"env_vars": {"APP_TEST": "2"}})
+    assert bridge.get_app_settings("grok-bot")["path"] == path
+    bridge.save_app_settings("grok-bot", {"path": "", "env_vars": {}})
+    assert bridge.get_app_settings("grok-bot") == {"path": "", "env_vars": {}}
+    assert not backend.detect.call_args.args[1]
+
+
+def test_explicit_refresh_redetects_newly_installed_apps(tmp_path, monkeypatch):
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+    backend = FakeBackend(found=False)
+    bridge = LauncherBridge(backend)
+    assert not any(app["found"] for app in bridge.list_apps())
+    backend.found = True
+    assert all(app["found"] for app in bridge.list_apps(refresh=True))
+
+
 @pytest.mark.parametrize("action,args", [
     ("launch_app", ("claude",)),
     ("stop_app", ("claude",)),
