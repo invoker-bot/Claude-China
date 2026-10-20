@@ -152,6 +152,36 @@ def test_run_gui_keeps_tray_until_gui_exits(monkeypatch, tmp_path, fake_tray):
     assert fake_tray[1:] == ["start", "gui", "stop"]
 
 
+def test_screen_query_cannot_initialize_gtk_before_menu_is_configured(
+    monkeypatch, tmp_path, fake_tray,
+):
+    state = {"started": False, "screen_queries": []}
+
+    class Webview(types.SimpleNamespace):
+        @property
+        def screens(self):
+            # In pywebview this initializes the native backend, including GTK's
+            # one-time application menu setup.
+            state["screen_queries"].append(state["started"])
+            return [types.SimpleNamespace(height=1080)]
+
+    def start(**kwargs):
+        assert kwargs["menu"] == ["native menus"]
+        state["started"] = True
+        kwargs["func"](*kwargs["args"])
+
+    monkeypatch.setitem(sys.modules, "webview", Webview(
+        create_window=lambda *args, **kwargs: _FakeWindow(), OPEN_DIALOG=20, start=start,
+    ))
+    monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
+    monkeypatch.setattr(app_mod.DesktopInstance, "listen", lambda *args: None)
+    monkeypatch.setattr(app_mod.DesktopMenu, "bind_platform_menu", lambda self: None)
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
+                        tmp_path / "desktop.yaml")
+    app_mod.run_gui()
+    assert state["screen_queries"] == [True]
+
+
 def test_windows_identity_is_set_before_creating_any_window(monkeypatch, tmp_path, fake_tray):
     calls = []
     monkeypatch.setattr(app_mod, "_set_windows_app_id",

@@ -57,11 +57,7 @@ def run_gui(smoke_report=None):
             "Claude China", url=_ui_url(), js_api=bridge, width=600, height=280,
             **({"hidden": True} if smoke_report else {}),
         )
-        try:
-            screen_height = int(webview.screens[0].height)
-        except Exception:  # headless / unknown screen: fit_window skips clamping
-            screen_height = None
-        bridge._attach_window(window, webview.OPEN_DIALOG, screen_height=screen_height)
+        bridge._attach_window(window, webview.OPEN_DIALOG)
         tray = LauncherTray(window, _ui_asset_path("icon.png"))
         bridge._activity = tray.play_activity
         updater = UpdateManager(lambda: tray._quit(None, None))
@@ -70,6 +66,12 @@ def run_gui(smoke_report=None):
         tray._commands = commands
 
         def on_start(window, activity):
+            # Querying webview.screens initializes GTK. Wait until start(menu=)
+            # has configured the menu before initializing that backend.
+            try:
+                bridge._screen_height = int(webview.screens[0].height)
+            except Exception:  # headless / unknown screen: skip clamping
+                bridge._screen_height = None
             commands.bind_platform_menu()
             if smoke_report:
                 from .smoke import verify_window
