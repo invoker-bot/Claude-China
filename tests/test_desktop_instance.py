@@ -313,6 +313,7 @@ def test_gui_holds_lock_until_event_loop_exits_and_releases_on_error(
     if failure_stage == "tray":
         tray.start.side_effect = RuntimeError("GUI startup failed")
     monkeypatch.setattr(app_mod, "LauncherTray", Mock(return_value=tray))
+    monkeypatch.setattr(app_mod.DesktopMenu, "native_menu", lambda self: [])
     window = _FakeWindow()
 
     def start(**kwargs):

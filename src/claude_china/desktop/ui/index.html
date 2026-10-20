@@ -57,21 +57,6 @@
         </div></div>
       </div>
     </section>
-    <section class="bay bay--update" aria-label="桌面版更新">
-      <div class="bay-row">
-        <div class="bay-lamp" aria-hidden="true"></div>
-        <div class="bay-copy">
-          <h2 class="bay-name bay-name--small">桌面版更新 <span id="update-version"></span></h2>
-          <p class="bay-status" id="update-status" role="status" aria-live="polite">正在读取版本…</p>
-          <progress id="update-progress" max="100" value="0" aria-label="更新下载进度" hidden></progress>
-        </div>
-        <div class="bay-actions">
-          <button class="btn btn--small" id="update-cancel" type="button" hidden>取消</button>
-          <button class="btn btn--small" id="update-action" type="button" disabled>检查更新</button>
-          <button class="btn btn--small" id="update-release" type="button" title="查看发布说明和安装包">发布页面</button>
-        </div>
-      </div>
-    </section>
   </main>
 
   <footer class="foot" id="foot">
@@ -80,6 +65,36 @@
     <span class="foot-info">设置保存在 <code>~/.code-ai/desktop.yaml</code></span>
     <span class="foot-msg" id="toast" role="status" aria-live="polite"></span>
   </footer>
+
+  <div class="overlay" id="launcher-overlay" hidden>
+    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title">
+      <div class="dialog-head">
+        <h2 id="dialog-title">桌面版更新</h2>
+        <button class="gear" id="dialog-close" type="button" aria-label="关闭弹窗" title="关闭">✕</button>
+      </div>
+      <div id="update-panel">
+        <p class="dialog-version" id="update-version"></p>
+        <p id="update-status" role="status" aria-live="polite">正在读取版本…</p>
+        <progress id="update-progress" max="100" value="0" aria-label="更新下载进度" hidden></progress>
+        <p class="dialog-hint" id="update-hint">安装更新会重启启动器，已启动的应用不受影响。</p>
+        <p class="dialog-warning" id="update-warning" role="alert" hidden></p>
+        <div class="dialog-actions">
+          <button class="btn btn--small" id="update-release" type="button">发布页面</button>
+          <span class="dialog-spacer"></span>
+          <button class="btn btn--small" id="update-cancel" type="button" hidden>取消下载</button>
+          <button class="btn btn--small" id="update-action" type="button" disabled>检查更新</button>
+        </div>
+      </div>
+      <div id="about-panel" hidden>
+        <p class="dialog-version">Claude China <span id="about-version"></span></p>
+        <p>统一启动 Claude 与 Codex，管理代理和环境变量。</p>
+        <div class="dialog-actions">
+          <button class="btn btn--small" id="about-release" type="button">发布页面</button>
+          <button class="btn btn--small" id="about-updates" type="button">检查更新…</button>
+        </div>
+      </div>
+    </section>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>

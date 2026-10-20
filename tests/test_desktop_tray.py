@@ -135,6 +135,26 @@ def test_linux_close_exits_even_without_a_notification_host(running_tray, monkey
     assert not window.hidden
 
 
+def test_tray_settings_and_updates_use_the_same_commands_as_native_menu(tray_environment):
+    window = FakeWindow()
+    tray = tray_mod.LauncherTray(window, "icon.png")
+    commands = Mock()
+    tray._commands = commands
+    tray.start()
+    try:
+        items = {item.text: item for item in tray._icon.menu.items if hasattr(item, "text")}
+        items["设置…"](tray._icon)
+        items["检查更新…"](tray._icon)
+        items["发布页面"](tray._icon)
+        commands.settings.assert_called_once_with()
+        commands.updates.assert_called_once_with()
+        commands.release_page.assert_called_once_with()
+        # Opening the menu must not start installing or quit the launcher.
+        assert not window.destroyed
+    finally:
+        tray.stop()
+
+
 def test_missing_tray_dependency_keeps_gui_usable(tray_environment, monkeypatch):
     monkeypatch.setitem(sys.modules, "pystray", None)
     window = FakeWindow()

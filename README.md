@@ -47,11 +47,18 @@ It includes Python and the desktop dependencies; installing the CLI is optional.
 | Debian / Ubuntu x64 | `*-linux-x64.deb` | Open with the software installer, or `sudo apt install ./<file>.deb` | Software manager, or `sudo apt remove claude-china-desktop` |
 | Fedora x64 | `*-linux-x64.rpm` | Open with the software installer, or `sudo dnf install ./<file>.rpm` | Software manager, or `sudo dnf remove claude-china-desktop` |
 
-In the desktop app, choose **检查更新** (Check for updates), **下载更新** (Download),
-then **安装并重启** (Install and restart). Checks are manual and use the latest
+In the desktop app, choose **帮助 → 检查更新…** (Help → Check for updates)
+on Windows/Linux, or **Claude China → 检查更新…** on macOS. The system tray
+menu also has **检查更新…**. In the update dialog, choose **下载更新** (Download),
+then **安装并重启** (Install and restart). Reopening the dialog keeps the current
+download or prepared update; closing it does not cancel a download.
+Checks are manual and use the latest
 stable GitHub Release for your OS and architecture. Downloads show progress,
 can be cancelled and must pass SHA-256 verification before installation.
 Save or cancel any open settings editor before restarting.
+The native application menu and tray also provide **设置…** (Settings),
+**发布页面** (Release page) and **退出** (Quit). On macOS the standard
+application menu retains About, Hide and Quit (Cmd+Q).
 
 Windows upgrades the registered installation; macOS replaces the installed app
 after Developer ID/Gatekeeper verification; Linux requests system authorization

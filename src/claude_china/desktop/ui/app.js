@@ -7,6 +7,9 @@ let lastRefresh = 0;
 let brandAnimation;
 let UPDATE = { phase: "idle" };
 let updatePoll;
+let pendingPanel;
+let dialogFocus;
+let openingUpdates = false;
 
 function animateBrand() {
   const mark = document.getElementById("brand-mark");
@@ -43,9 +46,77 @@ async function init() {
   await Promise.all([loadSettings(), ...APPS.map((a) => loadAppSettings(a.id))]);
   renderUpdate(await api().get_update_status());
   READY = true;
+  if (UPDATE.phase === "error" && !pendingPanel) pendingPanel = "update-status";
   lastRefresh = Date.now();
   fitWindow();
   animateBrand();
+  if (pendingPanel) {
+    const panel = pendingPanel;
+    pendingPanel = null;
+    window.openLauncherPanel(panel);
+  }
+}
+
+// Native and tray callbacks only open panels. Installation still requires an
+// explicit click here, including the unsaved-settings guard below.
+window.openLauncherPanel = (panel) => {
+  if (!READY) { pendingPanel = panel; return; }
+  if (panel === "settings") {
+    closeDialog();
+    const editor = document.getElementById("editor-common");
+    // A second menu click must not overwrite the user's unfinished edits.
+    if (!editor.classList.contains("is-open")) setEditorOpen("common", true);
+    document.getElementById("proxy").focus();
+  } else if (panel === "about") {
+    showDialog("about");
+  } else if (panel === "updates" || panel === "update-status") {
+    openUpdates(panel === "updates");
+  }
+};
+
+function showDialog(panel) {
+  const overlay = document.getElementById("launcher-overlay");
+  if (overlay.hidden) dialogFocus = document.activeElement;
+  document.getElementById("dialog-title").textContent =
+    panel === "about" ? "关于 Claude China" : "桌面版更新";
+  document.getElementById("update-panel").hidden = panel !== "updates";
+  document.getElementById("about-panel").hidden = panel !== "about";
+  overlay.hidden = false;
+  for (const el of [document.querySelector("main"), document.getElementById("foot")]) {
+    el.inert = true;
+    el.setAttribute("aria-hidden", "true");
+  }
+  fitWindow();
+  document.getElementById("dialog-close").focus();
+}
+
+function closeDialog() {
+  const overlay = document.getElementById("launcher-overlay");
+  if (overlay.hidden) return;
+  overlay.hidden = true;
+  for (const el of [document.querySelector("main"), document.getElementById("foot")]) {
+    el.inert = false;
+    el.removeAttribute("aria-hidden");
+  }
+  if (dialogFocus && dialogFocus.isConnected) dialogFocus.focus();
+  fitWindow();
+}
+
+async function openUpdates(check) {
+  showDialog("updates");
+  document.getElementById("update-warning").hidden = true;
+  if (openingUpdates) return;
+  openingUpdates = true;
+  try {
+    const state = await api().get_update_status();
+    // Reopening during a download or after it is ready preserves that work.
+    renderUpdate(check && ["idle", "latest", "error"].includes(state.phase)
+      ? await api().check_for_updates() : state);
+  } catch (_) {
+    renderUpdate({ ...UPDATE, phase: "error", message: "无法检查更新，请重试。" });
+  } finally {
+    openingUpdates = false;
+  }
 }
 
 // ---- launcher updates (only checked on request) ----
@@ -57,11 +128,15 @@ function renderUpdate(state) {
   const target = ["available", "downloading", "ready", "installing"].includes(state.phase) && state.latest;
   document.getElementById("update-version").textContent =
     (state.current ? `v${state.current}` : "") + (target ? ` → v${state.latest}` : "");
+  document.getElementById("about-version").textContent = state.current ? `v${state.current}` : "";
   let message = state.message;
   if (state.phase === "available" && !state.can_install) message += ` · ${state.reason}`;
   if (state.phase === "downloading") message += ` ${state.progress || 0}%`;
   status.textContent = message;
-  document.querySelector(".bay--update").classList.toggle("has-error", state.phase === "error");
+  document.getElementById("update-panel").classList.toggle("has-error", state.phase === "error");
+  document.getElementById("update-hint").textContent = state.phase === "downloading"
+    ? "关闭此弹窗后仍会继续下载，可从菜单或托盘再次打开。"
+    : "安装更新会重启启动器，已启动的应用不受影响。";
   button.disabled = busy || (state.phase === "available" && !state.can_install);
   button.classList.toggle("btn--solid", ["available", "ready"].includes(state.phase));
   button.textContent = ({
@@ -87,8 +162,13 @@ async function refreshUpdate() {
 
 async function updateAction() {
   const phase = UPDATE.phase;
+  if (openingUpdates || ["checking", "downloading", "installing"].includes(phase)) return;
+  const warning = document.getElementById("update-warning");
+  warning.hidden = true;
   if (phase === "ready" && document.querySelector(".editor.is-open")) {
-    toast("请先保存或取消正在编辑的设置，再安装更新");
+    warning.textContent = "请先关闭此弹窗，保存或取消正在编辑的设置，再安装更新。";
+    warning.hidden = false;
+    fitWindow();
     return;
   }
   document.getElementById("update-action").disabled = true;
@@ -107,6 +187,8 @@ async function updateAction() {
 function contentHeight() {
   let h = document.getElementById("foot").offsetHeight;
   for (const bay of document.querySelectorAll(".bay")) h += bay.offsetHeight;
+  const overlay = document.getElementById("launcher-overlay");
+  if (!overlay.hidden) h = Math.max(h, overlay.querySelector(".dialog").scrollHeight + 26);
   return h;
 }
 
@@ -412,7 +494,25 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("update-action").onclick = updateAction;
   document.getElementById("update-cancel").onclick = async () => renderUpdate(await api().cancel_update());
   document.getElementById("update-release").onclick = () => api().open_release_page();
+  document.getElementById("dialog-close").onclick = closeDialog;
+  document.getElementById("about-release").onclick = () => api().open_release_page();
+  document.getElementById("about-updates").onclick = () => openUpdates(true);
   document.addEventListener("keydown", (e) => {
+    const overlay = document.getElementById("launcher-overlay");
+    if (!overlay.hidden) {
+      if (e.key === "Escape") { e.preventDefault(); closeDialog(); }
+      if (e.key === "Tab") {
+        const buttons = Array.from(overlay.querySelectorAll("button"))
+          .filter((b) => !b.disabled && b.getClientRects().length);
+        const first = buttons[0], last = buttons[buttons.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+          e.preventDefault(); last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault(); first.focus();
+        }
+      }
+      return;
+    }
     if (e.key === "Escape") closeAllEditors();
   });
   window.addEventListener("focus", refreshOnReturn);

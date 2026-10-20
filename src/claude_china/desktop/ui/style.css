@@ -74,6 +74,7 @@ body {
 button, input { font: inherit; color: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: default; opacity: 0.4; }
+[hidden] { display: none !important; }
 h2, p { margin: 0; }
 code { font-family: var(--font-mono); font-size: 0.95em; }
 
@@ -184,10 +185,6 @@ code { font-family: var(--font-mono); font-size: 0.95em; }
 }
 
 .bay--common .bay-status { margin-top: 2px; font-size: 12px; }
-.bay--update .bay-status { white-space: normal; line-height: 1.55; font-size: 12px; }
-.bay--update .bay-row { min-height: 72px; padding-top: 12px; padding-bottom: 12px; }
-.bay--update .bay-actions { flex-wrap: wrap; justify-content: flex-end; max-width: 202px; }
-#update-version { color: var(--text-3); font-weight: 400; margin-left: 6px; }
 #update-progress { width: 100%; height: 4px; margin-top: 7px; accent-color: var(--on); }
 #update-action:disabled { opacity: 0.5; cursor: default; }
 .bay.is-missing .bay-status { color: var(--warn); }
@@ -497,6 +494,37 @@ code { font-family: var(--font-mono); font-size: 0.95em; }
 
 .foot.has-msg .foot-info { display: none; }
 .foot.has-msg .foot-msg { display: block; }
+
+/* ---------- panels opened by the native application / tray menus ---------- */
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.dialog {
+  width: min(100%, 460px);
+  max-height: 100%;
+  overflow-y: auto;
+  padding: 14px 20px 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--bg-2);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.24);
+}
+
+.dialog-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.dialog-head h2 { font-size: 15px; font-weight: 600; }
+.dialog-version { margin: 4px 0 10px; font-family: var(--font-mono); color: var(--text-2); }
+.dialog-hint { margin-top: 8px; color: var(--text-2); font-size: 11.5px; }
+.dialog-warning { margin-top: 8px; color: var(--danger); }
+#update-panel.has-error #update-status { color: var(--danger); }
+.dialog-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 16px; }
+.dialog-spacer { flex: 1; }
 
 /* ---------- ?preview (dev, in a browser tab) ----------
    Stand in for the fitted native window instead of filling the whole tab. */

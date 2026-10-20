@@ -14,6 +14,7 @@ class LauncherTray:
         self._icon = None
         self._image = None
         self._animation = None
+        self._commands = None
         self._ready = False
         self._stopped = False
         self._state_lock = threading.Lock()
@@ -60,13 +61,18 @@ class LauncherTray:
             from AppKit import NSApplication
 
             options["darwin_nsapplication"] = NSApplication.sharedApplication()
+        items = [pystray.MenuItem("打开 Claude China", self._show_window, default=True)]
+        if self._commands is not None:
+            items.extend([
+                pystray.MenuItem("设置…", self._settings),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem("检查更新…", self._updates),
+                pystray.MenuItem("发布页面", self._release_page),
+            ])
+        items.extend([pystray.Menu.SEPARATOR, pystray.MenuItem("退出", self._quit)])
         self._icon = pystray.Icon(
             "claudec-launcher", self._image, "Claude China",
-            menu=pystray.Menu(
-                pystray.MenuItem("打开 Claude China", self._show_window, default=True),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("退出", self._quit),
-            ),
+            menu=pystray.Menu(*items),
             **options,
         )
         # pywebview owns the native main loop, including Cocoa's main thread.
@@ -158,6 +164,15 @@ class LauncherTray:
             self._quitting.clear()
             raise
         # run_gui's finally block removes the icon after the GUI loop exits.
+
+    def _settings(self, icon, item) -> None:
+        self._commands.settings()
+
+    def _updates(self, icon, item) -> None:
+        self._commands.updates()
+
+    def _release_page(self, icon, item) -> None:
+        self._commands.release_page()
 
     def stop(self) -> None:
         with self._state_lock:

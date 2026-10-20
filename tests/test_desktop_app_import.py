@@ -109,6 +109,7 @@ class _FakeWindow:
 def fake_tray(monkeypatch):
     calls = []
     monkeypatch.setattr(app_mod, "_set_windows_app_id", lambda: None)
+    monkeypatch.setattr(app_mod.DesktopMenu, "native_menu", lambda self: ["native menus"])
 
     class FakeTray:
         def __init__(self, window, icon_path):
@@ -133,6 +134,7 @@ def test_run_gui_keeps_tray_until_gui_exits(monkeypatch, tmp_path, fake_tray):
     def start(**kwargs):
         assert fake_tray[-1] == "start"
         assert callable(kwargs["func"])
+        assert kwargs["menu"] == ["native menus"]
         fake_tray.append("gui")
 
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())

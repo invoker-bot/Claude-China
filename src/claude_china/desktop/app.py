@@ -3,6 +3,7 @@ import sys
 
 from .apps import APP_REGISTRY
 from .bridge import LauncherBridge
+from .menu import DesktopMenu
 from .platforms import get_backend
 from .platforms.windows_shell import launcher_icon_path, set_process_app_id as _set_windows_app_id
 from .single_instance import DesktopInstance
@@ -53,7 +54,7 @@ def run_gui(smoke_report=None):
         # The page fits the window to its content once loaded (bridge.fit_window);
         # this is just a close first guess so the window does not visibly jump.
         window = webview.create_window(
-            "Claude China", url=_ui_url(), js_api=bridge, width=600, height=340,
+            "Claude China", url=_ui_url(), js_api=bridge, width=600, height=280,
             **({"hidden": True} if smoke_report else {}),
         )
         try:
@@ -65,16 +66,22 @@ def run_gui(smoke_report=None):
         bridge._activity = tray.play_activity
         updater = UpdateManager(lambda: tray._quit(None, None))
         bridge._updater = updater
-        try:
-            tray.start()
-            callback = instance.listen
-            arguments = (window, tray.play_activity)
+        commands = DesktopMenu(window, tray, updater)
+        tray._commands = commands
+
+        def on_start(window, activity):
+            commands.bind_platform_menu()
             if smoke_report:
                 from .smoke import verify_window
-                callback = verify_window
-                arguments = (window, tray, smoke_report)
+                verify_window(window, tray, smoke_report)
+            else:
+                instance.listen(window, activity)
+
+        try:
+            tray.start()
             webview.start(
-                func=callback, args=arguments, icon=_window_icon_path(),
+                func=on_start, args=(window, tray.play_activity),
+                icon=_window_icon_path(), menu=commands.native_menu(),
             )
         finally:
             updater.shutdown()
