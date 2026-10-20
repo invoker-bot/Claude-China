@@ -3,7 +3,7 @@ from typing import List, Optional, Union
 
 VALID_TYPES = ("claude", "grok", "codex")
 
-# Used when `code-ai add` leaves the API base URL blank.
+# Used when `claudec add` leaves the API base URL blank.
 OFFICIAL_BASE_URLS = {
     "claude": "https://api.anthropic.com",
     "grok": "https://api.x.ai/v1",

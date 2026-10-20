@@ -1,6 +1,6 @@
 import sys
 
-from src.code_ai.desktop.platforms import get_backend
+from src.claude_china.desktop.platforms import get_backend
 
 
 def test_returns_windows_backend_on_win32(monkeypatch):

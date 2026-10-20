@@ -40,9 +40,9 @@ class LauncherTray:
 
             options["darwin_nsapplication"] = NSApplication.sharedApplication()
         self._icon = pystray.Icon(
-            "code-ai-launcher", self._image, "AI Launcher",
+            "claudec-launcher", self._image, "Claude China",
             menu=pystray.Menu(
-                pystray.MenuItem("打开 AI Launcher", self._show_window, default=True),
+                pystray.MenuItem("打开 Claude China", self._show_window, default=True),
                 pystray.Menu.SEPARATOR,
                 pystray.MenuItem("退出", self._quit),
             ),

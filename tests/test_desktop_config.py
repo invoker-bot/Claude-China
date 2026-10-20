@@ -4,7 +4,7 @@ import shutil
 from unittest.mock import patch
 from uuid import uuid4
 
-from src.code_ai.desktop import config as cfg
+from src.claude_china.desktop import config as cfg
 
 
 @contextmanager
@@ -19,7 +19,7 @@ def temp_desktop_config():
 
 def test_load_creates_defaults_when_missing():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             assert not f.exists()
             data = cfg.load_desktop_config()
             assert f.exists()
@@ -30,7 +30,7 @@ def test_load_creates_defaults_when_missing():
 
 def test_round_trip_common_and_app_settings():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             data = cfg.load_desktop_config()
             cfg.set_check_system_proxy(data, False)
             cfg.set_common_env(data, {"HTTP_PROXY": "http://127.0.0.1:7890"})
@@ -47,7 +47,7 @@ def test_round_trip_common_and_app_settings():
 
 def test_getters_default_for_unknown_app():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             data = cfg.load_desktop_config()
             assert cfg.get_app_env(data, "ghost") == {}
             assert cfg.get_app_path(data, "ghost") is None
@@ -55,7 +55,7 @@ def test_getters_default_for_unknown_app():
 
 def test_load_coerces_null_valued_keys():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             # Hand-written YAML with bare keys -> parsed as None by PyYAML.
             f.write_text("check_system_proxy: false\napps:\nenv_vars:\n", encoding="utf-8")
             data = cfg.load_desktop_config()
@@ -68,7 +68,7 @@ def test_load_coerces_null_valued_keys():
 
 def test_set_app_env_preserves_existing_app_path():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             data = cfg.load_desktop_config()
             cfg.set_app_path(data, "codex", "/Applications/Codex.app")
             cfg.set_app_env(data, "codex", {"X": "Y"})

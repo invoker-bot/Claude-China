@@ -6,6 +6,7 @@ import yaml
 
 from .models import profile_from_dict, profile_to_dict, BaseProfile
 
+# Preserve existing profiles and credentials through the Claude China rename.
 CONFIG_DIR = Path.home() / ".code-ai"
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 

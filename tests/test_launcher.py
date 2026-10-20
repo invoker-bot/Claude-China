@@ -1,8 +1,8 @@
 import os
 import pytest
 from unittest.mock import patch, MagicMock
-from src.code_ai.models import ApiProfile, LoginProfile
-from src.code_ai.launcher import (
+from src.claude_china.models import ApiProfile, LoginProfile
+from src.claude_china.launcher import (
     ENV_MAP,
     prepare_environment,
     resolve_default_args,
@@ -289,10 +289,10 @@ def test_merge_launch_args_use_default_false_skips():
 
 def test_launch_on_windows_uses_powershell_wrapper():
     """Verify the encoding wrapper is used on Windows (TDD test for the fix)."""
-    with patch("src.code_ai.launcher.sys.platform", "win32"):
-        with patch("src.code_ai.launcher.shutil.which", return_value="claude.cmd"):
-            with patch("src.code_ai.launcher.subprocess.run") as mock_run:
-                from src.code_ai.launcher import launch
+    with patch("src.claude_china.launcher.sys.platform", "win32"):
+        with patch("src.claude_china.launcher.shutil.which", return_value="claude.cmd"):
+            with patch("src.claude_china.launcher.subprocess.run") as mock_run:
+                from src.claude_china.launcher import launch
                 with patch("sys.exit"):
                     launch(
                         {"type": "claude", "name": "fox-claude", "base_url": None, "token": None},
@@ -311,10 +311,10 @@ def test_launch_on_windows_uses_powershell_wrapper():
 
 def test_launch_on_non_windows_uses_execvp():
     """Unix path (execvp) is unchanged — no wrapper."""
-    with patch("src.code_ai.launcher.sys.platform", "linux"):
-        with patch("src.code_ai.launcher.shutil.which", return_value="claude"):
-            with patch("src.code_ai.launcher.os.execvp") as mock_exec:
-                from src.code_ai.launcher import launch
+    with patch("src.claude_china.launcher.sys.platform", "linux"):
+        with patch("src.claude_china.launcher.shutil.which", return_value="claude"):
+            with patch("src.claude_china.launcher.os.execvp") as mock_exec:
+                from src.claude_china.launcher import launch
                 with patch("sys.exit"):
                     launch(
                         {"type": "claude", "name": "fox-claude", "base_url": None, "token": None},
@@ -326,10 +326,10 @@ def test_launch_on_non_windows_uses_execvp():
 
 def test_launch_windows_passes_env_correctly():
     """Env vars set by prepare_environment reach the PowerShell wrapper."""
-    with patch("src.code_ai.launcher.sys.platform", "win32"):
-        with patch("src.code_ai.launcher.shutil.which", return_value="claude.cmd"):
-            with patch("src.code_ai.launcher.subprocess.run") as mock_run:
-                from src.code_ai.launcher import launch
+    with patch("src.claude_china.launcher.sys.platform", "win32"):
+        with patch("src.claude_china.launcher.shutil.which", return_value="claude.cmd"):
+            with patch("src.claude_china.launcher.subprocess.run") as mock_run:
+                from src.claude_china.launcher import launch
                 with patch("sys.exit"):
                     launch(
                         {"type": "claude", "name": "fox-claude", "base_url": "https://example.com", "token": "sk-xxx"},
@@ -344,7 +344,7 @@ def test_launch_windows_passes_env_correctly():
 @pytest.mark.parametrize("platform", ["darwin", "linux"])
 def test_launch_grok_uses_updated_npm_entry_instead_of_shadowing_path(monkeypatch, tmp_path, platform):
     from types import SimpleNamespace
-    from src.code_ai import launcher
+    from src.claude_china import launcher
 
     profile_home = str(tmp_path / "grok-account")
     npm_command = str(tmp_path / "npm-prefix" / "bin" / "grok")
@@ -359,7 +359,7 @@ def test_launch_grok_uses_updated_npm_entry_instead_of_shadowing_path(monkeypatc
 
 
 def test_launch_grok_without_npm_preserves_native_install(monkeypatch, tmp_path):
-    from src.code_ai import launcher
+    from src.claude_china import launcher
 
     monkeypatch.setattr(launcher.sys, "platform", "darwin")
     monkeypatch.setattr(launcher.shutil, "which", lambda name: "/native/bin/grok")

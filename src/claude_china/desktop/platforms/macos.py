@@ -100,8 +100,8 @@ class MacBackend:
         return ("Application (*.app)",)
 
     # ---- shortcut ----
-    def _shortcut_path(self):
-        return os.path.normpath(os.path.expanduser("~/Desktop/AI Launcher.app"))
+    def _shortcut_path(self, name="Claude China"):
+        return os.path.normpath(os.path.expanduser(f"~/Desktop/{name}.app"))
 
     @staticmethod
     def _osa_quote(value):
@@ -119,12 +119,23 @@ class MacBackend:
         # shlex.quote protects the interpreter path from /bin/sh word-splitting
         # (spaces are realistic in macOS install paths); _osa_quote then wraps the
         # whole command as a safe AppleScript string literal.
-        inner = (f"{shlex.quote(sys.executable)} -m code_ai.cli desktop run "
+        inner = (f"{shlex.quote(sys.executable)} -m claude_china.cli desktop run "
                  f"> /dev/null 2>&1 &")
         script = "do shell script " + self._osa_quote(inner)
         subprocess.run(["osacompile", "-o", app_path, "-e", script], check=False)
+        plist = os.path.join(app_path, "Contents", "Info.plist")
+        if os.path.isfile(plist):
+            with open(plist, "rb") as stream:
+                info = plistlib.load(stream)
+            info.update(
+                CFBundleName="Claude China",
+                CFBundleDisplayName="Claude China",
+                CFBundleIdentifier="com.claudechina.launcher",
+            )
+            with open(plist, "wb") as stream:
+                plistlib.dump(info, stream)
         try:
-            icon = str(importlib.resources.files("code_ai.desktop")
+            icon = str(importlib.resources.files("claude_china.desktop")
                        .joinpath("ui", "icon.icns"))
             dest = os.path.join(app_path, "Contents", "Resources", "applet.icns")
             if os.path.exists(icon) and os.path.isdir(os.path.dirname(dest)):
@@ -134,8 +145,10 @@ class MacBackend:
         return app_path
 
     def remove_shortcut(self) -> list:
-        app_path = self._shortcut_path()
-        if os.path.exists(app_path):
-            shutil.rmtree(app_path, ignore_errors=True)
-            return [app_path]
-        return []
+        removed = []
+        for name in ("Claude China", "AI Launcher"):
+            app_path = self._shortcut_path(name)
+            if os.path.exists(app_path):
+                shutil.rmtree(app_path, ignore_errors=True)
+                removed.append(app_path)
+        return removed

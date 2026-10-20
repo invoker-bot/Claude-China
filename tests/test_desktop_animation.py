@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.code_ai.desktop import animation as animation_mod
+from src.claude_china.desktop import animation as animation_mod
 
 
 def make_animation(monkeypatch, update, interval=0.001):

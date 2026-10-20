@@ -1,5 +1,5 @@
-from src.code_ai.desktop.apps import get_app
-from src.code_ai.desktop.platforms import macos
+from src.claude_china.desktop.apps import get_app
+from src.claude_china.desktop.platforms import macos
 
 
 def test_parse_scutil_enabled():
@@ -57,8 +57,8 @@ def test_detect_override_direct(monkeypatch, tmp_path):
     assert st.match_root == str(bundle)
 
 
-from src.code_ai.desktop.platforms import base as base_mod
-from src.code_ai.desktop.platforms.base import AppStatus
+from src.claude_china.desktop.platforms import base as base_mod
+from src.claude_china.desktop.platforms.base import AppStatus
 
 
 def test_launch_brokered_uses_open_a(monkeypatch):
@@ -103,7 +103,7 @@ def test_is_running_and_stop_delegate_to_base(monkeypatch):
 def test_create_shortcut_idempotent_when_exists(monkeypatch, tmp_path):
     home = tmp_path
     (home / "Desktop").mkdir()
-    appdir = home / "Desktop" / "AI Launcher.app"
+    appdir = home / "Desktop" / "Claude China.app"
     appdir.mkdir()
     monkeypatch.setattr(macos.os.path, "expanduser",
                         lambda p: p.replace("~", str(home)))
@@ -119,7 +119,7 @@ def test_create_shortcut_idempotent_when_exists(monkeypatch, tmp_path):
 def test_remove_shortcut(monkeypatch, tmp_path):
     home = tmp_path
     (home / "Desktop").mkdir()
-    appdir = home / "Desktop" / "AI Launcher.app"
+    appdir = home / "Desktop" / "Claude China.app"
     appdir.mkdir()
     monkeypatch.setattr(macos.os.path, "expanduser",
                         lambda p: p.replace("~", str(home)))
@@ -160,16 +160,37 @@ def test_create_shortcut_copies_packaged_icon(monkeypatch, tmp_path):
 
     def fake_run(argv, check=False):
         app_path = argv[argv.index("-o") + 1]
-        (tmp_path / "Desktop" / "AI Launcher.app" /
+        (tmp_path / "Desktop" / "Claude China.app" /
          "Contents" / "Resources").mkdir(parents=True)
-        assert app_path == str(tmp_path / "Desktop" / "AI Launcher.app")
+        assert app_path == str(tmp_path / "Desktop" / "Claude China.app")
 
     monkeypatch.setattr(macos.subprocess, "run", fake_run)
 
     be = macos.MacBackend()
     app_path = be.create_shortcut()
 
-    applet_icon = tmp_path / "Desktop" / "AI Launcher.app" / "Contents" / "Resources" / "applet.icns"
-    source_icon = macos.importlib.resources.files("code_ai.desktop").joinpath("ui", "icon.icns")
-    assert app_path == str(tmp_path / "Desktop" / "AI Launcher.app")
+    applet_icon = tmp_path / "Desktop" / "Claude China.app" / "Contents" / "Resources" / "applet.icns"
+    source_icon = macos.importlib.resources.files("claude_china.desktop").joinpath("ui", "icon.icns")
+    assert app_path == str(tmp_path / "Desktop" / "Claude China.app")
     assert applet_icon.read_bytes() == source_icon.read_bytes()
+
+
+def test_shortcut_bundle_uses_claude_china_name_and_identity(monkeypatch, tmp_path):
+    monkeypatch.setattr(macos.os.path, "expanduser", lambda p: p.replace("~", str(tmp_path)))
+    appdir = tmp_path / "Desktop" / "Claude China.app"
+    plist = appdir / "Contents" / "Info.plist"
+
+    def compile_applet(argv, check=False):
+        assert argv[2] == str(appdir)
+        assert "-m claude_china.cli desktop run" in argv[-1]
+        plist.parent.mkdir(parents=True)
+        with plist.open("wb") as stream:
+            macos.plistlib.dump({"CFBundleExecutable": "applet"}, stream)
+
+    monkeypatch.setattr(macos.subprocess, "run", compile_applet)
+    assert macos.MacBackend().create_shortcut() == str(appdir)
+    with plist.open("rb") as stream:
+        info = macos.plistlib.load(stream)
+    assert info["CFBundleName"] == info["CFBundleDisplayName"] == "Claude China"
+    assert info["CFBundleIdentifier"] == "com.claudechina.launcher"
+    assert info["CFBundleExecutable"] == "applet"

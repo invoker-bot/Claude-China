@@ -1,5 +1,5 @@
 import pytest
-from src.code_ai.models import (
+from src.claude_china.models import (
     ApiProfile, LoginProfile, profile_from_dict, profile_to_dict, VALID_TYPES
 )
 

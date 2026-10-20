@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this project is
 
-`ai-code-switcher` (CLI: `code-ai`) is a Typer-based wrapper that selects an AI coding-tool profile and execs the matching upstream CLI (`claude`, `codex`, or `gemini`) with the right environment. Configuration lives in `~/.code-ai/config.yaml`. Distribution name is `ai-code-switcher`; the Python package is `code_ai`.
+`claude-china` (CLI: `claudec`) is a Typer-based wrapper that selects an AI coding-tool profile and execs the matching upstream CLI (`claude`, `codex`, or `gemini`) with the right environment. Configuration lives in `~/.code-ai/config.yaml`. Distribution name is `claude-china`; the Python package is `claude_china`.
 
 ## Commands
 
@@ -19,18 +19,18 @@ python -m pytest tests/ -q
 python -m pytest tests/test_launcher.py::test_merge_launch_args_only_defaults -q
 
 # Run the CLI from source (NOT from the globally-installed package)
-PYTHONPATH=src python -m code_ai.cli <subcommand>
+PYTHONPATH=src python -m claude_china.cli <subcommand>
 ```
 
 There is no linter or formatter configured; do not invent one.
 
 ## Source-vs-installed gotcha
 
-The package is commonly installed globally (`pip install -e .` or via release). Running `python -m code_ai.cli` or `code-ai` after editing source may execute the **installed** copy, not your edits. Tests use `from src.code_ai.X import Y` (note the `src.` prefix) so they always hit the working tree. For manual CLI smoke-tests of in-progress changes, prefix with `PYTHONPATH=src`.
+The package is commonly installed globally (`pip install -e .` or via release). Running `python -m claude_china.cli` or `claudec` after editing source may execute the **installed** copy, not your edits. Tests use `from src.claude_china.X import Y` (note the `src.` prefix) so they always hit the working tree. For manual CLI smoke-tests of in-progress changes, prefix with `PYTHONPATH=src`.
 
 ## Architecture
 
-The flow for `code-ai run <profile> [extra_args...]`:
+The flow for `claudec run <profile> [extra_args...]`:
 
 1. **`cli.py`** (`run_command`) — Typer entry point. Uses `ignore_unknown_options=True` + `allow_extra_args=True` so unknown flags fall through into `ctx.args` and get forwarded to the underlying CLI verbatim. Declared options like `--no-default-args` are still parsed normally and do **not** leak into `ctx.args`.
 2. **`config.py`** loads `~/.code-ai/config.yaml`. `load_config` auto-migrates legacy profiles (back-fills missing `name`/`mode` fields and re-saves).

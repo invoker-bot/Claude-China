@@ -6,12 +6,12 @@ import subprocess
 import sys
 import tempfile
 
-from code_ai import cli
-from code_ai.grok import check_version, find_npm_installation, home_binary
+from claude_china import cli
+from claude_china.grok import check_version, find_npm_installation, home_binary
 
 
 def main():
-    with tempfile.TemporaryDirectory(prefix="code-ai-grok-smoke-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="claudec-grok-smoke-") as temporary:
         root = Path(temporary)
         prefix = root / "npm-prefix"
         old_bin = root / "old-install"
@@ -44,7 +44,7 @@ def main():
         check_version(home_binary(str(home)), dict(os.environ, GROK_HOME=str(home)), installation.version)
         assert auth.read_text(encoding="utf-8") == "{}\n", "Login credentials changed"
         result = subprocess.run(
-            [sys.executable, "-c", "from code_ai.launcher import launch; launch(" + repr(profile) + ", ['--version'])"],
+            [sys.executable, "-c", "from claude_china.launcher import launch; launch(" + repr(profile) + ", ['--version'])"],
             capture_output=True, text=True, timeout=30,
         )
         assert result.returncode == 0, result.stderr

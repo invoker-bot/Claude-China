@@ -8,7 +8,7 @@ from PIL import Image
 
 
 ROOT = Path(__file__).resolve().parents[1]
-UI = ROOT / "src" / "code_ai" / "desktop" / "ui"
+UI = ROOT / "src" / "claude_china" / "desktop" / "ui"
 
 
 def main():
@@ -26,7 +26,7 @@ def main():
 
         # Use the actual tray animation frames, rather than a separate mockup.
         sys.path.insert(0, str(ROOT / "src"))
-        from code_ai.desktop.animation import build_activity_frames
+        from claude_china.desktop.animation import build_activity_frames
 
         preview = ROOT / "docs" / "branding" / "anti-claude-motion.png"
         preview.parent.mkdir(parents=True, exist_ok=True)

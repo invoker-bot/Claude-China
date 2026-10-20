@@ -3,9 +3,9 @@ requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ai-code-switcher"
-version = "0.1.23"
-description = "Switch AI coding tool profiles and launch the correct CLI"
+name = "claude-china"
+version = "0.2.0"
+description = "Claude China: AI coding profiles and a desktop launcher"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {text = "MIT"}
 requires-python = ">=3.9"
@@ -14,17 +14,23 @@ dependencies = [
     "typer>=0.9.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/invoker-bot/Claude-China"
+Repository = "https://github.com/invoker-bot/Claude-China"
+Issues = "https://github.com/invoker-bot/Claude-China/issues"
+
 [project.optional-dependencies]
 desktop = ["pywebview>=6", "psutil>=5.9", "pystray>=0.19.5", "Pillow>=9"]
 
 [project.scripts]
-code-ai = "code_ai.cli:app"
+claudec = "claude_china.cli:app"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = ["claude_china*"]
 
 [tool.setuptools.package-data]
-code_ai = ["desktop/ui/*"]
+claude_china = ["desktop/ui/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

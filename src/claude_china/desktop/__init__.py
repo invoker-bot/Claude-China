@@ -1,0 +1,1 @@
+"""claudec desktop launcher package."""

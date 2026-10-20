@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-This is a `src`-layout Python package. Core CLI and profile logic lives in `src/code_ai/`, with `cli.py` as the Typer entry point, `config.py` for `~/.code-ai/config.yaml`, `models.py` for profile dataclasses, and `launcher.py` for environment setup and process launch. Desktop launcher code is under `src/code_ai/desktop/`; static desktop UI assets are in `src/code_ai/desktop/ui/` and are packaged via `pyproject.toml`. Tests live in `tests/`, and design notes/plans live in `docs/superpowers/`.
+This is a `src`-layout Python package. Core CLI and profile logic lives in `src/claude_china/`, with `cli.py` as the Typer entry point, `config.py` for `~/.code-ai/config.yaml`, `models.py` for profile dataclasses, and `launcher.py` for environment setup and process launch. Desktop launcher code is under `src/claude_china/desktop/`; static desktop UI assets are in `src/claude_china/desktop/ui/` and are packaged via `pyproject.toml`. Tests live in `tests/`, and design notes/plans live in `docs/superpowers/`.
 
 ## Build, Test, and Development Commands
 
@@ -10,7 +10,7 @@ This is a `src`-layout Python package. Core CLI and profile logic lives in `src/
 - `pip install -e ".[desktop]"` installs optional desktop launcher dependencies.
 - `python -m pytest tests/ -q` runs the full pytest suite configured in `pyproject.toml`.
 - `python -m pytest tests/test_launcher.py::test_merge_launch_args_only_defaults -q` runs one targeted test.
-- `PYTHONPATH=src python -m code_ai.cli <subcommand>` smoke-tests the working tree version. Use this form when checking uncommitted source changes.
+- `PYTHONPATH=src python -m claude_china.cli <subcommand>` smoke-tests the working tree version. Use this form when checking uncommitted source changes.
 
 ## Coding Style & Naming Conventions
 
@@ -22,7 +22,7 @@ The project uses pytest. Add or update tests whenever behavior changes in profil
 
 ## Commit & Pull Request Guidelines
 
-Recent commits use concise conventional-style messages such as `fix(desktop): ...`, `chore: ...`, and `release: v...`. Follow that pattern with an imperative, scoped summary. Pull requests should include a short behavior summary, linked issue when applicable, test commands run, and platform notes for desktop changes. Include screenshots or screen recordings for visible UI changes in `src/code_ai/desktop/ui/`.
+Recent commits use concise conventional-style messages such as `fix(desktop): ...`, `chore: ...`, and `release: v...`. Follow that pattern with an imperative, scoped summary. Pull requests should include a short behavior summary, linked issue when applicable, test commands run, and platform notes for desktop changes. Include screenshots or screen recordings for visible UI changes in `src/claude_china/desktop/ui/`.
 
 ## Security & Configuration Tips
 

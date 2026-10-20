@@ -2,13 +2,13 @@ import os
 
 import pytest
 
-from src.code_ai.desktop.apps import get_app
-from src.code_ai.desktop.platforms import windows
+from src.claude_china.desktop.apps import get_app
+from src.claude_china.desktop.platforms import windows
 
 
 @pytest.fixture(autouse=True)
 def isolated_icon_cache(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
                         tmp_path / ".code-ai" / "desktop.yaml")
 
 
@@ -86,8 +86,8 @@ def test_proxy_enabled_false_when_no_winreg(monkeypatch):
     assert be.proxy_enabled() is False
 
 
-from src.code_ai.desktop.platforms import base as base_mod
-from src.code_ai.desktop.platforms.base import AppStatus
+from src.claude_china.desktop.platforms import base as base_mod
+from src.claude_china.desktop.platforms.base import AppStatus
 
 
 class FakeProc:
@@ -168,7 +168,7 @@ def test_is_running_ignores_claude_background_service(monkeypatch):
 def test_create_shortcut_idempotent_when_exists(monkeypatch, tmp_path):
     desktop = tmp_path / "Desktop"
     desktop.mkdir()
-    (desktop / "AI Launcher.lnk").write_text("x")
+    (desktop / "Claude China.lnk").write_text("x")
     monkeypatch.setattr(windows.os.path, "expanduser", lambda p: str(tmp_path) if p == "~" else p)
     monkeypatch.setenv("APPDATA", str(tmp_path / "AppData"))
 
@@ -178,13 +178,13 @@ def test_create_shortcut_idempotent_when_exists(monkeypatch, tmp_path):
 
     be = windows.WindowsBackend()
     path = be.create_shortcut()
-    assert path == str(desktop / "AI Launcher.lnk")
+    assert path == str(desktop / "Claude China.lnk")
 
 
 def test_remove_shortcut_reports_paths(monkeypatch, tmp_path):
     desktop = tmp_path / "Desktop"
     desktop.mkdir()
-    lnk = desktop / "AI Launcher.lnk"
+    lnk = desktop / "Claude China.lnk"
     lnk.write_text("x")
     monkeypatch.setattr(windows.os.path, "expanduser", lambda p: str(tmp_path) if p == "~" else p)
     monkeypatch.delenv("APPDATA", raising=False)
@@ -216,7 +216,7 @@ def test_create_shortcut_quotes_paths_for_powershell(monkeypatch, tmp_path):
     be = windows.WindowsBackend()
     path = be.create_shortcut()
 
-    expected_lnk = str(home / "Desktop" / "AI Launcher.lnk")
+    expected_lnk = str(home / "Desktop" / "Claude China.lnk")
     assert path == expected_lnk
     script = captured["argv"][-1]
     # The hostile path is single-quoted (literal), never double-quoted.
@@ -226,7 +226,8 @@ def test_create_shortcut_quotes_paths_for_powershell(monkeypatch, tmp_path):
     assert captured["creationflags"] == windows._NO_WINDOW
 
 
-def test_create_shortcut_uses_desktop_python_env(monkeypatch, tmp_path):
+@pytest.mark.parametrize("env_name", ["CLAUDEC_DESKTOP_PYTHON", "CODE_AI_DESKTOP_PYTHON"])
+def test_create_shortcut_uses_desktop_python_env(monkeypatch, tmp_path, env_name):
     home = tmp_path / "home"
     home.mkdir()
     pyhome = tmp_path / "py312"
@@ -235,7 +236,9 @@ def test_create_shortcut_uses_desktop_python_env(monkeypatch, tmp_path):
     pythonw = pyhome / "pythonw.exe"
     python.write_text("x")
     pythonw.write_text("x")
-    monkeypatch.setenv("CODE_AI_DESKTOP_PYTHON", str(python))
+    monkeypatch.delenv("CLAUDEC_DESKTOP_PYTHON", raising=False)
+    monkeypatch.delenv("CODE_AI_DESKTOP_PYTHON", raising=False)
+    monkeypatch.setenv(env_name, str(python))
     monkeypatch.setattr(windows.os.path, "expanduser",
                         lambda p: str(home) if p == "~" else p)
     monkeypatch.delenv("APPDATA", raising=False)

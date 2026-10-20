@@ -3,6 +3,7 @@ from typing import Optional
 
 import yaml
 
+# Also keeps the single-instance lock shared with pre-rename installations.
 DESKTOP_CONFIG_FILE = Path.home() / ".code-ai" / "desktop.yaml"
 
 DEFAULTS = {

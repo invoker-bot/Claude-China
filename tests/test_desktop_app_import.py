@@ -4,8 +4,8 @@ import types
 
 import pytest
 
-import src.code_ai.desktop.app as app_mod
-from src.code_ai.desktop.platforms.base import AppStatus
+import src.claude_china.desktop.app as app_mod
+from src.claude_china.desktop.platforms.base import AppStatus
 
 
 def test_app_module_imports_without_webview():
@@ -137,7 +137,7 @@ def test_run_gui_keeps_tray_until_gui_exits(monkeypatch, tmp_path, fake_tray):
 
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
     monkeypatch.setattr(
-        "src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml",
+        "src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml",
     )
     monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace(
         create_window=lambda *args, **kwargs: window, OPEN_DIALOG=20, start=start,
@@ -156,7 +156,7 @@ def test_windows_identity_is_set_before_creating_any_window(monkeypatch, tmp_pat
                         lambda: calls.append("identity"), raising=False)
     monkeypatch.setattr(app_mod, "sys", types.SimpleNamespace(platform="win32"))
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
-    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
                         tmp_path / "desktop.yaml")
 
     def create_window(*args, **kwargs):
@@ -179,7 +179,7 @@ def test_macos_does_not_initialize_windows_shell(monkeypatch, tmp_path, fake_tra
     monkeypatch.setattr(app_mod, "_set_windows_app_id", fail)
     monkeypatch.setattr(app_mod, "sys", types.SimpleNamespace(platform="darwin"))
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
-    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
                         tmp_path / "desktop.yaml")
     monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace(
         create_window=lambda *args, **kwargs: _FakeWindow(),
@@ -209,7 +209,7 @@ def test_repeated_run_activates_existing_window_without_creating_another(monkeyp
     monkeypatch.setattr(app_mod, "DesktopInstance", ExistingInstance, raising=False)
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
     monkeypatch.setattr(
-        "src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml",
+        "src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml",
     )
     monkeypatch.setitem(sys.modules, "webview", types.SimpleNamespace(
         create_window=create_window,
@@ -224,7 +224,8 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
     captured = {}
     fake_window = _FakeWindow()
 
-    def create_window(_title, url, js_api, width, height):
+    def create_window(title, url, js_api, width, height):
+        assert title == "Claude China"
         captured["js_api"] = js_api
         return fake_window
 
@@ -237,7 +238,7 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
     monkeypatch.setitem(sys.modules, "webview", fake_webview)
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
     monkeypatch.setattr(
-        "src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+        "src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
         tmp_path / "desktop.yaml",
     )
     monkeypatch.setattr(app_mod.sys, "platform", "win32")
@@ -297,7 +298,7 @@ def test_run_gui_does_not_start_background_status_poll(monkeypatch, tmp_path, fa
     monkeypatch.setattr(app_mod, "get_backend", lambda: _FakeBackend())
     monkeypatch.setattr(app_mod, "threading", types.SimpleNamespace(Thread=Thread), raising=False)
     monkeypatch.setattr(
-        "src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+        "src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
         tmp_path / "desktop.yaml",
     )
 

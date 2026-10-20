@@ -3,8 +3,8 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.code_ai import cli
-from src.code_ai.cli import UPGRADE_PACKAGES
+from src.claude_china import cli
+from src.claude_china.cli import UPGRADE_PACKAGES
 
 
 @pytest.fixture(autouse=True)

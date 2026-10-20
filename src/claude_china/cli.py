@@ -19,7 +19,7 @@ from .models import profile_from_dict, LoginProfile
 from . import __version__
 
 app = typer.Typer(
-    help="Switch AI coding tool profiles and launch the correct CLI",
+    help="Claude China: switch AI coding profiles and launch CLI or desktop apps",
     add_completion=False,
 )
 
@@ -67,16 +67,16 @@ def roll_claude_buddy_command(
     Use --name and/or --type to keep rolling until you get the target species/rarity.
 
     Examples:
-      code-ai roll-claude-buddy fox-claude                           Roll buddy for profile
-      code-ai roll-claude-buddy fox-claude --name capybara           Roll until capybara
-      code-ai roll-claude-buddy fox-claude --type legendary          Roll until legendary
-      code-ai roll-claude-buddy fox-claude --name dragon --type epic Roll until epic dragon
+      claudec roll-claude-buddy fox-claude                           Roll buddy for profile
+      claudec roll-claude-buddy fox-claude --name capybara           Roll until capybara
+      claudec roll-claude-buddy fox-claude --type legendary          Roll until legendary
+      claudec roll-claude-buddy fox-claude --name dragon --type epic Roll until epic dragon
     """
     config = load_config()
     profiles = config.get("profiles", {})
     if profile not in profiles:
         typer.echo(f"Unknown profile: '{profile}'", err=True)
-        typer.echo("Run 'code-ai list' to see available profiles.")
+        typer.echo("Run 'claudec list' to see available profiles.")
         raise typer.Exit(1)
 
     if rarity and rarity not in RARITIES:
@@ -150,16 +150,16 @@ def run_command(
     """Launch a profile with optional arguments
 
     Examples:
-      code-ai run fox-claude
-      code-ai run fox-claude -p "hello"
-      code-ai run 4399 --help
-      code-ai run --no-default-args fox-claude --model sonnet
+      claudec run fox-claude
+      claudec run fox-claude -p "hello"
+      claudec run 4399 --help
+      claudec run --no-default-args fox-claude --model sonnet
     """
     config = load_config()
     profiles = config.get("profiles", {})
     if profile not in profiles:
         typer.echo(f"Unknown profile: '{profile}'", err=True)
-        typer.echo("Run 'code-ai list' to see available profiles.")
+        typer.echo("Run 'claudec list' to see available profiles.")
         raise typer.Exit(1)
     launch(profiles[profile], ctx.args, use_default_args=not no_default_args)
 
@@ -170,7 +170,7 @@ desktop_app = typer.Typer(
 )
 app.add_typer(desktop_app, name="desktop")
 
-_DESKTOP_UNSUPPORTED = "code-ai desktop is supported on Windows and macOS only."
+_DESKTOP_UNSUPPORTED = "claudec desktop is supported on Windows and macOS only."
 
 
 def _require_desktop_extra() -> None:
@@ -181,7 +181,7 @@ def _require_desktop_extra() -> None:
         from PIL import Image  # noqa: F401
     except ImportError:
         typer.echo("The desktop launcher needs extra dependencies.")
-        typer.echo("Install them with: pip install ai-code-switcher[desktop]")
+        typer.echo("Install them with: pip install claude-china[desktop]")
         raise typer.Exit(1)
 
 
@@ -203,7 +203,7 @@ def desktop_install():
     path = backend.create_shortcut()
     if path:
         typer.echo(f"Shortcut ready: {path}")
-        typer.echo("Open the launcher anytime with: code-ai desktop run")
+        typer.echo("Open the launcher anytime with: claudec desktop run")
     else:
         typer.echo("Could not create the shortcut.")
         raise typer.Exit(1)
@@ -265,7 +265,7 @@ def desktop_uninstall(
 
 def version_callback(value: bool):
     if value:
-        typer.echo(f"code-ai {__version__}")
+        typer.echo(f"claudec {__version__}")
         raise typer.Exit()
 
 
@@ -279,11 +279,11 @@ def main(
     Switch AI coding tool profiles and launch the correct CLI.
 
     Examples:
-      code-ai list                      List all profiles
-      code-ai show fox-claude           Show profile details
-      code-ai run fox-grok              Launch Grok CLI with fox profile
-      code-ai run 4399                  Launch Claude CLI with 4399 profile
-      code-ai run fox-claude -p "hi"    Pass extra args to Claude CLI
+      claudec list                      List all profiles
+      claudec show fox-claude           Show profile details
+      claudec run fox-grok              Launch Grok CLI with fox profile
+      claudec run 4399                  Launch Claude CLI with 4399 profile
+      claudec run fox-claude -p "hi"    Pass extra args to Claude CLI
     """
     pass
 

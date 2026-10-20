@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.code_ai.desktop.platforms import windows_shell as shell
+from src.claude_china.desktop.platforms import windows_shell as shell
 
 
 def test_icon_cache_changes_path_when_artwork_changes(tmp_path, monkeypatch):
@@ -62,13 +62,13 @@ def test_failed_shortcut_commit_releases_resources_without_uninitializing_foreig
 
 @pytest.mark.skipif(sys.platform != "win32", reason="native Windows shortcut property store")
 def test_native_shortcut_matches_process_identity_and_versioned_icon(tmp_path, monkeypatch):
-    from src.code_ai.desktop.platforms.windows import WindowsBackend
+    from src.claude_china.desktop.platforms.windows import WindowsBackend
 
     monkeypatch.setattr(shell.cfg, "DESKTOP_CONFIG_FILE", tmp_path / "settings" / "desktop.yaml")
     backend = WindowsBackend()
     shortcut = tmp_path / "launcher's $icon.lnk"
     icon = backend._icon_path()
-    backend._write_lnk(str(shortcut), sys.executable, "-m code_ai.cli desktop run", icon)
+    backend._write_lnk(str(shortcut), sys.executable, "-m claude_china.cli desktop run", icon)
 
     # Read back through a separate native Shell client, not our writer.
     quote = backend._ps_quote
@@ -88,4 +88,4 @@ def test_native_shortcut_matches_process_identity_and_versioned_icon(tmp_path, m
     assert result["appId"] == shell.APP_USER_MODEL_ID
     assert result["icon"] == icon + ",0"
     assert Path(result["target"]) == Path(sys.executable)
-    assert result["arguments"] == "-m code_ai.cli desktop run"
+    assert result["arguments"] == "-m claude_china.cli desktop run"

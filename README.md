@@ -1,11 +1,15 @@
-# ai-code-switcher
+# Claude China
 
 Switch between profiles for AI coding tools and launch the right CLI with the
 right environment.
 
-`ai-code-switcher` gives each profile its own provider, endpoint, credentials,
-proxy, and default arguments. The `code-ai` command then starts Claude Code,
+`claude-china` gives each profile its own provider, endpoint, credentials,
+proxy, and default arguments. The `claudec` command then starts Claude Code,
 OpenAI Codex, or Grok using that profile.
+
+Repository: [invoker-bot/Claude-China](https://github.com/invoker-bot/Claude-China)
+· PyPI: [claude-china](https://pypi.org/project/claude-china/)
+· CLI: `claudec`
 
 ## Features
 
@@ -22,7 +26,7 @@ OpenAI Codex, or Grok using that profile.
 Install the CLI from PyPI:
 
 ```bash
-python -m pip install ai-code-switcher
+python -m pip install claude-china
 ```
 
 For local development, install the checkout in editable mode:
@@ -34,45 +38,66 @@ python -m pip install -e .
 The optional desktop launcher is installed with:
 
 ```bash
-python -m pip install "ai-code-switcher[desktop]"
+python -m pip install "claude-china[desktop]"
 ```
 
 Requirements:
 
 - Python 3.9 or later
 - At least one supported AI CLI installed and available on `PATH`
-- Node.js and npm for `code-ai upgrade`
+- Node.js and npm for `claudec upgrade`
 - Windows or macOS for the optional desktop launcher
+
+### Upgrading from code-ai / AI Launcher
+
+Version 0.2.0 renames the distribution from `ai-code-switcher` to `claude-china`,
+the command from `code-ai` to `claudec`, and the desktop app to **Claude China**.
+The Python module is now `claude_china` (`python -m claude_china.cli`).
+
+Quit the old launcher from its tray menu, then run:
+
+```bash
+python -m pip install --upgrade "claude-china[desktop]"
+claudec desktop install
+claudec desktop run
+```
+
+For CLI-only use, install `claude-china` without the extra. Existing profiles,
+login directories, desktop settings and the single-instance lock continue to
+use `~/.code-ai/`; no credentials need to be copied. Installing the desktop
+shortcut replaces the old **AI Launcher** shortcuts on Windows and macOS.
+You can then remove the old distribution with `python -m pip uninstall ai-code-switcher`.
+Old PyPI releases remain available for existing installations.
 
 ## Quick start
 
 Create a profile interactively, then launch it:
 
 ```bash
-code-ai add
-code-ai list
-code-ai show my-claude
-code-ai run my-claude
+claudec add
+claudec list
+claudec show my-claude
+claudec run my-claude
 ```
 
 Arguments after the profile name are forwarded to the underlying CLI:
 
 ```bash
-code-ai run my-claude -p "Review this repository"
-code-ai run my-codex --model o3
-code-ai run my-grok --help
+claudec run my-claude -p "Review this repository"
+claudec run my-codex --model o3
+claudec run my-grok --help
 ```
 
 Useful commands:
 
 ```text
-code-ai list                         List configured profiles
-code-ai add                          Add a profile interactively
-code-ai show <profile>               Show profile details
-code-ai remove <profile>             Remove a profile
-code-ai upgrade                      Upgrade Claude, Codex, and Grok CLIs
-code-ai --version                    Show the installed version
-code-ai --help                       Show command help
+claudec list                         List configured profiles
+claudec add                          Add a profile interactively
+claudec show <profile>               Show profile details
+claudec remove <profile>             Remove a profile
+claudec upgrade                      Upgrade Claude, Codex, and Grok CLIs
+claudec --version                    Show the installed version
+claudec --help                       Show command help
 ```
 
 The supported AI CLIs are:
@@ -81,16 +106,16 @@ The supported AI CLIs are:
 - OpenAI Codex: `@openai/codex`
 - Grok: `@xai-official/grok`
 
-`code-ai upgrade` also refreshes the Grok binary in each login profile's
+`claudec upgrade` also refreshes the Grok binary in each login profile's
 credentials directory. Grok stores a separate binary under `GROK_HOME/bin`, so
 updating only the global npm package can leave a login profile running an old
 version. The upgrade enables npm install scripts and verifies the actual binary
 version in the default home and every login home; an unchanged or missing binary
 causes the command to fail. Restart running Grok sessions after upgrading.
 
-For Grok, `code-ai run` prefers the official package in the active npm global
+For Grok, `claudec run` prefers the official package in the active npm global
 prefix, so an older native installation earlier on `PATH` cannot shadow the
-package updated by `code-ai upgrade`. Native installations remain supported
+package updated by `claudec upgrade`. Native installations remain supported
 when the npm package is absent. Login credentials still use the profile's own
 `GROK_HOME`.
 
@@ -152,7 +177,7 @@ profile pin a value such as `--model` when the CLI uses the last occurrence of
 a flag. Skip profile defaults for one launch with:
 
 ```bash
-code-ai run --no-default-args claude-api --model claude-opus-4-5
+claudec run --no-default-args claude-api --model claude-opus-4-5
 ```
 
 ## Claude Buddy
@@ -161,9 +186,9 @@ Claude profiles can have a deterministic companion card generated from the
 profile name:
 
 ```bash
-code-ai roll-claude-buddy claude-api
-code-ai roll-claude-buddy claude-api --name capybara
-code-ai roll-claude-buddy claude-api --type legendary
+claudec roll-claude-buddy claude-api
+claudec roll-claude-buddy claude-api --name capybara
+claudec roll-claude-buddy claude-api --type legendary
 ```
 
 ## Desktop launcher
@@ -172,19 +197,19 @@ The optional desktop launcher provides a graphical interface for detected
 Claude and Codex desktop apps. It is supported on Windows and macOS.
 
 ```bash
-python -m pip install "ai-code-switcher[desktop]"
-code-ai desktop install       # create or recreate the shortcut
-code-ai desktop run           # open the launcher
-code-ai desktop uninstall     # remove the shortcut
+python -m pip install "claude-china[desktop]"
+claudec desktop install       # create or recreate the shortcut
+claudec desktop run           # open the launcher
+claudec desktop uninstall     # remove the shortcut
 ```
 
 Only one launcher runs per user. Opening the shortcut or running
-`code-ai desktop run` again restores and brings the existing window forward.
+`claudec desktop run` again restores and brings the existing window forward.
 Closing the window hides it in the system tray (the menu bar on macOS).
-Click the tray icon or choose **打开 AI Launcher** to reopen the window;
+Click the tray icon or choose **打开 Claude China** to reopen the window;
 choose **退出** from the tray menu to exit the launcher completely.
 
-The launcher uses the terracotta **Anti-Claude** mark for its window, shortcut,
+The launcher uses the terracotta **Claude China** mark for its window, shortcut,
 tray and footer. The tray/menu-bar and footer marks briefly breathe and turn
 when the launcher opens or an action runs, then return to rest. Shortcut and
 window-title icons stay static. See the [icon preview](docs/branding/preview.html)
@@ -192,7 +217,7 @@ and [asset notes](docs/branding/README.md).
 
 On Windows, the launcher and its shortcuts share a taskbar identity. Icon files
 use a content-based filename so new artwork gets a fresh Shell cache entry.
-After upgrading, run `code-ai desktop install` and restart the launcher to
+After upgrading, run `claudec desktop install` and restart the launcher to
 refresh existing shortcuts and the taskbar icon.
 
 Desktop settings are stored separately in `~/.code-ai/desktop.yaml`. The

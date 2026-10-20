@@ -5,7 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.code_ai.desktop import tray as tray_mod
+from src.claude_china.desktop import tray as tray_mod
 
 
 class FakeEvent:
@@ -134,7 +134,8 @@ def test_default_tray_action_restores_hidden_window(running_tray):
 
     show(icon)
 
-    assert show.text == "打开 AI Launcher"
+    assert icon.title == "Claude China"
+    assert show.text == "打开 Claude China"
     assert window.calls == ["hide", "restore", "show"]
     assert not window.hidden
     assert not window.destroyed
@@ -186,7 +187,7 @@ def test_macos_frames_are_dispatched_to_main_thread_and_ignored_after_stop(
 
 
 def test_hidden_launcher_still_receives_single_instance_activation(running_tray, tmp_path):
-    from src.code_ai.desktop.single_instance import DesktopInstance
+    from src.claude_china.desktop.single_instance import DesktopInstance
 
     tray, window, icon = running_tray
     path = tmp_path / "desktop.lock"

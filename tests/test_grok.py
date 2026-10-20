@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from src.code_ai import grok
+from src.claude_china import grok
 
 
 @pytest.mark.parametrize("platform", ["win32", "darwin", "linux"])

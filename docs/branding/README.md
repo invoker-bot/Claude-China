@@ -1,16 +1,16 @@
-# Anti-Claude desktop identity
+# Claude China desktop identity
 
 暖陶土色的放射形轮廓，中心留出向上的箭头。圆润线条表达助手的亲和感，向上的开口表达独立、保护与持续前进。
 
 ## Assets
 
-- `src/code_ai/desktop/ui/icon.png`: 1024 × 1024 RGBA master.
-- `src/code_ai/desktop/ui/icon.ico`: Windows, 16 / 20 / 24 / 32 / 40 / 48 / 64 / 128 / 256 px.
-- `src/code_ai/desktop/ui/icon.icns`: macOS, including 512 px and 1024 px Retina representations.
+- `src/claude_china/desktop/ui/icon.png`: 1024 × 1024 RGBA master.
+- `src/claude_china/desktop/ui/icon.ico`: Windows, 16 / 20 / 24 / 32 / 40 / 48 / 64 / 128 / 256 px.
+- `src/claude_china/desktop/ui/icon.icns`: macOS, including 512 px and 1024 px Retina representations.
 - [Motion preview](anti-claude-motion.png): transparent APNG, plays once and rests.
 - [Interactive preview](preview.html): light/dark surfaces, actual small sizes, and a replay button.
 
-The application name and shortcut remain **AI Launcher**. The new visual identity is **Anti-Claude**.
+The application, tray, preview and shortcuts are named **Claude China**. The terracotta mark was originally designed under the Anti-Claude working name; its artwork and motion are preserved.
 
 ![Light/dark and small-size preview](preview.png)
 
@@ -22,17 +22,18 @@ The footer uses the same motion curve on actions and focus, and respects `prefer
 
 ## Windows taskbar
 
-The process sets `CodeAI.DesktopLauncher` as its explicit AppUserModelID before creating native windows. Desktop and Start Menu shortcuts store the same ID, so the Shell can associate the launcher with its own shortcut and icon. Window and shortcut icons use the same content-addressed ICO in `~/.code-ai/icons/`; changing the artwork changes its cache key without deleting older pinned shortcuts' resources.
+The process sets `ClaudeChina.DesktopLauncher` as its explicit AppUserModelID before creating native windows. Desktop and Start Menu shortcuts store the same ID, so the Shell can associate the launcher with its own shortcut and icon. Window and shortcut icons use the same content-addressed ICO in `~/.code-ai/icons/`; changing the artwork changes its cache key without deleting older pinned shortcuts' resources.
 
-Run `code-ai desktop install` after upgrading to refresh existing shortcuts, then quit and reopen the launcher. No global icon-cache reset or Explorer restart is required.
+Run `claudec desktop install` after upgrading to refresh existing shortcuts, then quit and reopen the launcher. No global icon-cache reset or Explorer restart is required.
 
 ## Validation
 
-- Full pytest suite: **219 passed, 1 skipped** (Python 3.13.13, Windows).
+- Full pytest suite: **225 passed, 1 skipped** (Python 3.13.13, Windows).
 - Native pywebview / pystray smoke test (Python 3.12.10, Windows): startup and action animations return to the static mark; rapid requests share one worker; closing hides the window; a second launch restores it and animates; quitting during animation removes the tray and releases the instance lock.
 - Windows Shell readback confirms the process identity and both installed shortcuts use the same AppUserModelID; the shortcut ICO bytes match the packaged artwork. Native shortcut tests also check command preservation and COM cleanup on failure. Taskbar pixels were not captured by the available window-only screenshot tool.
 - Browser preview checked on light/dark surfaces and at 16 / 24 / 32 / 48 / 64 px.
 - Wheel build verified to contain the current animation module and all three platform icon assets.
+- Rename validation: the built `claude-china 0.2.0` wheel exposes only `claudec`, installs the `claude_china` namespace, and works in a separate environment. Both Windows shortcuts use the new name and command; reopening reuses the running launcher. Existing profile and desktop configuration hashes are unchanged. macOS tests verify the renamed bundle metadata and cleanup of legacy shortcuts.
 - Python 3.9 syntax checked. macOS dispatch and asset packaging are covered by tests; macOS native execution has not been performed on this Windows host.
 
 ![Windows launcher](launcher-windows.png)

@@ -1,6 +1,6 @@
 import pytest
 
-from src.code_ai.desktop.apps import AppSpec, APP_REGISTRY, get_app
+from src.claude_china.desktop.apps import AppSpec, APP_REGISTRY, get_app
 
 
 def test_registry_has_two_known_apps():

@@ -1,4 +1,4 @@
-from src.code_ai.desktop.platforms import base
+from src.claude_china.desktop.platforms import base
 
 
 class FakeProc:

@@ -10,8 +10,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from src.code_ai.desktop import app as app_mod
-from src.code_ai.desktop import single_instance as instance_mod
+from src.claude_china.desktop import app as app_mod
+from src.claude_china.desktop import single_instance as instance_mod
 
 
 class FakeWindow:
@@ -238,7 +238,7 @@ def test_os_releases_lock_after_process_is_killed(tmp_path):
     path = tmp_path / "desktop.lock"
     script = """
 import sys
-from code_ai.desktop.single_instance import DesktopInstance
+from claude_china.desktop.single_instance import DesktopInstance
 with DesktopInstance(sys.argv[1]) as instance:
     assert instance.acquire_or_activate()
     print("ready", flush=True)

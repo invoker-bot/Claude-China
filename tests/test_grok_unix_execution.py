@@ -31,7 +31,7 @@ def test_grok_launch_executes_updated_npm_binary_with_isolated_home(tmp_path):
     env["PATH"] = str(old_bin) + os.pathsep + env.get("PATH", "")
     env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1] / "src")
     result = subprocess.run(
-        [sys.executable, "-c", "from code_ai.launcher import launch; launch(" + repr(profile) + ", ['--version'])"],
+        [sys.executable, "-c", "from claude_china.launcher import launch; launch(" + repr(profile) + ", ['--version'])"],
         env=env, capture_output=True, text=True, timeout=15,
     )
     assert result.returncode == 0, result.stderr

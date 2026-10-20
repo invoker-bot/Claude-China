@@ -9,7 +9,7 @@ from uuid import UUID
 from .. import config as cfg
 
 
-APP_USER_MODEL_ID = "CodeAI.DesktopLauncher"
+APP_USER_MODEL_ID = "ClaudeChina.DesktopLauncher"
 
 
 def launcher_icon_path(source=None) -> str:

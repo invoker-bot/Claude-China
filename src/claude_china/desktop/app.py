@@ -16,7 +16,7 @@ def _ui_asset_path(name: str) -> pathlib.Path:
 def _ui_url() -> str:
     # Resolve the UI relative to this module's own file so it works whether the
     # package is installed as a wheel, run from source, or used in a worktree
-    # (importlib.resources("code_ai.desktop") can resolve to a different installed
+    # (importlib.resources("claude_china.desktop") can resolve to a different installed
     # copy that lacks the desktop subpackage — the source-vs-installed gotcha).
     # Return a file:// URI so pywebview renders the page and resolves the relative
     # style.css / app.js links across platforms.
@@ -34,7 +34,7 @@ def run_gui():
     """Open the launcher window. Imports webview lazily (optional [desktop] extra)."""
     backend = get_backend()
     if backend is None:
-        print("code-ai desktop is supported on Windows and macOS only.")
+        print("claudec desktop is supported on Windows and macOS only.")
         return
 
     with DesktopInstance() as instance:
@@ -52,7 +52,7 @@ def run_gui():
         # The page fits the window to its content once loaded (bridge.fit_window);
         # this is just a close first guess so the window does not visibly jump.
         window = webview.create_window(
-            "AI Launcher", url=_ui_url(), js_api=bridge, width=600, height=276,
+            "Claude China", url=_ui_url(), js_api=bridge, width=600, height=276,
         )
         try:
             screen_height = int(webview.screens[0].height)

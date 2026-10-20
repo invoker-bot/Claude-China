@@ -8,7 +8,7 @@ from uuid import uuid4
 import pytest
 from typer.testing import CliRunner
 
-from src.code_ai.cli import app
+from src.claude_china.cli import app
 
 runner = CliRunner()
 
@@ -30,7 +30,7 @@ class FakeBackend:
 
     def create_shortcut(self):
         self.calls.append("create")
-        return "/path/AI Launcher.lnk"
+        return "/path/Claude China.lnk"
 
     def remove_shortcut(self):
         self.calls.append("remove")
@@ -46,16 +46,16 @@ def fake_desktop_extra(monkeypatch):
 
 def test_install_creates_shortcut(monkeypatch):
     fake_desktop_extra(monkeypatch)
-    monkeypatch.setattr("src.code_ai.desktop.platforms.get_backend", lambda: FakeBackend())
+    monkeypatch.setattr("src.claude_china.desktop.platforms.get_backend", lambda: FakeBackend())
     result = runner.invoke(app, ["desktop", "install"])
     assert result.exit_code == 0
-    assert "AI Launcher.lnk" in result.output
+    assert "Claude China.lnk" in result.output
 
 
 def test_install_recreates_existing_shortcut(monkeypatch):
     fake_desktop_extra(monkeypatch)
-    backend = FakeBackend(removed=["/path/AI Launcher.lnk"])
-    monkeypatch.setattr("src.code_ai.desktop.platforms.get_backend", lambda: backend)
+    backend = FakeBackend(removed=["/path/Claude China.lnk"])
+    monkeypatch.setattr("src.claude_china.desktop.platforms.get_backend", lambda: backend)
 
     result = runner.invoke(app, ["desktop", "install"])
 
@@ -67,7 +67,7 @@ def test_install_recreates_existing_shortcut(monkeypatch):
 
 def test_install_missing_extra_prints_hint_and_does_not_create_shortcut(monkeypatch):
     backend = FakeBackend()
-    monkeypatch.setattr("src.code_ai.desktop.platforms.get_backend", lambda: backend)
+    monkeypatch.setattr("src.claude_china.desktop.platforms.get_backend", lambda: backend)
     # Force the optional-extra import check to fail.
     import builtins
     real_import = builtins.__import__
@@ -80,12 +80,12 @@ def test_install_missing_extra_prints_hint_and_does_not_create_shortcut(monkeypa
     monkeypatch.setattr(builtins, "__import__", fake_import)
     result = runner.invoke(app, ["desktop", "install"])
     assert result.exit_code == 1
-    assert "ai-code-switcher[desktop]" in result.output
+    assert "claude-china[desktop]" in result.output
     assert backend.calls == []
 
 
 def test_install_unsupported_platform(monkeypatch):
-    monkeypatch.setattr("src.code_ai.desktop.platforms.get_backend", lambda: None)
+    monkeypatch.setattr("src.claude_china.desktop.platforms.get_backend", lambda: None)
     result = runner.invoke(app, ["desktop", "install"])
     assert result.exit_code == 1
     assert "Windows and macOS only" in result.output
@@ -95,10 +95,10 @@ def test_uninstall_removes_shortcut_and_keeps_config(monkeypatch):
     with temp_desktop_config() as f:
         f.write_text("check_system_proxy: true\n")
         monkeypatch.setattr(
-            "src.code_ai.desktop.platforms.get_backend",
-            lambda: FakeBackend(removed=["/path/AI Launcher.lnk"]),
+            "src.claude_china.desktop.platforms.get_backend",
+            lambda: FakeBackend(removed=["/path/Claude China.lnk"]),
         )
-        monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f)
+        monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f)
         result = runner.invoke(app, ["desktop", "uninstall", "--keep-config"])
         assert result.exit_code == 0
         assert "Removed" in result.output
@@ -109,10 +109,10 @@ def test_uninstall_purge_deletes_config(monkeypatch):
     with temp_desktop_config() as f:
         f.write_text("check_system_proxy: true\n")
         monkeypatch.setattr(
-            "src.code_ai.desktop.platforms.get_backend",
-            lambda: FakeBackend(removed=["/path/AI Launcher.lnk"]),
+            "src.claude_china.desktop.platforms.get_backend",
+            lambda: FakeBackend(removed=["/path/Claude China.lnk"]),
         )
-        monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f)
+        monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f)
         result = runner.invoke(app, ["desktop", "uninstall", "--purge"])
         assert result.exit_code == 0
         assert not f.exists()
@@ -124,8 +124,8 @@ def test_uninstall_nothing_to_remove(monkeypatch):
             return []
 
     with temp_desktop_config() as f:
-        monkeypatch.setattr("src.code_ai.desktop.platforms.get_backend", lambda: EmptyBackend())
-        monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f)
+        monkeypatch.setattr("src.claude_china.desktop.platforms.get_backend", lambda: EmptyBackend())
+        monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f)
         result = runner.invoke(app, ["desktop", "uninstall", "--keep-config"])
         assert result.exit_code == 0
         assert "nothing to remove" in result.output
@@ -134,7 +134,7 @@ def test_uninstall_nothing_to_remove(monkeypatch):
 @pytest.mark.parametrize("missing_module", ["webview", "pystray", "PIL"])
 def test_run_missing_extra_prints_hint(monkeypatch, missing_module):
     fake_desktop_extra(monkeypatch)
-    monkeypatch.setattr("src.code_ai.desktop.platforms.get_backend", lambda: FakeBackend())
+    monkeypatch.setattr("src.claude_china.desktop.platforms.get_backend", lambda: FakeBackend())
     # Force the optional-extra import check to fail.
     import builtins
     real_import = builtins.__import__
@@ -147,4 +147,4 @@ def test_run_missing_extra_prints_hint(monkeypatch, missing_module):
     monkeypatch.setattr(builtins, "__import__", fake_import)
     result = runner.invoke(app, ["desktop", "run"])
     assert result.exit_code == 1
-    assert "ai-code-switcher[desktop]" in result.output
+    assert "claude-china[desktop]" in result.output

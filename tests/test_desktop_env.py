@@ -1,4 +1,4 @@
-from src.code_ai.desktop.env import merge_env
+from src.claude_china.desktop.env import merge_env
 
 
 def test_common_applied_and_base_preserved():

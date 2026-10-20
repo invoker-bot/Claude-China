@@ -2,7 +2,7 @@ import struct
 from pathlib import Path
 
 
-UI_DIR = Path(__file__).resolve().parents[1] / "src" / "code_ai" / "desktop" / "ui"
+UI_DIR = Path(__file__).resolve().parents[1] / "src" / "claude_china" / "desktop" / "ui"
 
 
 def test_desktop_shortcut_icons_are_packaged_assets():

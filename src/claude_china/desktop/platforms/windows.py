@@ -26,7 +26,7 @@ _IGNORED_PROCESS_NAMES = {
     "claude": ("cowork-svc.exe",),
 }
 
-_DESKTOP_PYTHON_ENV = "CODE_AI_DESKTOP_PYTHON"
+_DESKTOP_PYTHON_ENV = "CLAUDEC_DESKTOP_PYTHON"
 
 
 class WindowsBackend:
@@ -175,13 +175,13 @@ class WindowsBackend:
         return ("Executable (*.exe)",)
 
     # ---- shortcut ----
-    def _shortcut_paths(self):
-        paths = [os.path.join(os.path.expanduser("~"), "Desktop", "AI Launcher.lnk")]
+    def _shortcut_paths(self, name="Claude China"):
+        paths = [os.path.join(os.path.expanduser("~"), "Desktop", f"{name}.lnk")]
         appdata = os.environ.get("APPDATA")
         if appdata:
             paths.append(os.path.join(
                 appdata, "Microsoft", "Windows", "Start Menu", "Programs",
-                "AI Launcher.lnk",
+                f"{name}.lnk",
             ))
         return paths
 
@@ -193,7 +193,7 @@ class WindowsBackend:
 
     @staticmethod
     def _shortcut_python():
-        override = os.environ.get(_DESKTOP_PYTHON_ENV)
+        override = os.environ.get(_DESKTOP_PYTHON_ENV) or os.environ.get("CODE_AI_DESKTOP_PYTHON")
         if override:
             candidate = os.path.expandvars(os.path.expanduser(override.strip('"')))
             if os.path.basename(candidate).lower() == "python.exe":
@@ -218,7 +218,7 @@ class WindowsBackend:
         created = []
         for path in paths:
             os.makedirs(os.path.dirname(path), exist_ok=True)
-            self._write_lnk(path, pythonw, "-m code_ai.cli desktop run", icon)
+            self._write_lnk(path, pythonw, "-m claude_china.cli desktop run", icon)
             created.append(path)
         return created[0] if created else ""
 
@@ -253,7 +253,8 @@ class WindowsBackend:
 
     def remove_shortcut(self) -> list:
         removed = []
-        for path in self._shortcut_paths():
+        paths = self._shortcut_paths() + self._shortcut_paths("AI Launcher")
+        for path in paths:
             if os.path.exists(path):
                 try:
                     os.remove(path)

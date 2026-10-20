@@ -5,10 +5,10 @@ import os
 from unittest.mock import patch
 from uuid import uuid4
 
-from src.code_ai.config import load_config, save_config
-from src.code_ai.profiles import add_profile, list_profiles, show_profile, remove_profile
-from src.code_ai.models import profile_from_dict, ApiProfile, LoginProfile
-from src.code_ai.launcher import prepare_environment
+from src.claude_china.config import load_config, save_config
+from src.claude_china.profiles import add_profile, list_profiles, show_profile, remove_profile
+from src.claude_china.models import profile_from_dict, ApiProfile, LoginProfile
+from src.claude_china.launcher import prepare_environment
 
 
 @contextmanager
@@ -27,7 +27,7 @@ class TestFullWorkflowApiProfile:
     def test_full_workflow_api_profile(self):
         """Test full workflow: add API profile -> show -> list -> remove"""
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 config = {"profiles": {}}
                 save_config(config)
 
@@ -77,7 +77,7 @@ class TestFullWorkflowApiProfile:
 
     def test_blank_base_url_defaults_to_official_claude(self):
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 save_config({"profiles": {}})
                 inputs = [
                     "official-claude",
@@ -106,7 +106,7 @@ class TestFullWorkflowLoginProfile:
     def test_full_workflow_login_profile(self):
         """Test full workflow: add login profile -> show -> list -> remove"""
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 config = {"profiles": {}}
                 save_config(config)
 
@@ -163,7 +163,7 @@ class TestBackwardCompatibility:
     def test_backward_compatibility(self):
         """Test that legacy profiles without name/mode still work and are migrated"""
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 legacy_config = {
                     "profiles": {
                         "legacy-claude": {
@@ -205,7 +205,7 @@ class TestCodexProfiles:
     def test_codex_api_profile(self):
         """Test codex API mode profile"""
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 config = {"profiles": {}}
                 save_config(config)
 
@@ -242,7 +242,7 @@ class TestCodexProfiles:
 
     def test_blank_base_url_defaults_to_official_codex(self):
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 save_config({"profiles": {}})
                 inputs = [
                     "official-codex",
@@ -265,9 +265,9 @@ class TestCodexProfiles:
                 assert env["OPENAI_API_KEY"] == "sk-test-key"
 
     def test_add_profile_captures_default_args(self):
-        """`code-ai add` records non-empty default_args as a string in YAML."""
+        """`claudec add` records non-empty default_args as a string in YAML."""
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 save_config({"profiles": {}})
 
                 inputs = [
@@ -292,7 +292,7 @@ class TestCodexProfiles:
     def test_codex_login_profile(self):
         """Test codex login mode profile"""
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 config = {"profiles": {}}
                 save_config(config)
 
@@ -333,7 +333,7 @@ class TestGrokProfiles:
 
     def test_grok_api_profile(self):
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 save_config({"profiles": {}})
                 inputs = [
                     "my-grok-api",
@@ -361,7 +361,7 @@ class TestGrokProfiles:
 
     def test_grok_login_profile(self):
         with temp_config_file() as config_file:
-            with patch("src.code_ai.config.CONFIG_FILE", config_file):
+            with patch("src.claude_china.config.CONFIG_FILE", config_file):
                 save_config({"profiles": {}})
                 inputs = [
                     "my-grok-login",

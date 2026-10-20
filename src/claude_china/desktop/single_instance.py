@@ -75,7 +75,7 @@ class DesktopInstance:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise RuntimeError(
-                    "AI Launcher is already running, but its window did not respond."
+                    "Claude China is already running, but its window did not respond."
                 )
             if self._activate_existing(min(remaining, 1.0)):
                 return False

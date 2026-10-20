@@ -6,9 +6,9 @@ from uuid import uuid4
 
 import pytest
 
-from src.code_ai.desktop.apps import APP_REGISTRY
-from src.code_ai.desktop.bridge import LauncherBridge
-from src.code_ai.desktop.platforms.base import AppStatus
+from src.claude_china.desktop.apps import APP_REGISTRY
+from src.claude_china.desktop.bridge import LauncherBridge
+from src.claude_china.desktop.platforms.base import AppStatus
 
 
 @contextmanager
@@ -60,7 +60,7 @@ class FakeBackend:
 
 def test_list_apps_reports_claude_and_codex(monkeypatch):
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             b = LauncherBridge(FakeBackend(found=True), APP_REGISTRY)
             apps = b.list_apps()
             assert [a["id"] for a in apps] == ["claude", "codex"]
@@ -70,7 +70,7 @@ def test_list_apps_reports_claude_and_codex(monkeypatch):
 
 def test_launch_blocked_when_proxy_off():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             be = FakeBackend(found=True, proxy=False)
             b = LauncherBridge(be, APP_REGISTRY)
             result = b.launch_app("claude")
@@ -81,7 +81,7 @@ def test_launch_blocked_when_proxy_off():
 
 def test_launch_blocked_when_not_found():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             be = FakeBackend(found=False, proxy=True)
             b = LauncherBridge(be, APP_REGISTRY)
             result = b.launch_app("claude")
@@ -91,8 +91,8 @@ def test_launch_blocked_when_not_found():
 
 def test_launch_merges_env_with_per_app_winning():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
-            from src.code_ai.desktop import config as cfg
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
+            from src.claude_china.desktop import config as cfg
             data = cfg.load_desktop_config()
             cfg.set_common_env(data, {"SHARED": "common", "C_ONLY": "1"})
             cfg.set_app_env(data, "claude", {"SHARED": "app", "A_ONLY": "2"})
@@ -110,7 +110,7 @@ def test_launch_merges_env_with_per_app_winning():
 
 def test_launch_stops_running_app_before_starting():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             be = FakeBackend(found=True, proxy=True, running=True)
             b = LauncherBridge(be, APP_REGISTRY)
             result = b.launch_app("claude")
@@ -122,14 +122,14 @@ def test_launch_stops_running_app_before_starting():
 
 def test_stop_app_not_found_returns_error():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             b = LauncherBridge(FakeBackend(found=False), APP_REGISTRY)
             assert b.stop_app("claude")["ok"] is False
 
 
 def test_settings_round_trip():
     with temp_desktop_config() as f:
-        with patch("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE", f):
+        with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             b = LauncherBridge(FakeBackend(), APP_REGISTRY)
             b.save_settings({"check_system_proxy": False, "env_vars": {"K": "V"}})
             s = b.get_settings()
@@ -150,7 +150,7 @@ def test_settings_round_trip():
 def test_user_actions_signal_icon_activity_without_animating_queries(
     tmp_path, monkeypatch, action, args,
 ):
-    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
                         tmp_path / "desktop.yaml")
     bridge = LauncherBridge(FakeBackend())
     bridge._activity = Mock()
@@ -165,7 +165,7 @@ def test_user_actions_signal_icon_activity_without_animating_queries(
 
 
 def test_animation_failure_cannot_prevent_an_app_from_launching(tmp_path, monkeypatch):
-    monkeypatch.setattr("src.code_ai.desktop.config.DESKTOP_CONFIG_FILE",
+    monkeypatch.setattr("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE",
                         tmp_path / "desktop.yaml")
     backend = FakeBackend()
     bridge = LauncherBridge(backend)
