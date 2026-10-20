@@ -5,7 +5,8 @@ Summary: Claude China desktop launcher
 License: MIT
 URL: https://github.com/invoker-bot/Claude-China
 BuildArch: x86_64
-Requires: glibc >= 2.35, gtk3, webkit2gtk4.1, libayatana-appindicator-gtk3
+Requires: glibc >= 2.35, gtk3, webkit2gtk4.1, libayatana-appindicator-gtk3, gobject-introspection
+Requires: libffi.so.8()(64bit), libssl.so.3()(64bit), libcrypto.so.3()(64bit), libexpat.so.1()(64bit), libz.so.1()(64bit), liblzma.so.5()(64bit)
 AutoReqProv: no
 
 %description

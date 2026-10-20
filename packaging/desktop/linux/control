@@ -5,7 +5,7 @@ Priority: optional
 Architecture: amd64
 Maintainer: Claude China contributors <noreply@github.com>
 Homepage: https://github.com/invoker-bot/Claude-China
-Depends: libc6 (>= 2.35), libgtk-3-0, libwebkit2gtk-4.1-0, libayatana-appindicator3-1
+Depends: libc6 (>= 2.35), gir1.2-gtk-3.0, gir1.2-webkit2-4.1, gir1.2-ayatanaappindicator3-0.1, libgirepository-1.0-1, libffi8, libssl3, libexpat1, zlib1g, liblzma5
 Description: Claude China desktop launcher
  Standalone launcher for configured AI desktop applications.
  Python and the application are included. User settings are preserved on removal.

@@ -106,6 +106,11 @@ install/repair/uninstall cycle, the mounted macOS disk image, Debian
 installation/removal, and RPM installation, native GUI startup and removal in
 a disposable Fedora 44 container.
 
+The Linux packages bundle Python and its extension modules, and use the host
+distribution's GTK/WebKit libraries and GI typelibs through declared package
+dependencies. Do not bundle Ubuntu's GLib or GI runtime into the RPM: its
+compiled search paths and library versions are incompatible with Fedora.
+
 ## Signing
 
 Default builds are unsigned on Windows and ad-hoc signed on macOS. Publisher
@@ -128,5 +133,6 @@ is independently checked against Microsoft's Authenticode signature.
 ## Packaging references
 
 - [PyInstaller external-process library isolation](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html#launching-external-programs-from-the-frozen-application)
+- [PyInstaller system library exclusion](https://pyinstaller.org/en/stable/spec-files.html#posix-specific-options)
 - [Microsoft WebView2 distribution](https://learn.microsoft.com/en-us/microsoft-edge/webview2/concepts/distribution)
 - [Inno Setup per-user installation](https://jrsoftware.org/ishelp/topic_admininstallmode.htm)
