@@ -1,6 +1,7 @@
 """Packaged GUI verification, used by the release build on each target OS."""
 
 import json
+import os
 import sys
 import time
 
@@ -9,7 +10,7 @@ from .. import __version__
 
 def verify_window(window, tray, report):
     result = {"ok": False, "version": __version__, "platform": sys.platform,
-              "frozen": bool(getattr(sys, "frozen", False))}
+              "frozen": bool(getattr(sys, "frozen", False)), "pid": os.getpid()}
     try:
         if not window.events.loaded.wait(30):
             raise RuntimeError("The bundled UI did not load within 30 seconds")
@@ -24,10 +25,14 @@ def verify_window(window, tray, report):
             title: document.title,
             cards: document.querySelectorAll('.bay--app').length,
             icon_loaded: document.getElementById('brand-mark').naturalWidth > 0,
-            stylesheet: document.styleSheets.length > 0
+            stylesheet: document.styleSheets.length > 0,
+            update_version: document.getElementById('update-version').textContent,
+            update_action: document.getElementById('update-action').textContent
         })"""))
         if (result["title"] != "Claude China" or result["cards"] != 2
-                or not result["icon_loaded"] or not result["stylesheet"]):
+                or not result["icon_loaded"] or not result["stylesheet"]
+                or result["update_version"] != "v" + __version__
+                or result["update_action"] != "检查更新"):
             raise RuntimeError("The packaged UI is incomplete")
         result["ok"] = True
     except Exception as exc:

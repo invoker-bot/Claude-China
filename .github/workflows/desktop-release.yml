@@ -116,7 +116,7 @@ jobs:
       - name: Build and test Linux bundle
         if: runner.os == 'Linux'
         run: xvfb-run -a dbus-run-session -- python tools/build_desktop.py --smoke
-      - name: Verify Windows installation, repair and OS uninstaller
+      - name: Verify Windows installation, update, restart and OS uninstaller
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
@@ -172,6 +172,8 @@ jobs:
             build/desktop/*-notary-log.json
             build/desktop/installer-test-*/*smoke.json
             build/desktop/installer-test-*/*.log
+            build/desktop/installer-test-*/updates/result.json
+            build/desktop/installer-test-*/updates/*/*.log
           if-no-files-found: ignore
 
   release:

@@ -5,6 +5,8 @@ const APP_SETTINGS = {}; // id -> { env_vars, path }
 let READY = false;
 let lastRefresh = 0;
 let brandAnimation;
+let UPDATE = { phase: "idle" };
+let updatePoll;
 
 function animateBrand() {
   const mark = document.getElementById("brand-mark");
@@ -39,10 +41,64 @@ async function init() {
   APPS = await api().list_apps();
   renderApps();
   await Promise.all([loadSettings(), ...APPS.map((a) => loadAppSettings(a.id))]);
+  renderUpdate(await api().get_update_status());
   READY = true;
   lastRefresh = Date.now();
   fitWindow();
   animateBrand();
+}
+
+// ---- launcher updates (only checked on request) ----
+function renderUpdate(state) {
+  UPDATE = state;
+  const busy = ["checking", "downloading", "installing"].includes(state.phase);
+  const button = document.getElementById("update-action");
+  const status = document.getElementById("update-status");
+  const target = ["available", "downloading", "ready", "installing"].includes(state.phase) && state.latest;
+  document.getElementById("update-version").textContent =
+    (state.current ? `v${state.current}` : "") + (target ? ` → v${state.latest}` : "");
+  let message = state.message;
+  if (state.phase === "available" && !state.can_install) message += ` · ${state.reason}`;
+  if (state.phase === "downloading") message += ` ${state.progress || 0}%`;
+  status.textContent = message;
+  document.querySelector(".bay--update").classList.toggle("has-error", state.phase === "error");
+  button.disabled = busy || (state.phase === "available" && !state.can_install);
+  button.classList.toggle("btn--solid", ["available", "ready"].includes(state.phase));
+  button.textContent = ({
+    checking: "正在检查…", downloading: "正在下载…", available: "下载更新",
+    ready: "安装并重启", installing: "正在重启…", error: "重试检查",
+  })[state.phase] || "检查更新";
+  document.getElementById("update-cancel").hidden = state.phase !== "downloading";
+  const progress = document.getElementById("update-progress");
+  progress.hidden = state.phase !== "downloading";
+  progress.value = state.progress || 0;
+  fitWindow();
+  clearTimeout(updatePoll);
+  if (busy) updatePoll = setTimeout(refreshUpdate, 500);
+}
+
+async function refreshUpdate() {
+  try {
+    renderUpdate(await api().get_update_status());
+  } catch (_) {
+    renderUpdate({ ...UPDATE, phase: "error", message: "无法获取更新状态，请重试。" });
+  }
+}
+
+async function updateAction() {
+  const phase = UPDATE.phase;
+  if (phase === "ready" && document.querySelector(".editor.is-open")) {
+    toast("请先保存或取消正在编辑的设置，再安装更新");
+    return;
+  }
+  document.getElementById("update-action").disabled = true;
+  try {
+    const action = phase === "available" ? "download_update"
+      : phase === "ready" ? "install_update" : "check_for_updates";
+    renderUpdate(await api()[action]());
+  } catch (_) {
+    renderUpdate({ ...UPDATE, phase: "error", message: "无法完成操作，请重试。" });
+  }
 }
 
 // ---- window fit ----
@@ -353,6 +409,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("cancel-common").onclick = () => setEditorOpen("common", false);
   document.getElementById("add-common").onclick = () => addEnvRow("common-env");
   document.getElementById("save-settings").onclick = saveSettings;
+  document.getElementById("update-action").onclick = updateAction;
+  document.getElementById("update-cancel").onclick = async () => renderUpdate(await api().cancel_update());
+  document.getElementById("update-release").onclick = () => api().open_release_page();
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closeAllEditors();
   });
@@ -373,8 +432,47 @@ if (new URLSearchParams(location.search).has("preview")) {
     claude: { env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" }, path: "" },
     codex: { env_vars: {}, path: "" },
   };
+  let previewUpdate = {
+    phase: "idle", current: "0.3.0", latest: "", can_install: true,
+    message: "手动检查新版本", progress: 0,
+  };
+  let previewTimer;
   window.pywebview = {
     api: {
+      get_update_status: async () => previewUpdate,
+      check_for_updates: async () => {
+        const mode = new URLSearchParams(location.search).get("update");
+        previewUpdate = { ...previewUpdate, phase: "checking", message: "正在检查 GitHub Releases…" };
+        previewTimer = setTimeout(() => {
+          previewUpdate = { ...previewUpdate,
+            phase: mode === "error" ? "error" : mode === "latest" ? "latest" : "available",
+            latest: "0.4.0", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。"
+              : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.4.0",
+          };
+        }, 600);
+        return previewUpdate;
+      },
+      download_update: async () => {
+        previewUpdate = { ...previewUpdate, phase: "downloading", progress: 0, message: "正在下载安装包…" };
+        const tick = () => {
+          previewUpdate = { ...previewUpdate, progress: previewUpdate.progress + 20 };
+          if (previewUpdate.progress === 100) {
+            previewUpdate = { ...previewUpdate, phase: "ready", message: "更新已就绪，安装后将重新打开 Claude China。" };
+          } else previewTimer = setTimeout(tick, 500);
+        };
+        previewTimer = setTimeout(tick, 500);
+        return previewUpdate;
+      },
+      cancel_update: async () => {
+        clearTimeout(previewTimer);
+        previewUpdate = { ...previewUpdate, phase: "available", message: "已取消下载，可稍后重试。" };
+        return previewUpdate;
+      },
+      install_update: async () => {
+        toast("界面预览：此处会退出启动器，安装并重新打开");
+        return previewUpdate;
+      },
+      open_release_page: async () => ({ ok: true }),
       list_apps: async () => APPS,
       get_settings: async () => ({
         check_system_proxy: true,

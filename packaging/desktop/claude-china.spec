@@ -8,7 +8,9 @@ from PyInstaller.utils.hooks import collect_data_files, copy_metadata
 
 root = Path(SPECPATH).resolve().parents[1]
 version = runpy.run_path(str(root / "src/claude_china/__init__.py"))["__version__"]
-data = collect_data_files("claude_china") + collect_data_files("webview")
+# Match Analysis' checkout sources even if site-packages has an older wheel.
+data = [(str(root / "src/claude_china/desktop/ui"), "claude_china/desktop/ui")]
+data += collect_data_files("webview")
 data += copy_metadata("pywebview") + copy_metadata("proxy_tools")
 data += [(str(root / "LICENSE"), "licenses/claude-china")]
 hidden = []

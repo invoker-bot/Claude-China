@@ -54,7 +54,8 @@ python tools/test_windows_installer.py dist/installers/Claude-China-<version>-wi
 The last command requires a clean Windows user: it refuses to overwrite an
 existing native installation. It installs into a unique temporary directory,
 checks the uninstall registry entry and isolated Start Menu shortcut, runs the
-installed GUI, repairs the installation, then runs the registered uninstaller
+installed GUI, repairs the installation, performs an update through a staged
+helper (including old-process exit and a restarted frozen GUI), then runs the registered uninstaller
 and verifies removal. It never creates a desktop shortcut.
 
 macOS (Python 3.12):
@@ -102,7 +103,7 @@ matching GitHub Release. The existing PyPI workflow remains independent.
 Update `pyproject.toml` and `__version__` together before tagging a new version.
 
 Validation covers the full pytest suite, each frozen GUI, the Windows
-install/repair/uninstall cycle, the mounted macOS disk image, Debian
+install/repair/update/restart/uninstall cycle, the mounted macOS disk image, Debian
 installation/removal, and RPM installation, native GUI startup and removal in
 a disposable Fedora 44 container.
 
@@ -129,6 +130,53 @@ implemented only for macOS and fails explicitly on other platforms. Do not
 describe a Windows release as signed until the application, installer and
 uninstaller have all been signed and verified. The bundled WebView2 bootstrapper
 is independently checked against Microsoft's Authenticode signature.
+
+## In-app updates
+
+The updater checks the fixed repository's `releases/latest` REST endpoint only
+when requested. It compares numeric `X.Y.Z` versions, rejects drafts,
+prereleases, missing architecture assets and downgrades, and requires the exact
+installer filename and its `.sha256` sidecar. Downloads use HTTPS with a GitHub
+redirect allowlist, bounded size/time, SHA-256 and the GitHub asset digest when
+provided. No profiles, credentials or settings are sent to GitHub.
+
+Each download has an isolated UUID staging directory in `~/.code-ai/updates`.
+Only a completely verified download enables **安装并重启**. A copy of the current
+runtime starts outside the installation directory, acknowledges readiness and
+waits for the original PID (including creation time) to exit. It then rechecks
+the package hash, invokes the native installer and reopens the launcher. The
+helper never acquires the GUI/installer mutex and resets PyInstaller's process
+environment for the new executable. Failed installations are reported on the
+next launch; user settings are not part of the update transaction.
+Inactive staging folders are cleaned at startup or before another download.
+
+- Windows: requires the matching per-user Inno registration. Runs Inno with
+  `/NORESTART`, `/NOCLOSEAPPLICATIONS` and `/NORESTARTAPPLICATIONS`; only the
+  launcher is restarted. A valid existing Authenticode publisher must match the
+  update. Unsigned installations can migrate to the first signed release;
+  while signing enrollment is pending, unsigned updates still use HTTPS/hash
+  verification. A required OS reboot is reported as an incomplete update.
+- macOS: requires a writable installed `.app` outside `/Volumes`. Verifies the
+  bundle identifier, version, code signature, Gatekeeper acceptance and Team ID
+  continuity. Stages the new `.app` on the destination volume, renames the old
+  bundle aside, swaps and restores the original if the swap fails. Ad-hoc
+  development packages cannot be installed through this updater.
+- Linux: requires the package-managed `/opt/claude-china` installation, `pkexec`
+  and apt/dnf. Checks package identity/version/architecture, then uses the
+  system authentication agent to authorize the package manager. Does not
+  extract files over a package-managed installation or store an admin password.
+
+The Windows native validation intentionally reinstalls the current build to
+exercise the installer and restart lifecycle without publishing a fake newer
+release. Unit tests separately cover newer/equal/older version selection,
+cancelled/corrupt downloads, publisher continuity, parent-exit ordering, Linux
+package commands, failed macOS swaps and restart failures. Real signed macOS
+updates still need maintainer credentials; interactive Linux authorization
+needs a desktop session and cannot be established by headless unit tests.
+
+Reference behavior: [GitHub Releases REST API](https://docs.github.com/en/rest/releases/releases),
+[Inno Setup parameters](https://jrsoftware.org/ishelp/topic_setupcmdline.htm),
+[PyInstaller restart environment](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html#using-sys-executable-to-spawn-subprocesses-that-outlive-the-application-process-implementing-application-restart).
 
 ## Packaging references
 

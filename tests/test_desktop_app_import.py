@@ -261,6 +261,12 @@ def test_run_gui_exposes_only_js_api_methods_to_pywebview(monkeypatch, tmp_path,
     assert len(fake_window.events.shown.items) == 0
     assert _pywebview_exposed_functions(captured["js_api"]) == {
         "fit_window",
+        "get_update_status",
+        "check_for_updates",
+        "download_update",
+        "cancel_update",
+        "install_update",
+        "open_release_page",
         "get_app_settings",
         "get_settings",
         "launch_app",

@@ -31,3 +31,25 @@ def test_pyproject_and_application_versions_match():
     import re
     project = (Path(__file__).resolve().parents[1] / "pyproject.toml").read_text()
     assert re.search(r'^version = "([^"]+)"', project, re.MULTILINE)[1] == build_desktop.VERSION
+
+
+def test_freezer_uses_checkout_ui_even_when_an_older_distribution_is_installed(monkeypatch):
+    import runpy
+    import sys
+    import types
+    from unittest.mock import Mock
+    hooks = types.ModuleType("PyInstaller.utils.hooks")
+    hooks.collect_data_files = lambda name: [(f"/old-site-packages/{name}", name)]
+    hooks.copy_metadata = lambda name: []
+    monkeypatch.setitem(sys.modules, "PyInstaller.utils.hooks", hooks)
+    analysis = Mock(return_value=types.SimpleNamespace(
+        pure=[], binaries=[], datas=[], scripts=[], exclude_system_libraries=Mock(),
+    ))
+    packaging = build_desktop.PACKAGING
+    runpy.run_path(str(packaging / "claude-china.spec"), init_globals={
+        "SPECPATH": str(packaging), "Analysis": analysis,
+        "PYZ": Mock(), "EXE": Mock(), "COLLECT": Mock(), "BUNDLE": Mock(),
+    })
+    data = analysis.call_args.kwargs["datas"]
+    assert (str(build_desktop.ROOT / "src/claude_china/desktop/ui"), "claude_china/desktop/ui") in data
+    assert ("/old-site-packages/claude_china", "claude_china") not in data

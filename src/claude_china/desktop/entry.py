@@ -35,7 +35,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description="Claude China desktop launcher")
     parser.add_argument("--version", action="version", version=__version__)
     parser.add_argument("--smoke-test", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--apply-update", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.apply_update:
+        from .update_install import apply_update
+        return apply_update(args.apply_update)
     from .app import run_gui
 
     if args.smoke_test:

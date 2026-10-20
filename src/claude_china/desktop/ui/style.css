@@ -184,6 +184,12 @@ code { font-family: var(--font-mono); font-size: 0.95em; }
 }
 
 .bay--common .bay-status { margin-top: 2px; font-size: 12px; }
+.bay--update .bay-status { white-space: normal; line-height: 1.55; font-size: 12px; }
+.bay--update .bay-row { min-height: 72px; padding-top: 12px; padding-bottom: 12px; }
+.bay--update .bay-actions { flex-wrap: wrap; justify-content: flex-end; max-width: 202px; }
+#update-version { color: var(--text-3); font-weight: 400; margin-left: 6px; }
+#update-progress { width: 100%; height: 4px; margin-top: 7px; accent-color: var(--on); }
+#update-action:disabled { opacity: 0.5; cursor: default; }
 .bay.is-missing .bay-status { color: var(--warn); }
 .bay.has-error .bay-status { color: var(--danger); }
 

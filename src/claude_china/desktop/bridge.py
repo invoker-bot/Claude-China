@@ -26,6 +26,7 @@ class LauncherBridge:
         self._screen_height = None
         self._status = {}
         self._activity = None
+        self._updater = None
         self._refresh_detection()
 
     def _attach_window(self, window, open_dialog, screen_height=None):
@@ -53,6 +54,28 @@ class LauncherBridge:
         return {a.id: self._running(a.id) for a in self._apps}
 
     # ---- queries exposed to JS ----
+    def get_update_status(self):
+        return self._updater.status() if self._updater else {
+            "phase": "idle", "current": "", "message": "更新服务未连接。",
+            "can_install": False, "reason": "",
+        }
+
+    def check_for_updates(self):
+        self._notify_activity()
+        return self._updater.check() if self._updater else self.get_update_status()
+
+    def download_update(self):
+        return self._updater.fetch() if self._updater else self.get_update_status()
+
+    def cancel_update(self):
+        return self._updater.cancel() if self._updater else self.get_update_status()
+
+    def install_update(self):
+        return self._updater.install() if self._updater else self.get_update_status()
+
+    def open_release_page(self):
+        return self._updater.open_release() if self._updater else {"ok": False}
+
     def list_apps(self):
         return [
             {"id": a.id, "display": a.display,

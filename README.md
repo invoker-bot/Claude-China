@@ -47,8 +47,24 @@ It includes Python and the desktop dependencies; installing the CLI is optional.
 | Debian / Ubuntu x64 | `*-linux-x64.deb` | Open with the software installer, or `sudo apt install ./<file>.deb` | Software manager, or `sudo apt remove claude-china-desktop` |
 | Fedora x64 | `*-linux-x64.rpm` | Open with the software installer, or `sudo dnf install ./<file>.rpm` | Software manager, or `sudo dnf remove claude-china-desktop` |
 
-Install a newer package over the existing installation to upgrade. Uninstalling
-preserves profiles, credentials and settings in `~/.code-ai/`.
+In the desktop app, choose **检查更新** (Check for updates), **下载更新** (Download),
+then **安装并重启** (Install and restart). Checks are manual and use the latest
+stable GitHub Release for your OS and architecture. Downloads show progress,
+can be cancelled and must pass SHA-256 verification before installation.
+Save or cancel any open settings editor before restarting.
+
+Windows upgrades the registered installation; macOS replaces the installed app
+after Developer ID/Gatekeeper verification; Linux requests system authorization
+and upgrades through apt/dnf. macOS needs an Applications folder you can write
+to; Linux needs `pkexec` and a desktop authentication agent. Development/unpacked
+copies can check releases and open the download page but do not self-install.
+Updating restarts only the launcher, leaving launched Claude/Codex apps running.
+Failures are shown in the launcher when it reopens.
+
+You can also install a newer package over the existing installation.
+Uninstalling preserves profiles, credentials and settings in `~/.code-ai/`.
+The existing v0.3.0 release predates the update controls; install the first
+release containing this feature manually once.
 
 CLI requirements:
 

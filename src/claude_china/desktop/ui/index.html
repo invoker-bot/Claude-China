@@ -57,6 +57,21 @@
         </div></div>
       </div>
     </section>
+    <section class="bay bay--update" aria-label="桌面版更新">
+      <div class="bay-row">
+        <div class="bay-lamp" aria-hidden="true"></div>
+        <div class="bay-copy">
+          <h2 class="bay-name bay-name--small">桌面版更新 <span id="update-version"></span></h2>
+          <p class="bay-status" id="update-status" role="status" aria-live="polite">正在读取版本…</p>
+          <progress id="update-progress" max="100" value="0" aria-label="更新下载进度" hidden></progress>
+        </div>
+        <div class="bay-actions">
+          <button class="btn btn--small" id="update-cancel" type="button" hidden>取消</button>
+          <button class="btn btn--small" id="update-action" type="button" disabled>检查更新</button>
+          <button class="btn btn--small" id="update-release" type="button" title="查看发布说明和安装包">发布页面</button>
+        </div>
+      </div>
+    </section>
   </main>
 
   <footer class="foot" id="foot">

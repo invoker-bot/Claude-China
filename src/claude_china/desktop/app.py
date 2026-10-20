@@ -7,6 +7,7 @@ from .platforms import get_backend
 from .platforms.windows_shell import launcher_icon_path, set_process_app_id as _set_windows_app_id
 from .single_instance import DesktopInstance
 from .tray import LauncherTray
+from .updates import UpdateManager
 
 
 def _ui_asset_path(name: str) -> pathlib.Path:
@@ -52,7 +53,7 @@ def run_gui(smoke_report=None):
         # The page fits the window to its content once loaded (bridge.fit_window);
         # this is just a close first guess so the window does not visibly jump.
         window = webview.create_window(
-            "Claude China", url=_ui_url(), js_api=bridge, width=600, height=276,
+            "Claude China", url=_ui_url(), js_api=bridge, width=600, height=340,
             **({"hidden": True} if smoke_report else {}),
         )
         try:
@@ -62,6 +63,8 @@ def run_gui(smoke_report=None):
         bridge._attach_window(window, webview.OPEN_DIALOG, screen_height=screen_height)
         tray = LauncherTray(window, _ui_asset_path("icon.png"))
         bridge._activity = tray.play_activity
+        updater = UpdateManager(lambda: tray._quit(None, None))
+        bridge._updater = updater
         try:
             tray.start()
             callback = instance.listen
@@ -74,4 +77,5 @@ def run_gui(smoke_report=None):
                 func=callback, args=arguments, icon=_window_icon_path(),
             )
         finally:
+            updater.shutdown()
             tray.stop()

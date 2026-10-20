@@ -10,9 +10,13 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
+import threading
 import time
+import uuid
 import winreg
+import shutil
 
 KEY = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\ClaudeChina.DesktopLauncher_is1"
 
@@ -29,6 +33,55 @@ def registration():
 def run(args):
     subprocess.run([str(arg) for arg in args], check=True, timeout=180,
                    creationflags=subprocess.CREATE_NO_WINDOW)
+
+
+def verify_update(installer, destination, root):
+    """Exercise the real staged helper, installer, process exit and GUI restart."""
+    import psutil
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    from claude_china.desktop.update_install import Installation, start_helper, write_json
+    job = root / "updates" / uuid.uuid4().hex
+    job.mkdir(parents=True)
+    package = job / installer.name
+    shutil.copyfile(installer, package)
+    version = registration()["DisplayVersion"]
+    installation = Installation("windows", destination, "windows-x64-setup.exe")
+    plan = installation.prepare(package, version, threading.Event())
+    data = json.loads(plan.read_text(encoding="utf-8"))
+    old = subprocess.Popen([str(installation.executable()), "--smoke-test",
+                            str(root / "before-update-smoke.json")],
+                           creationflags=subprocess.CREATE_NO_WINDOW)
+    helper = None
+    try:
+        parent = psutil.Process(old.pid)
+        data.update(parent_pid=old.pid, parent_created=parent.create_time(), restart_smoke=True)
+        write_json(plan, data)
+        helper = start_helper(plan)
+        assert old.wait(timeout=120) == 0
+        assert helper.wait(timeout=240) == 0, (job / "helper.log").read_text(errors="replace")
+        result = json.loads((job.parent / "result.json").read_text(encoding="utf-8"))
+        assert result["ok"], result
+        report = job / "restarted-smoke.json"
+        deadline = time.monotonic() + 120
+        while not report.is_file() and time.monotonic() < deadline:
+            time.sleep(0.2)
+        restarted = json.loads(report.read_text(encoding="utf-8"))
+        assert restarted["ok"] and restarted["frozen"], restarted
+        assert restarted["version"] == version, restarted
+        try:
+            psutil.Process(restarted["pid"]).wait(timeout=30)
+        except psutil.NoSuchProcess:
+            pass
+        shutil.copyfile(report, root / "update-smoke.json")
+        print("update: staged helper waited for exit, verified package, installed and restarted GUI",
+              flush=True)
+    finally:
+        if old.poll() is None:
+            old.terminate()
+            old.wait(timeout=15)
+        if helper is not None and helper.poll() is None:
+            helper.terminate()
+            helper.wait(timeout=15)
 
 
 def main():
@@ -63,6 +116,7 @@ def main():
             assert result["version"] == entry["DisplayVersion"], result
             print(f"{phase}: registered app, Start Menu shortcut and packaged GUI verified",
                   flush=True)
+        verify_update(installer, destination, root)
     finally:
         entry = registration()
         if entry:
