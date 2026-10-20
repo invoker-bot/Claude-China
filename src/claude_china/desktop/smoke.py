@@ -86,16 +86,20 @@ def verify_window(window, tray, report):
         if not window.events.loaded.wait(30):
             raise RuntimeError("The bundled UI did not load within 30 seconds")
         _wait_js(window, "typeof READY !== 'undefined' && READY")
-        _wait_js(window, """(() => {
-            const logos = document.querySelectorAll('#bay-codex img, #nav-codex img');
-            return logos.length === 2 && Array.from(logos).every(img => img.naturalWidth > 0);
-        })()""")
+        _wait_js(window, """Array.from(document.querySelectorAll('.bay--app')).every(bay => {
+            const appId = bay.id.slice(4);
+            const logos = document.querySelectorAll(
+                `#${bay.id} .app-symbol img, #nav-${appId} .nav-app-symbol img`);
+            return logos.length === 2 && Array.from(logos).every(img =>
+                img.getAttribute('src') === `${appId}.png` && img.naturalWidth > 0
+                && getComputedStyle(img).filter === 'none');
+        })""")
         result.update(window.evaluate_js("""({
             title: document.title,
             cards: document.querySelectorAll('.bay--app').length,
             apps: Array.from(document.querySelectorAll('.bay--app'), bay => bay.id),
             icon_loaded: document.getElementById('brand-mark').naturalWidth > 0,
-            codex_icons_loaded: true,
+            app_icons_loaded: true,
             stylesheet: document.styleSheets.length > 0,
             update_hidden: document.getElementById('launcher-overlay').hidden,
             update_version: document.getElementById('update-version').textContent,

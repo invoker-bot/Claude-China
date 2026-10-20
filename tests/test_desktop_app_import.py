@@ -25,7 +25,14 @@ def test_ui_assets_are_packaged():
     assert (ui / "settings.js").is_file()
     assert (ui / "icons.js").is_file()
     assert (ui / "preview.js").is_file()
-    assert (ui / "codex.png").is_file()
+
+
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+def test_each_app_has_a_bundled_png_icon(app_id):
+    from pathlib import Path
+    icon = Path(app_mod.__file__).parent / "ui" / (app_id + ".png")
+    assert icon.is_file()
+    assert icon.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
 
 
 def test_ui_lists_launch_and_stop_actions_without_status_push_hook():
