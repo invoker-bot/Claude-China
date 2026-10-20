@@ -88,8 +88,8 @@ def executable():
     )
 
 
-def smoke_test(binary):
-    report = WORK / "smoke.json"
+def smoke_test(binary, report=None):
+    report = report or WORK / "smoke.json"
     report.unlink(missing_ok=True)
     command([binary, "--smoke-test", report], timeout=120)
     result = json.loads(report.read_text(encoding="utf-8"))

@@ -19,6 +19,10 @@ permissions:
 
 jobs:
   build:
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: bash
     strategy:
       fail-fast: false
       matrix:
@@ -51,12 +55,15 @@ jobs:
         run: |
           python -m venv .venv
           if [ "$RUNNER_OS" = "Windows" ]; then
-            echo "$PWD/.venv/Scripts" >> "$GITHUB_PATH"
+            cygpath -w "$PWD/.venv/Scripts" >> "$GITHUB_PATH"
           else
             echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
           fi
       - name: Install build and test dependencies
-        run: python -m pip install ".[desktop]" -r packaging/desktop/requirements.txt pytest
+        run: |
+          python -m pip install --upgrade pip "setuptools>=64" wheel
+          python -m pip install ".[desktop]" -r packaging/desktop/requirements.txt pytest
+          python -c "import sys, claude_china; print(sys.executable, claude_china.__version__)"
       - name: Test source and check release version
         shell: bash
         env:
@@ -91,7 +98,7 @@ jobs:
         shell: pwsh
         run: |
           $installer = Get-ChildItem dist/installers/*-setup.exe
-          python tools/test_windows_installer.py $installer.FullName
+          .venv/Scripts/python.exe tools/test_windows_installer.py $installer.FullName
       - name: Verify macOS disk image
         if: runner.os == 'macOS'
         run: |
@@ -99,14 +106,13 @@ jobs:
           hdiutil attach dist/installers/*.dmg -nobrowse -mountpoint "$PWD/build/desktop/mounted"
           trap 'hdiutil detach "$PWD/build/desktop/mounted"' EXIT
           test -L "build/desktop/mounted/Applications"
-          "build/desktop/mounted/Claude China.app/Contents/MacOS/claude-china-desktop" --smoke-test "$PWD/build/desktop/dmg-smoke.json"
-          python -c "import json; assert json.load(open('build/desktop/dmg-smoke.json'))['ok']"
+          python -c "from pathlib import Path; from tools.build_desktop import smoke_test; smoke_test(Path('build/desktop/mounted/Claude China.app/Contents/MacOS/claude-china-desktop').resolve(), Path('build/desktop/dmg-smoke.json').resolve())"
       - name: Verify Linux package installation and removal
         if: runner.os == 'Linux'
         run: |
           desktop-file-validate packaging/desktop/linux/claude-china.desktop
           sudo apt-get install -y ./dist/installers/*.deb
-          xvfb-run -a dbus-run-session -- /opt/claude-china/claude-china-desktop --smoke-test "$PWD/build/desktop/deb-smoke.json"
+          xvfb-run -a dbus-run-session -- timeout 120 /opt/claude-china/claude-china-desktop --smoke-test "$PWD/build/desktop/deb-smoke.json"
           python -c "import json; assert json.load(open('build/desktop/deb-smoke.json'))['ok']"
           sudo apt-get remove -y claude-china-desktop
           test ! -e /opt/claude-china/claude-china-desktop

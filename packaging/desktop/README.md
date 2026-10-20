@@ -73,6 +73,7 @@ sudo apt-get install python3-venv python3-dev libpython3.10 python3-gi \
   gir1.2-ayatanaappindicator3-0.1 binutils rpm xvfb xauth dbus-x11 \
   desktop-file-utils fonts-noto-cjk
 /usr/bin/python3 -m venv --system-site-packages .venv
+.venv/bin/python -m pip install --upgrade pip "setuptools>=64" wheel
 .venv/bin/python -m pip install ".[desktop]" -r packaging/desktop/requirements.txt
 xvfb-run -a dbus-run-session -- .venv/bin/python tools/build_desktop.py --smoke
 ```
