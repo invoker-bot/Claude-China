@@ -127,6 +127,22 @@ def test_close_hides_window_but_keeps_launcher_and_tray_alive(running_tray):
     assert not icon.stopped
 
 
+def test_switch_language_refreshes_tray_without_replacing_icon_or_actions(running_tray):
+    from src.claude_china.desktop.localization import translate
+    tray, window, icon = running_tray
+    icon.update_menu = Mock()
+    tray._commands = Mock()
+    tray._translate = lambda source: translate(source, 'en')
+    tray.refresh_language()
+    items = {item.text: item for item in icon.menu.items if hasattr(item, 'text')}
+    assert set(items) == {'Open Claude China', 'Settings…', 'Check for Updates…', 'Releases', 'Quit'}
+    items['Settings…'](icon)
+    tray._commands.settings.assert_called_once_with()
+    icon.update_menu.assert_called_once_with()
+    assert tray._icon is icon and icon.visible and not icon.stopped
+    assert not window.destroyed
+
+
 def test_linux_close_exits_even_without_a_notification_host(running_tray, monkeypatch):
     tray, window, icon = running_tray
     monkeypatch.setattr(tray_mod, "sys", types.SimpleNamespace(platform="linux"))

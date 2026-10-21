@@ -165,7 +165,9 @@ def run_broker(manifest_path, argv):
             pass
     if not record['ok']:
         import ctypes
-        ctypes.windll.user32.MessageBoxW(None, record['error'], 'Claude China · 启动已取消', 0x10)
+        from .localization import display_message
+        ctypes.windll.user32.MessageBoxW(None, display_message(record['error']),
+                                       display_message('Claude China · 启动已取消'), 0x10)
         return 1
     try:
         code = psutil.Process(record['target_pid']).wait()

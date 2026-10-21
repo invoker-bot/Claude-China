@@ -31,6 +31,7 @@ class LauncherBridge:
         self._activity = None
         self._updater = None
         self._window_controls = None
+        self._language_changed = None
         self._refresh_detection()
 
     def _attach_window(self, window, open_dialog, screen_height=None):
@@ -128,7 +129,7 @@ class LauncherBridge:
             if not report["allowed"]:
                 return {"ok": False, "error": "安全检查未通过：" + report.get("reason", "无法确认支持状态。") + " 已取消启动。",
                         "safety": report}
-            if cfg.load_desktop_config() != data:
+            if cfg.launch_settings_changed(data, cfg.load_desktop_config()):
                 return {"ok": False, "error": "检测期间启动设置发生变化，已取消启动，请重试。"}
         try:
             self._backend.stop(status)
@@ -152,6 +153,28 @@ class LauncherBridge:
         return {"ok": True}
 
     # ---- settings ----
+    def get_locale(self):
+        from .localization import locale_data
+        return locale_data(cfg.get_language(cfg.load_desktop_config()))
+
+    def set_language(self, language):
+        from .localization import LANGUAGES
+        if not isinstance(language, str) or language not in LANGUAGES:
+            return {"ok": False, "error": "不支持此界面语言。"}
+        try:
+            with cfg.CONFIG_LOCK:
+                data = cfg.load_desktop_config()
+                data["language"] = language
+                cfg.save_desktop_config(data)
+        except (OSError, ValueError):
+            return {"ok": False, "error": "无法保存语言设置，请重试。"}
+        if self._language_changed:
+            try:
+                self._language_changed()
+            except Exception:
+                logging.getLogger(__name__).exception("Could not refresh native language labels")
+        return {"ok": True, "data": self.get_locale()}
+
     def _terminal_request(self, action, **values):
         from .terminals import TerminalService
         try:
@@ -254,9 +277,10 @@ class LauncherBridge:
 
     def save_safety_settings(self, payload):
         self._notify_activity()
-        data = cfg.load_desktop_config()
-        cfg.set_safety_settings(data, payload)
-        cfg.save_desktop_config(data)
+        with cfg.CONFIG_LOCK:
+            data = cfg.load_desktop_config()
+            cfg.set_safety_settings(data, payload)
+            cfg.save_desktop_config(data)
         return {"ok": True}
 
     def _check_safety(self, app_id, env, status, settings):
@@ -291,11 +315,12 @@ class LauncherBridge:
 
     def save_settings(self, payload):
         self._notify_activity()
-        data = cfg.load_desktop_config()
-        cfg.set_check_system_proxy(data, bool(payload.get("check_system_proxy", True)))
-        cfg.set_auto_proxy_env(data, payload.get("auto_proxy_env", cfg.get_auto_proxy_env(data)))
-        cfg.set_common_env(data, dict(payload.get("env_vars", {})))
-        cfg.save_desktop_config(data)
+        with cfg.CONFIG_LOCK:
+            data = cfg.load_desktop_config()
+            cfg.set_check_system_proxy(data, bool(payload.get("check_system_proxy", True)))
+            cfg.set_auto_proxy_env(data, payload.get("auto_proxy_env", cfg.get_auto_proxy_env(data)))
+            cfg.set_common_env(data, dict(payload.get("env_vars", {})))
+            cfg.save_desktop_config(data)
         return {"ok": True}
 
     def get_app_settings(self, app_id):
@@ -305,11 +330,12 @@ class LauncherBridge:
 
     def save_app_settings(self, app_id, payload):
         self._notify_activity()
-        data = cfg.load_desktop_config()
-        cfg.set_app_env(data, app_id, dict(payload.get("env_vars", {})))
-        if "path" in payload:
-            cfg.set_app_path(data, app_id, payload["path"] or "")
-        cfg.save_desktop_config(data)
+        with cfg.CONFIG_LOCK:
+            data = cfg.load_desktop_config()
+            cfg.set_app_env(data, app_id, dict(payload.get("env_vars", {})))
+            if "path" in payload:
+                cfg.set_app_path(data, app_id, payload["path"] or "")
+            cfg.save_desktop_config(data)
         if "path" in payload:
             self._refresh_detection()
         return {"ok": True}
@@ -376,8 +402,9 @@ class LauncherBridge:
             return {"ok": False}
         path = result[0]
         if persist:
-            data = cfg.load_desktop_config()
-            cfg.set_app_path(data, app_id, path)
-            cfg.save_desktop_config(data)
+            with cfg.CONFIG_LOCK:
+                data = cfg.load_desktop_config()
+                cfg.set_app_path(data, app_id, path)
+                cfg.save_desktop_config(data)
             self._refresh_detection()
         return {"ok": True, "path": path}

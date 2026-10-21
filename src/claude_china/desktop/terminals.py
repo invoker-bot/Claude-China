@@ -167,10 +167,11 @@ class TerminalService:
             return _public(name, record, detail=True)
 
     def copy_profile(self, name, revision):
+        from .localization import display_message
         with _STORE_LOCK:
             data = _read()
             record = deepcopy(_existing(data, name, revision))
-            base = name[:65] + ' 副本'
+            base = name[:65] + ' ' + display_message('副本')
             new_name, number = base, 2
             while new_name in data['profiles']:
                 new_name, number = base + ' ' + str(number), number + 1
@@ -205,7 +206,7 @@ class TerminalService:
 
     def remember_directory(self, directory, profile=None):
         directory = directory_path(directory)
-        with _STORE_LOCK:
+        with _STORE_LOCK, config.CONFIG_LOCK:
             data = config.load_desktop_config()
             recent = self.workspace()['recent_directories']
             prefs = data.get('terminals')
@@ -228,7 +229,7 @@ class TerminalService:
             if not paths:
                 raise ValueError('项目目录格式无效。')
             directory = paths[0]
-        with _STORE_LOCK:
+        with _STORE_LOCK, config.CONFIG_LOCK:
             data = config.load_desktop_config()
             prefs = data.get('terminals')
             prefs = prefs if isinstance(prefs, dict) else {}
@@ -302,7 +303,7 @@ class TerminalService:
                 report = {'status': 'unknown', 'reason': '无法确认环境。'}
             if not safety.launch_allowed(report, settings):
                 raise ValueError('安全检查未通过：' + report.get('reason', '无法确认环境。'))
-        if config.load_desktop_config() != data or _existing(_read(), name) != record:
+        if config.launch_settings_changed(data, config.load_desktop_config()) or _existing(_read(), name) != record:
             raise ValueError('检测期间配置发生变化，请重新启动。')
         return argv, env
 

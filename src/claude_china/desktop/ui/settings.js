@@ -117,6 +117,7 @@ function renderAppEditor(id) {
 }
 function renderPath(id) {
   const el = document.getElementById(`path-${id}`);
+  el.toggleAttribute('data-i18n-skip', Boolean(DRAFT_PATHS[id]));
   el.textContent = DRAFT_PATHS[id] || "自动检测";
   el.classList.toggle("is-auto", !DRAFT_PATHS[id]);
   document.getElementById(`reset-${id}`).hidden = !DRAFT_PATHS[id];

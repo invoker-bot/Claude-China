@@ -11,6 +11,7 @@ async function main() {
   assert.ok(['http:', 'https:'].includes(url.protocol), 'Use an HTTP preview server');
   assert.ok(['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname), 'Use a local preview server');
   assert.ok(url.searchParams.has('preview'), 'Screenshot capture requires demo mode');
+  url.searchParams.set('lang', 'zh-CN');
   const output = path.resolve(__dirname, '../docs/screenshots');
   await fs.mkdir(output, { recursive: true });
   const options = { headless: true };

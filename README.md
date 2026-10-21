@@ -26,13 +26,15 @@ per-app environment settings, and check for launcher updates from the header.
 - Set per-profile default arguments such as `--model`
 - Upgrade the supported AI CLIs through npm
 - Standalone Windows, macOS and Linux desktop launcher
+- Desktop display languages: English, Simplified Chinese and Traditional Chinese
 - Open project terminals and manage CLI profiles in the desktop app
 - Search local CLI session history and resume a specific conversation
 - Pin favorite project folders and start new sessions with the selected profile
 
 ## Desktop tour
 
-Screenshots show the v0.4.1 interface with demo profiles, projects and app status.
+The app, terminal and proxy screenshots show v0.4.1 with demo data. The language
+preview below shows the current source for the next release.
 
 <details>
 <summary><strong>Pick up where you left off — searchable session history</strong></summary>
@@ -63,6 +65,19 @@ Optionally derive proxy variables from the system HTTP proxy and require launch
 checks before opening an app.
 
 ![Settings: system proxy checks, automatic proxy environment variables and shared configuration](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/desktop-settings.png)
+
+</details>
+
+<details>
+<summary><strong>Make it yours — display language</strong></summary>
+
+The current source adds **Settings → General → Display language**, with English,
+Simplified Chinese, Traditional Chinese and a system default. Language changes
+apply immediately, including the tray and macOS application menu, and are saved
+automatically without discarding unfinished settings. This feature is coming in
+the next desktop release; it is not included in v0.4.1.
+
+![English desktop settings with display language selection](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/desktop-language-en.png)
 
 </details>
 
@@ -111,6 +126,13 @@ still follows the platform's tray policy. There is no extra native window menu b
 The tray also provides **设置…** (Settings), **发布页面** (Release page) and
 **退出** (Quit). On macOS the standard application menu retains Settings,
 Check for updates, About, Hide and Quit (Cmd+Q).
+
+The display-language preference is stored as `language` in
+`~/.claudec/desktop.yaml` (`system`, `en`, `zh-CN`, or `zh-TW`). System default
+uses the operating system's display language when the launcher opens; unsupported
+languages fall back to English. Changing it does not alter the system language,
+timezone, region, launch environment, profile names, project paths or session
+titles. It does not change the underlying AI apps' or CLIs' own language.
 
 Settings → **安全检查** shows local timezone/language/region and checks the
 current public-IP region before each app launch or restart. Unsupported regions

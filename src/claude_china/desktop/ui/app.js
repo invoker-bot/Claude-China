@@ -28,6 +28,7 @@ function animateBrand() {
 }
 async function init() {
   try {
+    await I18n.init();
     await initWindowControls();
     APPS = await api().list_apps();
     renderApps();

@@ -1,12 +1,19 @@
 from typing import Optional
+from threading import RLock
+import os
+import tempfile
 
 import yaml
 
 from ..config_paths import config_dir, ensure_config_file
 
 DESKTOP_CONFIG_FILE = config_dir() / "desktop.yaml"
+# pywebview dispatches API calls on separate threads. All desktop preference
+# read/modify/write transactions share this lock, including terminal favorites.
+CONFIG_LOCK = RLock()
 
 DEFAULTS = {
+    "language": "system",
     "check_system_proxy": True,
     "auto_proxy_env": False,
     "safety_check": True,
@@ -18,6 +25,11 @@ DEFAULTS = {
 
 def load_desktop_config() -> dict:
     """Load desktop.yaml, importing legacy settings or creating first-use defaults."""
+    with CONFIG_LOCK:
+        return _load_desktop_config()
+
+
+def _load_desktop_config() -> dict:
     ensure_config_file(DESKTOP_CONFIG_FILE, DEFAULTS)
     with open(DESKTOP_CONFIG_FILE, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f) or {}
@@ -32,13 +44,36 @@ def load_desktop_config() -> dict:
     data.setdefault("auto_proxy_env", False)
     data.setdefault("safety_check", True)
     data.setdefault("safety_block_unknown", True)
+    data.setdefault("language", "system")
     return data
 
 
+def get_language(data: dict) -> str:
+    value = data.get("language", "system")
+    return value if isinstance(value, str) and value in ("system", "zh-CN", "zh-TW", "en") else "system"
+
+
+def launch_settings_changed(before: dict, after: dict) -> bool:
+    """Display language does not invalidate an in-flight environment check."""
+    return ({key: value for key, value in before.items() if key != "language"}
+            != {key: value for key, value in after.items() if key != "language"})
+
+
 def save_desktop_config(data: dict) -> None:
-    DESKTOP_CONFIG_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    with open(DESKTOP_CONFIG_FILE, "w", encoding="utf-8") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    with CONFIG_LOCK:
+        DESKTOP_CONFIG_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=DESKTOP_CONFIG_FILE.parent,
+                                             prefix='.desktop-', suffix='.tmp', delete=False) as stream:
+                temporary = stream.name
+                yaml.dump(data, stream, default_flow_style=False, sort_keys=False, allow_unicode=True)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.replace(temporary, DESKTOP_CONFIG_FILE)
+        finally:
+            if temporary and os.path.exists(temporary):
+                os.unlink(temporary)
 
 
 def get_check_system_proxy(data: dict) -> bool:

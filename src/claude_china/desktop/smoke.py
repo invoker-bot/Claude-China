@@ -94,6 +94,33 @@ def _verify_settings_tabs(window):
     window.evaluate_js("document.getElementById('home-button').click()")
 
 
+def _verify_languages(window, tray):
+    """Change only the isolated smoke preferences; preserve a settings draft."""
+    from . import config
+    window.evaluate_js("showSettings('common'); document.getElementById('auto-proxy-env').click()")
+    draft = window.evaluate_js("draftSnapshot('common')")
+    for language, label, tray_label in [('en', 'My apps', 'Settings…'),
+                                        ('zh-TW', '我的應用', '設定…'),
+                                        ('zh-CN', '我的应用', '设置…')]:
+        window.evaluate_js("document.getElementById('app-language').value = " + json.dumps(language)
+                           + "; document.getElementById('app-language').dispatchEvent(new Event('change'))")
+        _wait_js(window, "document.documentElement.lang === " + json.dumps(language)
+                 + " && !document.getElementById('app-language').disabled")
+        if window.evaluate_js("document.getElementById('home-button').textContent") != label:
+            raise RuntimeError('The native interface did not switch language')
+        if config.get_language(config.load_desktop_config()) != language:
+            raise RuntimeError('Language preference was not persisted')
+        if window.evaluate_js("draftSnapshot('common')") != draft:
+            raise RuntimeError('Language switch lost a settings draft')
+        if tray._icon is not None:
+            deadline = time.monotonic() + 3
+            while tray_label not in [item.text for item in tray._icon.menu.items] and time.monotonic() < deadline:
+                time.sleep(0.02)  # Cocoa relabeling is dispatched on its main thread.
+            if tray_label not in [item.text for item in tray._icon.menu.items]:
+                raise RuntimeError('Tray labels did not switch language')
+    window.evaluate_js("document.getElementById('cancel-common').click(); setMainView('apps')")
+
+
 def _verify_terminal_profiles(window):
     """Use the smoke entry point's isolated store, never real CLI credentials."""
     from .. import config as cli_config
@@ -365,6 +392,8 @@ def verify_window(window, tray, report):
         result["terminal_profile_crud"] = True
         _verify_terminal_history(window)
         result["terminal_history_and_projects"] = True
+        _verify_languages(window, tray)
+        result["language_switch_and_drafts"] = True
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_settings_page", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_keeps_settings_page",

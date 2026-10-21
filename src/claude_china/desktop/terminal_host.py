@@ -152,6 +152,7 @@ def _attach_console():
 
 
 def run_session(path):
+    from .localization import display_message
     _attach_console()
     try:
         from .terminals import TerminalService, directory_path
@@ -169,8 +170,8 @@ def run_session(path):
     except KeyboardInterrupt:
         return 130
     except ValueError as exc:
-        print(str(exc), file=sys.stderr)
+        print(display_message(str(exc)), file=sys.stderr)
         return 1
     except Exception:
-        print('终端启动失败，请检查 CLI 安装和配置后重试。', file=sys.stderr)
+        print(display_message('终端启动失败，请检查 CLI 安装和配置后重试。'), file=sys.stderr)
         return 1

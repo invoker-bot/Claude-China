@@ -7,11 +7,13 @@ import threading
 
 
 class DesktopMenu:
-    def __init__(self, window, tray, updater):
+    def __init__(self, window, tray, updater, translator=None):
         self._window = window
         self._tray = tray
         self._updater = updater
         self._macos_quit_bound = False
+        self._translate = translator or (lambda source: source)
+        self._menu_labels = []
 
     def show(self):
         self._tray._show_window(None, None)
@@ -55,12 +57,57 @@ class DesktopMenu:
 
         from webview.menu import Menu, MenuAction
 
-        return [
-            Menu("__app__", [MenuAction("设置…", self.settings),
-                             MenuAction("检查更新…", self.updates)]),
-            Menu("窗口", [MenuAction("打开 Claude China", self.show)]),
-            Menu("帮助", [MenuAction("发布页面", self.release_page)]),
-        ]
+        def label(item, source):
+            self._menu_labels.append((item, source))
+            item.title = self._translate(source)
+            return item
+
+        self._menu_labels = []
+        return [Menu("__app__", [label(MenuAction("", self.settings), "设置…"),
+                                 label(MenuAction("", self.updates), "检查更新…")]),
+                label(Menu("", [label(MenuAction("", self.show), "打开 Claude China")]), "窗口"),
+                label(Menu("", [label(MenuAction("", self.release_page), "发布页面")]), "帮助")]
+
+    def refresh_language(self):
+        for item, source in self._menu_labels:
+            item.title = self._translate(source)
+        if sys.platform == "darwin":
+            from PyObjCTools import AppHelper
+
+            AppHelper.callAfter(self._translate_macos_menu)
+
+    def _translate_macos_menu(self):
+        # Relabel in place: retain Cocoa actions, targets and keyboard shortcuts.
+        from AppKit import NSApplication
+        from .localization import NATIVE_MESSAGES, catalogs
+
+        sources = set(NATIVE_MESSAGES.values()) | {source for _, source in self._menu_labels}
+        aliases = {source: source for source in sources}
+        for catalog in catalogs().values():
+            aliases.update({catalog[source]: source for source in sources if source in catalog})
+
+        def relabel(menu):
+            for item in menu.itemArray():
+                title = item.title()
+                action = item.action()
+                if isinstance(action, bytes):
+                    action = action.decode('ascii')
+                if title in aliases:
+                    item.setTitle_(self._translate(aliases[title]))
+                elif action in ('orderFrontStandardAboutPanel:', 'hide:', 'quitFromMenu:'):
+                    for alias, source in aliases.items():
+                        if source in ('关于', '隐藏', '退出') and title.startswith(alias + ' '):
+                            item.setTitle_(self._translate(source) + title[len(alias):])
+                            break
+                if item.hasSubmenu():
+                    submenu = item.submenu()
+                    if submenu.title() in aliases:
+                        submenu.setTitle_(self._translate(aliases[submenu.title()]))
+                    # System-provided Services are owned by macOS, not our catalog.
+                    if aliases.get(title) != '服务':
+                        relabel(submenu)
+
+        relabel(NSApplication.sharedApplication().mainMenu())
 
     def bind_platform_menu(self):
         if sys.platform == "darwin":

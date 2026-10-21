@@ -4,6 +4,7 @@ import sys
 from .apps import APP_REGISTRY
 from .bridge import LauncherBridge
 from .menu import DesktopMenu
+from .localization import native_labels, translate
 from .platforms import get_backend
 from .platforms.windows_shell import launcher_icon_path, set_process_app_id as _set_windows_app_id
 from .single_instance import DesktopInstance
@@ -52,22 +53,34 @@ def run_gui(smoke_report=None):
         import webview  # lazy: only needed to actually show the GUI
 
         bridge = LauncherBridge(backend, APP_REGISTRY)
+        locale_state = bridge.get_locale()
+        tr = lambda source: translate(source, locale_state["resolved"])
         # Keep a stable application window; settings scroll within their panel.
         window = webview.create_window(
             "Claude China", url=_ui_url(), js_api=bridge, width=1000, height=720,
             frameless=sys.platform != "darwin", easy_drag=False,
             min_size=(600, 480), background_color="#181d40", shadow=True,
+            localization=native_labels(tr),
             **({"hidden": True} if smoke_report else {}),
         )
         bridge._attach_window(window, webview.OPEN_DIALOG)
         controls = WindowControls(window)
         bridge._window_controls = controls
         tray = LauncherTray(window, _ui_asset_path("icon.png"))
+        tray._translate = tr
         bridge._activity = tray.play_activity
         updater = UpdateManager(lambda: tray._quit(None, None))
         bridge._updater = updater
-        commands = DesktopMenu(window, tray, updater)
+        commands = DesktopMenu(window, tray, updater, translator=tr)
         tray._commands = commands
+
+        def language_changed():
+            locale_state.update(bridge.get_locale())
+            window.localization.update(native_labels(tr))
+            commands.refresh_language()
+            tray.refresh_language()
+
+        bridge._language_changed = language_changed
 
         def on_start(window, activity):
             controls.configure()

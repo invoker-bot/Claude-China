@@ -58,6 +58,7 @@ def test_import_preserves_credentials_comments_and_old_files(settings_home):
     assert config.load_config() == profiles
     assert desktop_config.load_desktop_config() == {
         **desktop, "auto_proxy_env": False, "safety_check": True, "safety_block_unknown": True,
+        "language": "system",
     }
     for name, content in original.items():
         assert (current / name).read_bytes() == content

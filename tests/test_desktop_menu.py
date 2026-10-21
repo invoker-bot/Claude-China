@@ -58,6 +58,51 @@ def test_menu_restores_hidden_window_before_dispatching_to_page(commands):
     commands._updater.install.assert_not_called()
 
 
+def test_macos_menu_uses_selected_language_and_keeps_actions(menu_types, monkeypatch):
+    from src.claude_china.desktop.localization import translate
+    monkeypatch.setattr(menu_mod, 'sys', types.SimpleNamespace(platform='darwin'))
+    selected = ['en']
+    commands = menu_mod.DesktopMenu(Mock(), Mock(), Mock(),
+                                   translator=lambda source: translate(source, selected[0]))
+    menus = commands.native_menu()
+    assert [item.title for item in menus[0].items] == ['Settings…', 'Check for Updates…']
+    assert menus[1].title == 'Window'
+    selected[0] = 'zh-TW'
+    dispatch = Mock()
+    monkeypatch.setitem(sys.modules, 'PyObjCTools', types.SimpleNamespace(AppHelper=types.SimpleNamespace(callAfter=dispatch)))
+    commands.refresh_language()
+    assert menus[0].items[0].title == '設定…'
+    assert menus[0].items[0].function == commands.settings
+    dispatch.assert_called_once_with(commands._translate_macos_menu)
+
+
+def test_macos_relabels_live_menu_without_rebinding_actions(menu_types, monkeypatch):
+    from src.claude_china.desktop.localization import translate
+    monkeypatch.setattr(menu_mod, 'sys', types.SimpleNamespace(platform='darwin'))
+    commands = menu_mod.DesktopMenu(Mock(), Mock(), Mock(), translator=lambda source: translate(source, 'zh-TW'))
+    commands.native_menu()
+
+    def item(title, action=None):
+        value = Mock()
+        value.title.return_value = title
+        value.action.return_value = action
+        value.hasSubmenu.return_value = False
+        return value
+
+    about, settings, quit_item = item('About Claude China', b'orderFrontStandardAboutPanel:'), item('Settings…'), item('Quit Claude China', 'quitFromMenu:')
+    app = Mock()
+    app.mainMenu.return_value.itemArray.return_value = [about, settings, quit_item]
+    monkeypatch.setitem(sys.modules, 'AppKit', types.SimpleNamespace(NSApplication=types.SimpleNamespace(sharedApplication=lambda: app)))
+    commands._translate_macos_menu()
+    about.setTitle_.assert_called_once_with('關於 Claude China')
+    settings.setTitle_.assert_called_once_with('設定…')
+    quit_item.setTitle_.assert_called_once_with('退出 Claude China')
+    for value in (about, settings, quit_item):
+        value.setAction_.assert_not_called()
+        value.setTarget_.assert_not_called()
+        value.setKeyEquivalent_.assert_not_called()
+
+
 def test_menu_does_not_reopen_window_during_shutdown(commands):
     commands._tray._quitting.is_set.return_value = True
     commands._dispatch("updates")

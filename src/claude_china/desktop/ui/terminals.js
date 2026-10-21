@@ -31,7 +31,7 @@ async function refreshTerminals() {
     const select = document.getElementById('terminal-launch-profile');
     const selected = select.value || TERMINALS.last_profile;
     const profiles = TERMINALS.profiles.filter(p => p.supported);
-    select.innerHTML = profiles.length ? profiles.map(p => `<option value="${esc(p.name)}">${esc(p.name)} · ${esc(CLI_NAMES[p.type])}</option>`).join('') : '<option value="">请先添加 CLI 配置</option>';
+    select.innerHTML = profiles.length ? profiles.map(p => `<option data-i18n-skip value="${esc(p.name)}">${esc(p.name)} · ${esc(CLI_NAMES[p.type])}</option>`).join('') : '<option value="">请先添加 CLI 配置</option>';
     if (profiles.some(p => p.name === selected)) select.value = selected;
     select.disabled = !profiles.length;
     document.getElementById('terminal-new-session').disabled = !profiles.length;
@@ -108,8 +108,8 @@ function renderTerminalHistory() {
   const note = document.getElementById('terminal-history-note');
   const profile = TERMINALS.profiles.find(p => p.name === selectedTerminalProfile());
   note.textContent = profile ? `读取“${profile.name}”所用目录的本地会话，包含从其他入口启动的记录。` : '选择一条 CLI 配置来查看对应的历史。';
-  if (TERMINAL_HISTORY.truncated) note.textContent += ' 仅显示最近 200 条。';
-  if (TERMINAL_HISTORY.warnings.length) note.textContent += ' ' + TERMINAL_HISTORY.warnings.join(' ');
+  if (TERMINAL_HISTORY.truncated) note.insertAdjacentHTML('beforeend', '<span> 仅显示最近 200 条。</span>');
+  for (const warning of TERMINAL_HISTORY.warnings) note.insertAdjacentHTML('beforeend', `<span> ${esc(warning)}</span>`);
   if (TERMINAL_HISTORY_LOADING) { list.innerHTML = '<p class="terminal-section-note">正在读取本地历史…</p>'; return; }
   const query = document.getElementById('terminal-search').value.trim().toLowerCase();
   const entries = TERMINAL_HISTORY.sessions.map((session, index) => ({session, index})).filter(({session: s}) => `${s.title} ${s.directory} ${s.id}`.toLowerCase().includes(query));
@@ -118,9 +118,9 @@ function renderTerminalHistory() {
   }
   list.innerHTML = entries.map(({session: s, index}) => {
     const date = new Date(s.updated_at);
-    const time = Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+    const time = Number.isNaN(date.getTime()) ? '' : date.toLocaleString(I18n.locale(), {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
     const favorite = terminalFavorite(s.directory);
-    return `<article class="terminal-session" data-session-index="${index}"><span class="terminal-session-icon" aria-hidden="true">${profile?.type === 'grok' ? icon('terminal') : appSymbol(profile?.type)}</span><div class="terminal-session-info"><h2 title="${esc(s.id)}">${esc(s.title)}</h2><p class="terminal-session-path" title="${esc(s.directory)}">${esc(s.directory)}</p><p class="terminal-session-meta">${esc(CLI_NAMES[profile?.type] || '')} · ${esc(time)}${s.available ? '' : ' · 项目目录已不存在'}</p></div><div class="terminal-session-actions"><button class="icon-button ${favorite ? 'is-favorite' : ''}" type="button" data-session-action="favorite" aria-label="${favorite ? '取消收藏' : '收藏'}项目 ${esc(s.directory)}" aria-pressed="${favorite}" ${!s.available && !favorite ? 'disabled' : ''}>${icon('star')}</button><button class="btn" type="button" data-session-action="directory" ${s.available ? '' : 'disabled'} title="将此项目设为新会话目录">选用目录</button><button class="btn btn--key" type="button" data-session-action="resume" ${s.available ? '' : 'disabled'}>${icon('history')}继续会话</button></div></article>`;
+    return `<article class="terminal-session" data-session-index="${index}"><span class="terminal-session-icon" aria-hidden="true">${profile?.type === 'grok' ? icon('terminal') : appSymbol(profile?.type)}</span><div class="terminal-session-info"><h2 data-i18n-skip title="${esc(s.id)}">${esc(s.title)}</h2><p class="terminal-session-path" data-i18n-skip title="${esc(s.directory)}">${esc(s.directory)}</p><p class="terminal-session-meta">${esc(CLI_NAMES[profile?.type] || '')} · <span data-i18n-skip>${esc(time)}</span>${s.available ? '' : ' · 项目目录已不存在'}</p></div><div class="terminal-session-actions"><button class="icon-button ${favorite ? 'is-favorite' : ''}" type="button" data-session-action="favorite" aria-label="${favorite ? '取消收藏' : '收藏'}项目 ${esc(s.directory)}" aria-pressed="${favorite}" ${!s.available && !favorite ? 'disabled' : ''}>${icon('star')}</button><button class="btn" type="button" data-session-action="directory" ${s.available ? '' : 'disabled'} title="将此项目设为新会话目录">选用目录</button><button class="btn btn--key" type="button" data-session-action="resume" ${s.available ? '' : 'disabled'}>${icon('history')}继续会话</button></div></article>`;
   }).join('');
 }
 
@@ -134,7 +134,7 @@ function renderTerminalProjects() {
   const entries = TERMINAL_PROJECTS.map((project, index) => ({project, index})).filter(({project:p}) => p.directory.toLowerCase().includes(query));
   const list = document.getElementById('terminal-projects');
   if (!entries.length) { list.innerHTML = terminalEmpty(query ? '没有匹配的项目' : '还没有常用项目', query ? '试试文件夹名称或完整路径。' : '选择项目目录后点击星标收藏；最近启动的项目也会出现在这里。', 'folder'); return; }
-  list.innerHTML = entries.map(({project:p, index}) => `<article class="terminal-project-card" data-project-index="${index}"><div class="terminal-project-card-head">${icon('folder')}<h2>${esc(p.name)}</h2><button class="icon-button ${p.favorite ? 'is-favorite' : ''}" type="button" data-project-action="favorite" aria-label="${p.favorite ? '取消收藏' : '收藏'} ${esc(p.name)}" aria-pressed="${p.favorite}" ${!p.available && !p.favorite ? 'disabled' : ''}>${icon('star')}</button></div><p class="terminal-session-path">${esc(p.directory)}</p><p class="terminal-session-meta">${p.favorite ? '已收藏' : '最近使用'}${p.available ? '' : ' · 项目目录已不存在'}</p><div class="terminal-project-card-actions"><button class="btn btn--key" type="button" data-project-action="new" ${p.available && selectedTerminalProfile() ? '' : 'disabled'}>${icon('plus')}新建会话</button><button class="btn" type="button" data-project-action="directory" ${p.available ? '' : 'disabled'}>选用目录</button><button class="icon-button" type="button" data-project-action="folder" aria-label="打开文件夹 ${esc(p.name)}" ${p.available ? '' : 'disabled'}>${icon('external')}</button></div></article>`).join('');
+  list.innerHTML = entries.map(({project:p, index}) => `<article class="terminal-project-card" data-project-index="${index}"><div class="terminal-project-card-head">${icon('folder')}<h2 data-i18n-skip>${esc(p.name)}</h2><button class="icon-button ${p.favorite ? 'is-favorite' : ''}" type="button" data-project-action="favorite" aria-label="${p.favorite ? '取消收藏' : '收藏'} ${esc(p.name)}" aria-pressed="${p.favorite}" ${!p.available && !p.favorite ? 'disabled' : ''}>${icon('star')}</button></div><p class="terminal-session-path" data-i18n-skip>${esc(p.directory)}</p><p class="terminal-session-meta">${p.favorite ? '已收藏' : '最近使用'}${p.available ? '' : ' · 项目目录已不存在'}</p><div class="terminal-project-card-actions"><button class="btn btn--key" type="button" data-project-action="new" ${p.available && selectedTerminalProfile() ? '' : 'disabled'}>${icon('plus')}新建会话</button><button class="btn" type="button" data-project-action="directory" ${p.available ? '' : 'disabled'}>选用目录</button><button class="icon-button" type="button" data-project-action="folder" aria-label="打开文件夹 ${esc(p.name)}" ${p.available ? '' : 'disabled'}>${icon('external')}</button></div></article>`).join('');
 }
 
 function useTerminalDirectory(directory) {
@@ -171,8 +171,8 @@ function renderTerminalProfiles() {
     const tool = TERMINALS.tools.find(tool => tool.id === p.type);
     const symbol = p.type === 'grok' ? icon('terminal') : appSymbol(p.type);
     return `<article class="terminal-card" data-profile-index="${index}"><div class="terminal-card-top"><span class="terminal-tool-icon" aria-hidden="true">${symbol}</span><span class="terminal-tool-name">${esc(CLI_NAMES[p.type] || p.type)}</span><span class="terminal-detected ${tool?.installed ? 'is-installed' : ''}">${tool?.installed ? '已检测到' : '未检测到 CLI'}</span></div>` +
-      `<h2>${esc(p.name)}</h2><p class="terminal-card-mode">${p.mode === 'login' ? '登录配置目录' : `API · ${p.has_secret ? '已保存密钥' : '未配置密钥'}`}</p>` +
-      `<p class="terminal-endpoint">${esc(p.mode === 'login' ? '使用独立登录目录' : p.endpoint || '默认服务地址')}</p>` +
+      `<h2 data-i18n-skip>${esc(p.name)}</h2><p class="terminal-card-mode">${p.mode === 'login' ? '登录配置目录' : `API · ${p.has_secret ? '已保存密钥' : '未配置密钥'}`}</p>` +
+      `<p class="terminal-endpoint" ${p.mode !== 'login' && p.endpoint ? 'data-i18n-skip' : ''}>${esc(p.mode === 'login' ? '使用独立登录目录' : p.endpoint || '默认服务地址')}</p>` +
       `<div class="terminal-card-actions"><button class="btn btn--key" type="button" data-cli-action="launch" ${p.supported ? '' : 'disabled'}>${icon('terminal')}启动终端</button>` +
       `<button class="icon-button" data-cli-action="edit" type="button" aria-label="编辑 ${esc(p.name)}" title="编辑配置">${icon('edit')}</button><button class="icon-button" data-cli-action="copy" type="button" aria-label="复制 ${esc(p.name)}" title="复制配置">${icon('copy')}</button><button class="icon-button terminal-delete" data-cli-action="delete" type="button" aria-label="删除 ${esc(p.name)}" title="删除配置">${icon('trash')}</button></div></article>`;
   }).join('');
@@ -357,3 +357,7 @@ async function openTerminalFolder(directory) {
   try { const result = await api().open_project_folder(directory); if (!result.ok) throw new Error(result.error); }
   catch (error) { terminalError(error.message || '无法打开项目文件夹。'); }
 }
+
+window.addEventListener('languagechange', () => {
+  if (READY) renderTerminalHistory();
+});

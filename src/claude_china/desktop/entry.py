@@ -75,6 +75,7 @@ def main(argv=None):
         with tempfile.TemporaryDirectory(prefix="claude-china-smoke-") as directory:
             try:
                 config.DESKTOP_CONFIG_FILE = Path(directory) / "desktop.yaml"
+                config.save_desktop_config({"language": "zh-CN"})
                 cli_config.CONFIG_FILE = Path(directory) / "config.yaml"
                 terminal_history.profile_home = lambda record: Path(directory) / ('history-' + record['type'])
                 run_gui(smoke_report=report)

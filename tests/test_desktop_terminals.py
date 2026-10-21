@@ -61,6 +61,32 @@ def test_stale_edit_and_delete_cannot_overwrite_cli_changes(service):
     assert cli_config.load_config()['profiles']['work']['token'] == 'changed-by-cli'
 
 
+def test_language_change_during_check_does_not_cancel_terminal_launch(service, tmp_path, monkeypatch):
+    service.save_profile(api_profile())
+
+    def inspect(*args, **kwargs):
+        data = config.load_desktop_config()
+        data['language'] = 'en'
+        config.save_desktop_config(data)
+        return {'status': 'supported', 'reason': 'fixture'}
+
+    monkeypatch.setattr(safety, 'inspect_environment', inspect)
+    argv, env = service.prepare('work', str(tmp_path))
+    assert argv[0] == 'fixture-claude'
+    assert env['ANTHROPIC_AUTH_TOKEN'] == 'private-test-token'
+
+
+def test_copy_profile_localizes_only_generated_suffix(service):
+    data = config.load_desktop_config()
+    data['language'] = 'en'
+    config.save_desktop_config(data)
+    original = service.save_profile(api_profile(name='设置 {0}'))
+    copied = service.copy_profile(original['name'], original['revision'])
+    again = service.copy_profile(original['name'], original['revision'])
+    assert copied['name'] == '设置 {0} copy'
+    assert again['name'] == '设置 {0} copy 2'
+
+
 def test_duplicate_and_invalid_profiles_do_not_change_file(service):
     service.save_profile(api_profile())
     before = cli_config.CONFIG_FILE.read_bytes()

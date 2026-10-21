@@ -12,6 +12,8 @@ from claude_china.desktop import terminal_host
 
 @pytest.fixture
 def jobs(tmp_path, monkeypatch):
+    from claude_china.desktop import config
+    monkeypatch.setattr(config, 'DESKTOP_CONFIG_FILE', tmp_path / 'desktop.yaml')
     root = tmp_path / 'jobs'
     monkeypatch.setattr(terminal_host, 'jobs_dir', lambda: root)
     return root

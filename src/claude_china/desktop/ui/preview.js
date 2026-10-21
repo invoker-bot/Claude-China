@@ -1,6 +1,14 @@
 // Browser-only preview. Native builds always use the real pywebview bridge.
 if (new URLSearchParams(location.search).has("preview")) {
   const modes = new URLSearchParams(location.search);
+  let language = modes.get('lang') || localStorage.getItem('claudec-preview-language') || 'system';
+  const catalogs = fetch('locales.json').then(response => response.json());
+  const previewLocale = async () => {
+    const parts = navigator.language.toLowerCase().split('-');
+    const system = parts[0] !== 'zh' ? 'en' : parts.includes('hans') ? 'zh-CN' : parts.some(part => ['hant', 'tw', 'hk', 'mo'].includes(part)) ? 'zh-TW' : 'zh-CN';
+    const resolved = ['en', 'zh-CN', 'zh-TW'].includes(language) ? language : system;
+    return {language, resolved, messages: (await catalogs)[resolved] || {}};
+  };
   const apps = [
     { id: "claude", display: "Claude", found: true, running: true },
     { id: "codex", display: "Codex", found: false, running: false },
@@ -48,6 +56,12 @@ if (new URLSearchParams(location.search).has("preview")) {
     ({ app_id: id, supported: true, enabled: Boolean(takeoverEnabled[id]), can_disable: Boolean(takeoverEnabled[id]),
       message: takeoverEnabled[id] ? '已接管此 EXE 原入口及同路径更新重启；每次重新检查并注入变量。（预览）' : '未接管原入口。仅覆盖固定 EXE 路径及同路径更新。（预览）' });
   window.pywebview = { api: {
+    get_locale: previewLocale,
+    set_language: async value => {
+      if (modes.get('save') === 'error') return {ok: false, error: '无法保存语言设置，请重试。'};
+      language = value; localStorage.setItem('claudec-preview-language', value);
+      return {ok: true, data: await previewLocale()};
+    },
     list_cli_profiles: async () => ({ok:true, data:{directory:terminalDirectory, recent_directories:clone(terminalRecent),favorite_directories:clone(terminalFavorites),
       projects:[...new Set([...terminalFavorites,...terminalRecent])].map(directory=>({directory,name:directory.split('\\').pop(),favorite:terminalFavorites.includes(directory),available:true})),
       tools:[{id:'claude',display:'Claude Code',installed:true},{id:'codex',display:'Codex CLI',installed:true},{id:'grok',display:'Grok CLI',installed:false}],
@@ -80,7 +94,8 @@ if (new URLSearchParams(location.search).has("preview")) {
     },
     copy_cli_profile: async (name, revision) => {
       const p=cliProfiles.find(p=>p.name===name);if(!p || p.revision!==revision)return cliFailure();
-      let copied=name+' 副本', index=2;while(cliProfiles.some(p=>p.name===copied))copied=name+' 副本 '+index++;
+      const suffix=I18n.text('副本');
+      let copied=name+' '+suffix, index=2;while(cliProfiles.some(p=>p.name===copied))copied=name+' '+suffix+' '+index++;
       const record={...clone(p),name:copied,revision:'preview-'+cliRevision++};cliProfiles.push(record);return {ok:true,data:cliPublic(record)};
     },
     delete_cli_profile: async (name, revision) => {const p=cliProfiles.find(p=>p.name===name);if(!p || p.revision!==revision)return cliFailure();cliProfiles=cliProfiles.filter(p=>p.name!==name);return {ok:true};},

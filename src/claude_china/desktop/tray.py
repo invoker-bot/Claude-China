@@ -15,6 +15,7 @@ class LauncherTray:
         self._image = None
         self._animation = None
         self._commands = None
+        self._translate = lambda source: source
         self._ready = False
         self._stopped = False
         self._state_lock = threading.Lock()
@@ -61,22 +62,41 @@ class LauncherTray:
             from AppKit import NSApplication
 
             options["darwin_nsapplication"] = NSApplication.sharedApplication()
-        items = [pystray.MenuItem("打开 Claude China", self._show_window, default=True)]
-        if self._commands is not None:
-            items.extend([
-                pystray.MenuItem("设置…", self._settings),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("检查更新…", self._updates),
-                pystray.MenuItem("发布页面", self._release_page),
-            ])
-        items.extend([pystray.Menu.SEPARATOR, pystray.MenuItem("退出", self._quit)])
         self._icon = pystray.Icon(
             "claudec-launcher", self._image, "Claude China",
-            menu=pystray.Menu(*items),
-            **options,
+            menu=self._menu(), **options,
         )
         # pywebview owns the native main loop, including Cocoa's main thread.
         self._icon.run_detached(setup=self._setup)
+
+    def _menu(self):
+        import pystray
+
+        tr = self._translate
+        items = [pystray.MenuItem(tr("打开 Claude China"), self._show_window, default=True)]
+        if self._commands is not None:
+            items.extend([
+                pystray.MenuItem(tr("设置…"), self._settings),
+                pystray.Menu.SEPARATOR,
+                pystray.MenuItem(tr("检查更新…"), self._updates),
+                pystray.MenuItem(tr("发布页面"), self._release_page),
+            ])
+        items.extend([pystray.Menu.SEPARATOR, pystray.MenuItem(tr("退出"), self._quit)])
+        return pystray.Menu(*items)
+
+    def refresh_language(self):
+        if sys.platform == "darwin":
+            from PyObjCTools import AppHelper
+
+            AppHelper.callAfter(self._refresh_language)
+        else:
+            self._refresh_language()
+
+    def _refresh_language(self):
+        with self._state_lock:
+            if self._icon is not None and not self._stopped:
+                self._icon.menu = self._menu()
+                self._icon.update_menu()
 
     def _setup(self, icon) -> None:
         if sys.platform == "darwin":
