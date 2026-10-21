@@ -7,19 +7,6 @@ on:
         description: 'Sign and notarize macOS artifacts using repository credentials'
         type: boolean
         default: false
-  pull_request:
-    paths:
-      - 'src/claude_china/**'
-      - 'packaging/desktop/**'
-      - 'tools/*desktop*'
-      - 'tools/setup_macos_signing.py'
-      - 'tools/test_windows_installer.py'
-      - 'tools/build_windows_hook.py'
-      - 'native/windows/**'
-      - 'tests/**'
-      - 'pyproject.toml'
-      - 'LICENSE'
-      - '.github/workflows/desktop-release.yml'
   push:
     tags: ['v*']
 
@@ -57,6 +44,11 @@ jobs:
         if: runner.os != 'Linux'
         with:
           python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            packaging/desktop/requirements.txt
+            .github/workflows/desktop-release.yml
       - name: Install Linux system build and GUI dependencies
         if: runner.os == 'Linux'
         run: |
@@ -64,6 +56,18 @@ jobs:
           sudo apt-get install -y python3-venv python3-dev libpython3.10 python3-gi python3-gi-cairo gir1.2-gtk-3.0 gir1.2-webkit2-4.1 gir1.2-ayatanaappindicator3-0.1 rpm xvfb xauth dbus-x11 desktop-file-utils fonts-noto-cjk
           /usr/bin/python3 -m venv --system-site-packages .venv
           echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Locate Linux pip download cache
+        if: runner.os == 'Linux'
+        id: linux-pip
+        run: echo "path=$(python -m pip cache dir)" >> "$GITHUB_OUTPUT"
+      - name: Cache Linux pip downloads
+        if: runner.os == 'Linux'
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.linux-pip.outputs.path }}
+          key: desktop-pip-${{ runner.os }}-${{ runner.arch }}-ubuntu22.04-python3.10-${{ hashFiles('pyproject.toml', 'packaging/desktop/requirements.txt', '.github/workflows/desktop-release.yml') }}
+          restore-keys: |
+            desktop-pip-${{ runner.os }}-${{ runner.arch }}-ubuntu22.04-python3.10-
       - name: Install isolated Windows and macOS build environment
         if: runner.os != 'Linux'
         shell: bash

@@ -6,6 +6,9 @@ on:
     tags:
       - 'legacy-v*'
 
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
@@ -23,6 +26,12 @@ jobs:
     - uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python }}
+        cache: pip
+        cache-dependency-path: |
+          pyproject.toml
+          compat/ai-code-switcher/pyproject.toml
+          .github/workflows/publish.yml
+          .github/workflows/publish-legacy.yml
     - name: Install test and build dependencies
       run: |
         python -m pip install --upgrade pip
@@ -46,6 +55,12 @@ jobs:
     - uses: actions/setup-python@v6
       with:
         python-version: '3.11'
+        cache: pip
+        cache-dependency-path: |
+          pyproject.toml
+          compat/ai-code-switcher/pyproject.toml
+          .github/workflows/publish.yml
+          .github/workflows/publish-legacy.yml
     - name: Build compatibility package
       run: |
         python -m pip install build twine

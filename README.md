@@ -475,6 +475,11 @@ installer builds and release validation are documented in
 builds the desktop packages for GitHub Releases and independently publishes
 the CLI distribution to PyPI.
 
+Ordinary branch pushes and pull request updates do not run GitHub Actions.
+Release tags trigger automatic validation and publishing; manual validation and
+optional dependency-cache warming remain available. See [CI and dependency
+caches](docs/ci.md).
+
 ## License
 
 [MIT](LICENSE)

@@ -1,0 +1,107 @@
+name: Warm dependency caches
+run-name: Warm ${{ inputs.scope }} dependency caches on ${{ github.ref_name }}
+
+# Tags can read default-branch caches, but cannot read another tag's cache.
+# Run manually on main when useful; ordinary commits consume no Actions time.
+on:
+  workflow_dispatch:
+    inputs:
+      scope:
+        description: 'Dependencies to warm on the default branch (no tests, native builds or publishing)'
+        type: choice
+        options: [all, desktop, cli]
+        default: all
+
+permissions:
+  contents: read
+
+jobs:
+  cli:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (inputs.scope == 'all' || inputs.scope == 'cli')
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: '3.9'
+          - os: macos-latest
+            python: '3.11'
+          - os: windows-latest
+            python: '3.12'
+          - os: ubuntu-latest
+            python: '3.x'
+          - os: ubuntu-latest
+            python: '3.11'
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        id: python
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            compat/ai-code-switcher/pyproject.toml
+            .github/workflows/publish.yml
+            .github/workflows/publish-legacy.yml
+      - name: Populate CLI test and publishing dependencies
+        if: steps.python.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip "setuptools>=64" wheel
+          python -m pip install -e ".[test]" build twine
+
+  desktop:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (inputs.scope == 'all' || inputs.scope == 'desktop')
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-15-intel, macos-15]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        id: python
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            pyproject.toml
+            packaging/desktop/requirements.txt
+            .github/workflows/desktop-release.yml
+      - name: Populate desktop dependencies
+        if: steps.python.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip "setuptools>=64" wheel
+          python -m pip install ".[desktop,test]" -r packaging/desktop/requirements.txt
+
+  linux-desktop:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && (inputs.scope == 'all' || inputs.scope == 'desktop')
+    timeout-minutes: 10
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v6
+      - name: Prepare the system Python used by the GTK desktop build
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-venv
+          /usr/bin/python3 -m venv --system-site-packages .venv
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+      - name: Locate Linux pip download cache
+        id: linux-pip
+        run: echo "path=$(python -m pip cache dir)" >> "$GITHUB_OUTPUT"
+      - name: Cache Linux pip downloads
+        id: pip-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.linux-pip.outputs.path }}
+          key: desktop-pip-${{ runner.os }}-${{ runner.arch }}-ubuntu22.04-python3.10-${{ hashFiles('pyproject.toml', 'packaging/desktop/requirements.txt', '.github/workflows/desktop-release.yml') }}
+          restore-keys: |
+            desktop-pip-${{ runner.os }}-${{ runner.arch }}-ubuntu22.04-python3.10-
+      - name: Populate Linux desktop dependencies
+        if: steps.pip-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m pip install --upgrade pip "setuptools>=64" wheel
+          python -m pip install ".[desktop,test]" -r packaging/desktop/requirements.txt
