@@ -1,5 +1,5 @@
 // Each category keeps its DOM draft until saved or explicitly cancelled.
-// Hiding the dialog and switching categories never write user configuration.
+// Switching pages and categories never writes user configuration.
 const DRAFT_PATHS = {};
 const SAVED_DRAFTS = {};
 const SAVING = new Set();
@@ -21,7 +21,7 @@ function renderAppSettingsPanels() {
       `<div class="env-columns" aria-hidden="true"><span>变量名</span><span>值</span></div><div class="env-list" id="env-${id}"></div>` +
       `<button class="add-row" id="add-${id}" type="button">${icon("plus")}添加变量</button></div>` +
       `<p class="form-error" id="error-${id}" role="alert" hidden></p></div>` +
-      `<div class="editor-actions"><span class="save-state" id="save-state-${id}">仅保存在当前设备</span><button class="btn" id="cancel-${id}" type="button">取消</button><button class="btn btn--solid" id="save-${id}" type="button">保存设置</button></div></section>`);
+      `<div class="editor-actions"><span class="save-state" id="save-state-${id}">仅保存在当前设备</span><button class="btn" id="cancel-${id}" type="button">取消修改</button><button class="btn btn--solid" id="save-${id}" type="button">保存设置</button></div></section>`);
     document.getElementById(`pick-${app.id}`).onclick = () => pickPath(app.id);
     document.getElementById(`reset-${app.id}`).onclick = () => {
       DRAFT_PATHS[app.id] = ""; renderPath(app.id); markDrafts();
@@ -167,7 +167,7 @@ function showFormError(id, message) {
 function cancelSettings(id) {
   if (SAVING.has(id)) return;
   if (id === "common") renderCommon(); else if (id === "safety") renderSafetySettings(); else renderAppEditor(id);
-  showFormError(id, ""); markDrafts(); closeDialog();
+  showFormError(id, ""); markDrafts();
 }
 async function saveEditor(id) {
   if (SAVING.has(id)) return;

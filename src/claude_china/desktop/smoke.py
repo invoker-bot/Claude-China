@@ -63,10 +63,41 @@ def _verify_platform_menu(window):
         _wait_js(window, "document.getElementById('editor-common').classList.contains('is-open')")
 
 
+def _verify_settings_tabs(window):
+    """Settings behaves like a peer page and preserves drafts across navigation."""
+    window.evaluate_js("document.getElementById('open-settings').click()")
+    if not window.evaluate_js("""
+        document.getElementById('open-settings').getAttribute('aria-current') === 'page'
+        && !document.getElementById('home-button').inert
+        && !document.getElementById('terminals-button').inert
+        && document.getElementById('launcher-main').hidden
+        && !document.querySelector('#launcher-overlay, #dialog-close')
+    """):
+        raise RuntimeError('Settings still opens a blocking dialog instead of a main navigation page')
+    window.evaluate_js("document.getElementById('auto-proxy-env').click(); document.getElementById('nav-safety').click()")
+    window.evaluate_js("document.getElementById('terminals-button').click()")
+    _wait_js(window, "!TERMINAL_LOADING && !document.getElementById('terminals-main').hidden")
+    window.evaluate_js("document.getElementById('home-button').click(); document.getElementById('open-settings').click()")
+    if not window.evaluate_js("""
+        !document.getElementById('settings-main').hidden
+        && !document.getElementById('editor-safety').hidden
+        && document.getElementById('auto-proxy-env').checked !== SETTINGS.auto_proxy_env
+        && hasUnsavedSettings()
+    """):
+        raise RuntimeError('Tab navigation lost the settings category or unsaved draft')
+    window.evaluate_js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
+    if not window.evaluate_js("!document.getElementById('settings-main').hidden"):
+        raise RuntimeError('Escape still dismisses the settings page as a dialog')
+    window.evaluate_js("document.getElementById('nav-common').click(); document.getElementById('cancel-common').click()")
+    if not window.evaluate_js("!hasUnsavedSettings() && !document.getElementById('settings-main').hidden"):
+        raise RuntimeError('Cancel must restore settings without leaving the page')
+    window.evaluate_js("document.getElementById('home-button').click()")
+
+
 def _verify_terminal_profiles(window):
     """Use the smoke entry point's isolated store, never real CLI credentials."""
     from .. import config as cli_config
-    window.evaluate_js("closeDialog(); document.getElementById('terminals-button').click()")
+    window.evaluate_js("document.getElementById('terminals-button').click()")
     _wait_js(window, "!TERMINAL_LOADING && !document.getElementById('terminals-main').hidden")
     if cli_config.load_config()['profiles']:
         raise RuntimeError('Terminal smoke store was not isolated')
@@ -109,6 +140,8 @@ def verify_window(window, tray, report):
         if not window.events.loaded.wait(30):
             raise RuntimeError("The bundled UI did not load within 30 seconds")
         _wait_js(window, "typeof READY !== 'undefined' && READY")
+        _verify_settings_tabs(window)
+        result["settings_tab_navigation"] = True
         _wait_js(window, """Array.from(document.querySelectorAll('.bay--app')).every(bay => {
             const appId = bay.id.slice(4);
             const logos = document.querySelectorAll(
@@ -124,7 +157,7 @@ def verify_window(window, tray, report):
             icon_loaded: document.getElementById('brand-mark').naturalWidth > 0,
             app_icons_loaded: true,
             stylesheet: document.styleSheets.length > 0,
-            update_hidden: document.getElementById('launcher-overlay').hidden,
+            update_hidden: document.getElementById('settings-main').hidden,
             update_version: document.getElementById('update-version').textContent,
             update_action: document.getElementById('update-action').textContent
         })"""))
@@ -179,24 +212,24 @@ def verify_window(window, tray, report):
         window.evaluate_js("document.getElementById('gear-grok-bot').click()")
         _wait_js(window, "document.getElementById('editor-grok-bot').classList.contains('is-open')")
         result["grok_bot_settings"] = window.evaluate_js(
-            "document.getElementById('gear-grok-bot').getAttribute('aria-expanded') === 'true'"
+            "document.getElementById('open-settings').getAttribute('aria-current') === 'page'"
             " && !document.getElementById('editor-grok-bot').inert"
             " && !!document.getElementById('env-grok-bot')"
             " && !!document.getElementById('pick-grok-bot')"
-            " && !document.getElementById('launcher-overlay').hidden"
+            " && !document.getElementById('settings-main').hidden"
             " && document.getElementById('nav-grok-bot').getAttribute('aria-current') === 'page'")
         window.evaluate_js("document.getElementById('cancel-grok-bot').click()")
         # Exercise the shared menu dispatch against the actual packaged webview,
         # without a network request or changing any saved settings.
         tray._commands._dispatch("update-status")
-        result["menu_dialog"] = window.evaluate_js(
-            "!document.getElementById('launcher-overlay').hidden"
+        result["menu_settings_page"] = window.evaluate_js(
+            "!document.getElementById('settings-main').hidden"
             " && !document.getElementById('update-panel').hidden")
-        window.evaluate_js("closeDialog()")
+        window.evaluate_js("setMainView('apps')")
         _verify_platform_menu(window)
         result["platform_menu"] = True
         if sys.platform != "darwin":
-            window.evaluate_js("document.getElementById('open-settings').click()")
+            window.evaluate_js("document.getElementById('gear-common').click()")
             _wait_js(window, "document.getElementById('editor-common').classList.contains('is-open')")
         result["settings_entry"] = True
         if sys.platform != "darwin":
@@ -231,8 +264,8 @@ def verify_window(window, tray, report):
         result["restart_guard"] = window.evaluate_js(
             "!document.getElementById('update-warning').hidden")
         window.evaluate_js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape'}))")
-        result["escape_preserves_edits"] = window.evaluate_js(
-            "document.getElementById('launcher-overlay').hidden"
+        result["escape_keeps_settings_page"] = window.evaluate_js(
+            "!document.getElementById('settings-main').hidden"
             " && hasUnsavedSettings()"
             " && document.getElementById('auto-proxy-env').checked !== SETTINGS.auto_proxy_env")
         tray._commands._dispatch("settings")
@@ -241,7 +274,7 @@ def verify_window(window, tray, report):
             " && document.getElementById('auto-proxy-env').checked !== SETTINGS.auto_proxy_env")
         window.evaluate_js("document.getElementById('cancel-common').click()")
         result["cancel_restores_settings"] = window.evaluate_js(
-            "document.getElementById('launcher-overlay').hidden"
+            "!document.getElementById('settings-main').hidden"
             " && !hasUnsavedSettings()"
             " && document.getElementById('auto-proxy-env').checked === SETTINGS.auto_proxy_env")
         tray._commands._dispatch("settings")
@@ -249,7 +282,7 @@ def verify_window(window, tray, report):
         _wait_js(window, "SETTINGS.auto_proxy_env === true && !hasUnsavedSettings()")
         from . import config
         result["auto_proxy_saved"] = config.get_auto_proxy_env(config.load_desktop_config())
-        window.evaluate_js("closeDialog()")
+        window.evaluate_js("setMainView('apps')")
         tray._commands._dispatch("settings")
         # GTK's evaluate_javascript length counts characters instead of UTF-8
         # bytes in pywebview 6.2.1; keep injected scripts ASCII on that backend.
@@ -267,10 +300,10 @@ def verify_window(window, tray, report):
             " && document.getElementById('safety-blocked-regions').textContent.includes('MO')"
             " && document.getElementById('safety-blocked-regions').textContent.includes('KP')"
             " && document.getElementById('safety-app').options.length === 3")
-        window.evaluate_js("document.getElementById('safety-strict').click(); closeDialog(); showDialog('safety')")
+        window.evaluate_js("document.getElementById('safety-strict').click(); setMainView('terminals'); showSettings('safety')")
         result["safety_draft_preserved"] = window.evaluate_js(
             "hasUnsavedSettings() && !document.getElementById('safety-strict').checked")
-        window.evaluate_js("document.getElementById('cancel-safety').click(); showDialog('safety')")
+        window.evaluate_js("document.getElementById('cancel-safety').click(); showSettings('safety')")
         result["safety_cancel_restored"] = window.evaluate_js(
             "!hasUnsavedSettings() && document.getElementById('safety-strict').checked")
         window.evaluate_js("document.getElementById('safety-strict').click(); document.getElementById('save-safety').click()")
@@ -284,8 +317,8 @@ def verify_window(window, tray, report):
         _verify_terminal_profiles(window)
         result["terminal_profile_crud"] = True
         if not all(result[key] for key in (
-            "grok_bot_settings", "menu_dialog", "menu_preserves_edits",
-            "category_preserves_edits", "restart_guard", "escape_preserves_edits",
+            "grok_bot_settings", "menu_settings_page", "menu_preserves_edits",
+            "category_preserves_edits", "restart_guard", "escape_keeps_settings_page",
             "reopen_preserves_edits", "cancel_restores_settings",
             "auto_proxy_default_off", "auto_proxy_saved", "auto_proxy_reopened",
             "safety_settings", "safety_draft_preserved", "safety_cancel_restored",

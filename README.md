@@ -50,9 +50,9 @@ It includes Python and the desktop dependencies; installing the CLI is optional.
 
 In the desktop app, choose **检查更新** (Check for updates) in the top-right
 corner, or **Claude China → 检查更新…** on macOS. The system tray
-menu also has **检查更新…**. In the update dialog, choose **下载更新** (Download),
-then **安装并重启** (Install and restart). Reopening the dialog keeps the current
-download or prepared update; closing it does not cancel a download.
+menu also has **检查更新…**. In Settings → **版本更新**, choose **下载更新** (Download),
+then **安装并重启** (Install and restart). Returning to that page keeps the current
+download or prepared update; switching pages does not cancel a download.
 Checks are manual and use the latest
 stable GitHub Release for your OS and architecture. Downloads show progress,
 can be cancelled and must pass SHA-256 verification before installation.
@@ -334,11 +334,12 @@ context) may not forward custom variables to the application. The proxy
 validation still runs before that activation.
 
 The home window presents application cards with status, launch/restart and stop
-controls. **设置** opens a separate panel with categories for common settings,
-each application, updates and About. Switching categories or closing the panel
-keeps unsaved drafts in memory; **保存设置** applies the current category and
-**取消** restores its saved values. Application paths also take effect only
-after saving, and can be reset to automatic detection. Use the refresh button
+controls. **设置** is a main navigation tab alongside **我的应用** and **我的终端**,
+with categories for common settings, safety, each application, updates and About.
+Switching tabs or categories keeps unsaved drafts in memory, and returning to
+Settings restores the last category. **保存设置** applies the current category;
+**取消修改** restores its saved values while staying on the page. Application paths
+also take effect only after saving, and can be reset to automatic detection. Use the refresh button
 to detect newly installed applications. Smaller windows use a scrolling layout
 without resizing as fields are added.
 

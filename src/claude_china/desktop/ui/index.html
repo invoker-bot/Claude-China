@@ -12,9 +12,9 @@
   <header class="app-header" id="app-header">
     <div class="brand window-drag"><img id="brand-mark" src="icon.png" width="36" height="36" alt="" draggable="false"><span>Claude China</span></div>
     <nav class="top-nav" aria-label="主导航">
-      <button class="top-link is-active" id="home-button" type="button" aria-current="page">我的应用</button>
-      <button class="top-link" id="terminals-button" type="button">我的终端</button>
-      <button class="top-link" id="open-settings" type="button">设置<span class="draft-dot" aria-hidden="true"></span></button>
+      <button class="top-link is-active" id="home-button" type="button" aria-current="page" aria-controls="launcher-main">我的应用</button>
+      <button class="top-link" id="terminals-button" type="button" aria-controls="terminals-main">我的终端</button>
+      <button class="top-link" id="open-settings" type="button" aria-controls="settings-main">设置<span class="draft-dot" aria-hidden="true"></span></button>
     </nav>
     <div class="header-space window-drag" aria-hidden="true"></div>
     <button class="btn header-update" id="open-updates" type="button"><span data-icon="refresh"></span>检查更新</button>
@@ -33,7 +33,7 @@
     <section class="launch-settings" aria-labelledby="launch-settings-title">
       <span class="settings-symbol" data-icon="network"></span>
       <div><h2 id="launch-settings-title">启动设置</h2><p id="common-summary"></p></div>
-      <button class="text-button" id="gear-common" type="button" aria-expanded="false" aria-controls="editor-common">管理设置<span data-icon="arrow"></span></button>
+      <button class="text-button" id="gear-common" type="button" aria-controls="editor-common">管理设置<span data-icon="arrow"></span></button>
     </section>
   </main>
   <main class="panel" id="terminals-main" hidden>
@@ -47,11 +47,6 @@
     <div id="terminal-profiles" class="terminal-profiles" aria-live="polite"></div>
     <p class="terminal-note">配置与 claudec 命令行共用。配置启动遵循通用代理与安全检查；普通终端不应用 CLI 配置。</p>
   </main>
-  <footer class="foot" id="foot">
-    <span id="app-count">正在读取应用…</span><span class="foot-info">设置仅保存在此设备</span>
-    <button id="footer-about" type="button" aria-label="关于 Claude China"><span id="footer-version"></span></button>
-  </footer>
-  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <dialog id="cli-profile-dialog" class="cli-dialog" aria-labelledby="cli-dialog-title">
     <form id="cli-profile-form" autocomplete="off">
       <div class="dialog-head"><div><h2 id="cli-dialog-title">新增 CLI 配置</h2><p id="cli-dialog-description">保存在本机，与 claudec 共用。</p></div><button class="icon-button" id="cli-dialog-close" type="button" aria-label="关闭配置编辑"><span data-icon="close"></span></button></div>
@@ -68,8 +63,7 @@
       <div class="editor-actions"><span class="field-hint" id="cli-save-location">~/.claudec/config.yaml</span><span class="dialog-spacer"></span><button class="btn" id="cli-cancel" type="button">取消</button><button class="btn btn--solid" id="cli-submit" type="submit">保存配置</button></div>
     </form>
   </dialog>
-  <div class="overlay" id="launcher-overlay" hidden>
-    <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
+  <main class="settings-workspace" id="settings-main" aria-labelledby="settings-title" hidden>
       <aside class="settings-sidebar">
         <h2 class="sidebar-title">设置</h2>
         <nav aria-label="设置分类" class="settings-nav">
@@ -80,8 +74,8 @@
           <button class="settings-link" data-panel="about" type="button"><span data-icon="info"></span>关于</button>
         </nav>
       </aside>
-      <div class="settings-main">
-        <div class="dialog-head"><div><h2 id="dialog-title">通用设置</h2><p id="dialog-description">应用启动时使用的共同配置。</p></div><button class="icon-button" id="dialog-close" type="button" aria-label="关闭设置" title="关闭设置"><span data-icon="close"></span></button></div>
+      <div class="settings-content">
+        <div class="settings-heading"><h1 id="settings-title">通用设置</h1><p id="settings-description">应用启动时使用的共同配置。</p></div>
         <div id="settings-pages">
           <section class="editor settings-panel" id="editor-common" hidden inert>
             <div class="editor-body">
@@ -90,7 +84,7 @@
               <div class="field"><h3 class="field-label">通用环境变量</h3><p class="field-hint">每个应用启动时都会注入，专有设置优先。</p><div class="env-columns" aria-hidden="true"><span>变量名</span><span>值</span></div><div id="common-env" class="env-list"></div><button class="add-row" id="add-common" type="button"><span data-icon="plus"></span>添加变量</button></div>
               <p class="form-error" id="error-common" role="alert" hidden></p>
             </div>
-            <div class="editor-actions"><span class="save-state" id="save-state-common">仅保存在当前设备</span><button class="btn" id="cancel-common" type="button">取消</button><button class="btn btn--solid" id="save-settings" type="button">保存设置</button></div>
+            <div class="editor-actions"><span class="save-state" id="save-state-common">仅保存在当前设备</span><button class="btn" id="cancel-common" type="button">取消修改</button><button class="btn btn--solid" id="save-settings" type="button">保存设置</button></div>
           </section>
           <div id="app-editors"></div>
           <section class="editor settings-panel" id="editor-safety" hidden inert>
@@ -108,7 +102,7 @@
               </div>
               <p class="form-error" id="error-safety" role="alert" hidden></p>
             </div>
-            <div class="editor-actions"><span class="save-state" id="save-state-safety">仅保存在当前设备</span><button class="btn" id="cancel-safety" type="button">取消</button><button class="btn btn--solid" id="save-safety" type="button">保存设置</button></div>
+            <div class="editor-actions"><span class="save-state" id="save-state-safety">仅保存在当前设备</span><button class="btn" id="cancel-safety" type="button">取消修改</button><button class="btn btn--solid" id="save-safety" type="button">保存设置</button></div>
           </section>
           <section class="settings-panel" id="update-panel" hidden>
             <div class="editor-body">
@@ -124,8 +118,12 @@
           </section>
         </div>
       </div>
-    </section>
-  </div>
+  </main>
+  <footer class="foot" id="foot">
+    <span id="app-count">正在读取应用…</span><span class="foot-info">设置仅保存在此设备</span>
+    <button id="footer-about" type="button" aria-label="关于 Claude China"><span id="footer-version"></span></button>
+  </footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
   <script src="icons.js"></script><script src="settings.js"></script><script src="safety.js"></script><script src="app.js"></script><script src="terminals.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
 </body>
 </html>

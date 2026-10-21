@@ -8,9 +8,9 @@ let brandAnimation;
 let UPDATE = { phase: "idle" };
 let updatePoll;
 let pendingPanel;
-let dialogFocus;
 let openingUpdates = false;
 let currentPanel = "common";
+let MAIN_VIEW = "apps";
 let fitted = false;
 const BUSY_APPS = new Set();
 const BAY_ERRORS = {};
@@ -54,26 +54,44 @@ async function init() {
 
 window.openLauncherPanel = panel => {
   if (!READY) { pendingPanel = panel; return; }
-  if (panel === "settings") showDialog("common");
-  else if (panel === "about") showDialog("about");
+  if (panel === "settings") showSettings("common");
   else if (panel === "updates" || panel === "update-status") openUpdates(panel === "updates");
+  else showSettings(panel);
 };
-function showDialog(panel) {
-  if (READY && APPS.some(app => app.id === panel)) refreshTakeover(panel);
-  const overlay = document.getElementById("launcher-overlay");
-  const opening = overlay.hidden;
-  if (opening) dialogFocus = document.activeElement;
-  currentPanel = panel;
-  const app = findApp(panel);
+function setMainView(view) {
+  const views = { apps: ['launcher-main', 'home-button'], terminals: ['terminals-main', 'terminals-button'], settings: ['settings-main', 'open-settings'] };
+  if (!Object.prototype.hasOwnProperty.call(views, view)) return;
+  MAIN_VIEW = view;
+  for (const [name, [pageId, buttonId]] of Object.entries(views)) {
+    const active = name === view;
+    document.getElementById(pageId).hidden = !active;
+    const button = document.getElementById(buttonId);
+    button.classList.toggle('is-active', active);
+    if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+  }
+  if (document.activeElement.closest('[hidden]')) document.getElementById(views[view][1]).focus();
+  updateWorkspaceCount();
+  markDrafts();
+  if (view === 'terminals') refreshTerminals();
+}
+function updateWorkspaceCount() {
+  document.getElementById('app-count').textContent = MAIN_VIEW === 'terminals' ? `${TERMINALS.profiles.length} 个配置` : MAIN_VIEW === 'settings' ? '本机设置' : `${APPS.length} 个应用`;
+}
+function showSettings(panel = currentPanel) {
+  if (!READY) { pendingPanel = panel; return; }
   const headings = {
     common: ["通用设置", "应用启动时使用的共同配置。"],
     safety: ["安全检查", "查看本机环境，检查三个应用共用的地区限制规则。"],
     updates: ["版本更新", "获取 Claude China 桌面版的最新版本。"],
     about: ["关于", "你的 AI 桌面应用，集中管理。"],
   };
+  if (!headings[panel] && !findApp(panel)) panel = "common";
+  currentPanel = panel;
+  const app = findApp(panel);
+  if (app) refreshTakeover(panel);
   const heading = headings[panel] || [app.display, "管理此应用的启动路径和专有环境变量。"];
-  document.getElementById("dialog-title").textContent = heading[0];
-  document.getElementById("dialog-description").textContent = heading[1];
+  document.getElementById("settings-title").textContent = heading[0];
+  document.getElementById("settings-description").textContent = heading[1];
   for (const section of document.querySelectorAll(".settings-panel")) {
     const active = section.id === (panel === "updates" ? "update-panel" : panel === "about" ? "about-panel" : `editor-${panel}`);
     section.hidden = !active;
@@ -85,28 +103,7 @@ function showDialog(panel) {
     link.classList.toggle("is-active", active);
     if (active) link.setAttribute("aria-current", "page"); else link.removeAttribute("aria-current");
   }
-  for (const id of ["common", ...APPS.map(a => a.id)]) document.getElementById(`gear-${id}`).setAttribute("aria-expanded", String(panel === id));
-  overlay.hidden = false;
-  // Move focus before hiding the previous focused surface from assistive tech.
-  if (opening) document.getElementById("dialog-close").focus();
-  else if (document.activeElement.closest(".settings-panel[hidden]")) document.getElementById("dialog-title").closest(".dialog").focus();
-  for (const id of ["home-button", "terminals-button", "open-settings", "open-updates", "launcher-main", "terminals-main", "foot"]) {
-    const el = document.getElementById(id);
-    el.inert = true;
-    el.setAttribute("aria-hidden", "true");
-  }
-}
-function closeDialog() {
-  const overlay = document.getElementById("launcher-overlay");
-  if (overlay.hidden) return;
-  overlay.hidden = true;
-  for (const id of ["home-button", "terminals-button", "open-settings", "open-updates", "launcher-main", "terminals-main", "foot"]) {
-    const el = document.getElementById(id); el.inert = false; el.removeAttribute("aria-hidden");
-  }
-  document.querySelectorAll('[id^="gear-"]').forEach(el => el.setAttribute("aria-expanded", "false"));
-  markDrafts();
-  if (dialogFocus && dialogFocus.isConnected && dialogFocus.getClientRects().length) dialogFocus.focus();
-  else document.getElementById("open-settings").focus();
+  setMainView("settings");
 }
 // Fit once for the initial layout and small screens. Opening an
 // editor or adding rows must never resize a window the user has already sized.
@@ -125,7 +122,7 @@ function renderApps() {
     bay.id = `bay-${id}`;
     bay.setAttribute("aria-labelledby", `name-${id}`);
     bay.innerHTML = `<div class="app-top"><div class="app-symbol app-symbol--${id}" aria-hidden="true">${appSymbol(app.id)}</div>` +
-      `<button class="icon-button" type="button" id="gear-${id}" aria-expanded="false" aria-controls="editor-${id}" aria-label="${name} 专有设置" title="${name} 专有设置">${icon("settings")}</button></div>` +
+      `<button class="icon-button" type="button" id="gear-${id}" aria-controls="editor-${id}" aria-label="${name} 专有设置" title="${name} 专有设置">${icon("settings")}</button></div>` +
       `<h2 class="bay-name" id="name-${id}">${name}</h2>` +
       `<p class="bay-status"><span class="lamp" aria-hidden="true"></span><span id="status-${id}" role="status"></span></p>` +
       `<p class="app-detail" id="detail-${id}"></p><div class="bay-actions">` +
@@ -135,8 +132,8 @@ function renderApps() {
     list.appendChild(bay);
     document.getElementById(`btn-launch-${app.id}`).onclick = () => onAction(app.id, "launch");
     document.getElementById(`btn-stop-${app.id}`).onclick = () => onAction(app.id, "stop");
-    document.getElementById(`btn-config-${app.id}`).onclick = () => showDialog(app.id);
-    document.getElementById(`gear-${app.id}`).onclick = () => showDialog(app.id);
+    document.getElementById(`btn-config-${app.id}`).onclick = () => showSettings(app.id);
+    document.getElementById(`gear-${app.id}`).onclick = () => showSettings(app.id);
     updateBay(app.id, app.found, app.running);
   }
   updateWorkspaceCount();
@@ -190,7 +187,7 @@ function toast(message) {
   clearTimeout(toast.timer); toast.timer = setTimeout(() => el.classList.remove("is-visible"), 2800);
 }
 async function openUpdates(check) {
-  showDialog("updates");
+  showSettings("updates");
   document.getElementById("update-warning").hidden = true;
   if (openingUpdates) return;
   openingUpdates = true;
@@ -211,7 +208,7 @@ function renderUpdate(state) {
   if (state.phase === "downloading") message += ` ${state.progress || 0}%`;
   document.getElementById("update-status").textContent = message;
   document.getElementById("update-panel").classList.toggle("has-error", state.phase === "error");
-  document.getElementById("update-hint").textContent = state.phase === "downloading" ? "关闭设置后仍会继续下载，可从菜单或托盘再次打开。" : "安装更新会重启启动器，已启动的应用不受影响。";
+  document.getElementById("update-hint").textContent = state.phase === "downloading" ? "切换页面后仍会继续下载，可从设置或托盘查看进度。" : "安装更新会重启启动器，已启动的应用不受影响。";
   const button = document.getElementById("update-action");
   button.disabled = busy || (state.phase === "available" && !state.can_install);
   button.textContent = ({checking: "正在检查…", downloading: "正在下载…", available: "下载更新", ready: "安装并重启", installing: "正在重启…", error: "重试检查"})[state.phase] || "检查更新";
@@ -241,8 +238,10 @@ async function updateAction() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  for (const id of ["open-settings", "gear-common"]) document.getElementById(id).onclick = () => window.openLauncherPanel("settings");
-  document.getElementById("home-button").onclick = closeDialog;
+  document.getElementById("open-settings").onclick = () => showSettings();
+  document.getElementById("gear-common").onclick = () => window.openLauncherPanel("settings");
+  document.getElementById("home-button").onclick = () => setMainView("apps");
+  document.getElementById("terminals-button").onclick = () => setMainView("terminals");
   document.getElementById("open-updates").onclick = () => window.openLauncherPanel("updates");
   document.getElementById("footer-about").onclick = () => window.openLauncherPanel("about");
   document.getElementById("refresh-apps").onclick = async event => {
@@ -254,9 +253,9 @@ document.addEventListener("DOMContentLoaded", () => {
   };
   document.querySelector(".settings-nav").onclick = event => {
     const panel = event.target.closest("[data-panel]")?.dataset.panel;
-    if (panel) panel === "updates" ? openUpdates(false) : showDialog(panel);
+    if (panel) panel === "updates" ? openUpdates(false) : showSettings(panel);
   };
-  document.getElementById("launcher-overlay").addEventListener("input", markDrafts);
+  document.getElementById("settings-main").addEventListener("input", markDrafts);
   document.getElementById("cancel-common").onclick = () => cancelSettings("common");
   document.getElementById("add-common").onclick = () => addEnvRow("common-env");
   document.getElementById("save-settings").onclick = () => saveEditor("common");
@@ -267,19 +266,7 @@ document.addEventListener("DOMContentLoaded", () => {
   for (const id of ["update-release", "about-release"]) document.getElementById(id).onclick = async () => {
     try { const result = await api().open_release_page(); if (!result.ok) toast("无法打开发布页面。"); } catch (_) { toast("无法打开发布页面。"); }
   };
-  document.getElementById("dialog-close").onclick = closeDialog;
   document.getElementById("about-updates").onclick = () => openUpdates(true);
-  document.addEventListener("keydown", event => {
-    const overlay = document.getElementById("launcher-overlay");
-    if (overlay.hidden) return;
-    if (event.key === "Escape") { event.preventDefault(); closeDialog(); }
-    if (event.key === "Tab") {
-      const controls = [...document.querySelectorAll("[data-window-action]"), ...overlay.querySelectorAll("button, input, select, [tabindex='0']")].filter(el => !el.disabled && el.getClientRects().length && !el.closest("[inert]"));
-      const first = controls[0], last = controls[controls.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    }
-  });
   window.addEventListener("focus", refreshOnReturn);
   window.addEventListener("focus", animateBrand);
   document.addEventListener("visibilitychange", refreshOnReturn);

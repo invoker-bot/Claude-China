@@ -5,27 +5,8 @@ let TERMINAL_DIRTY = false;
 let CLI_EDIT = null;
 let CLI_SAVING = false;
 let CLI_RETURN_FOCUS;
-let MAIN_VIEW = 'apps';
 const CLI_NAMES = { claude: 'Claude Code', codex: 'Codex CLI', grok: 'Grok CLI' };
 const CLI_BASE_URLS = { claude: 'https://api.anthropic.com', codex: 'https://api.openai.com/v1', grok: 'https://api.x.ai/v1' };
-
-function setMainView(view) {
-  closeDialog();
-  MAIN_VIEW = view;
-  document.getElementById('launcher-main').hidden = view !== 'apps';
-  document.getElementById('terminals-main').hidden = view !== 'terminals';
-  for (const [id, active] of [['home-button', view === 'apps'], ['terminals-button', view === 'terminals']]) {
-    const button = document.getElementById(id);
-    button.classList.toggle('is-active', active);
-    if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
-  }
-  updateWorkspaceCount();
-  if (view === 'terminals') refreshTerminals();
-}
-
-function updateWorkspaceCount() {
-  document.getElementById('app-count').textContent = MAIN_VIEW === 'terminals' ? `${TERMINALS.profiles.length} 个配置` : `${APPS.length} 个应用`;
-}
 
 function terminalError(message = '') {
   const el = document.getElementById('terminal-error');
@@ -178,8 +159,6 @@ async function submitCliProfile(event) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  document.getElementById('terminals-button').onclick = () => setMainView('terminals');
-  document.getElementById('home-button').onclick = () => setMainView('apps');
   document.getElementById('refresh-terminals').onclick = refreshTerminals;
   document.getElementById('new-cli-profile').onclick = () => openCliEditor();
   document.getElementById('terminal-search').oninput = renderTerminalProfiles;
