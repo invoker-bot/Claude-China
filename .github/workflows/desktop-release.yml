@@ -27,7 +27,7 @@ permissions:
   contents: read
 
 env:
-  # v0.4.0 ships Windows/Linux; macOS remains available as CI build artifacts.
+  # Publish Windows/Linux; macOS remains available as CI build artifacts.
   PUBLISH_MACOS: 'false'
   # Enable explicitly after credentials are configured; signing failures never fall back.
   SIGN_MACOS: 'false'
