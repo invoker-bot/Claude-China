@@ -1,15 +1,21 @@
 # Claude China
 
-Switch between profiles for AI coding tools and launch the right CLI with the
-right environment.
+Launch your AI coding apps, resume CLI sessions, and keep your project profiles
+in one place.
 
 `claude-china` gives each profile its own provider, endpoint, credentials,
 proxy, and default arguments. The `claudec` command then starts Claude Code,
 OpenAI Codex, or Grok using that profile.
 
 Repository: [invoker-bot/Claude-China](https://github.com/invoker-bot/Claude-China)
+· Desktop: [Download](https://github.com/invoker-bot/Claude-China/releases/latest)
 · PyPI: [claude-china](https://pypi.org/project/claude-china/)
 · CLI: `claudec`
+
+![Claude China desktop: Claude, Codex and Grok Bot with launch controls and shared settings](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/desktop-apps.png)
+
+**Your apps, one launcher.** Start Claude, Codex and Grok Bot with shared or
+per-app environment settings, and check for launcher updates from the header.
 
 ## Features
 
@@ -21,6 +27,44 @@ Repository: [invoker-bot/Claude-China](https://github.com/invoker-bot/Claude-Chi
 - Upgrade the supported AI CLIs through npm
 - Standalone Windows, macOS and Linux desktop launcher
 - Open project terminals and manage CLI profiles in the desktop app
+- Search local CLI session history and resume a specific conversation
+- Pin favorite project folders and start new sessions with the selected profile
+
+## Desktop tour
+
+Screenshots show the v0.4.1 interface with demo profiles, projects and app status.
+
+<details>
+<summary><strong>Pick up where you left off — searchable session history</strong></summary>
+
+Find a previous Claude Code, Codex CLI or Grok CLI session by title, project path
+or session ID, then continue it in the original project directory. History follows
+the selected profile and includes sessions started outside the launcher.
+
+![My terminals: search project history and resume a selected CLI session](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/terminal-history.png)
+
+</details>
+
+<details>
+<summary><strong>Start something new — favorite project folders</strong></summary>
+
+Keep frequently used folders within reach. Choose a CLI profile, start a fresh
+session in a favorite project, or open its folder and terminal directly.
+
+![My terminals: favorite project folders and new-session actions using a Codex CLI profile](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/favorite-projects.png)
+
+</details>
+
+<details>
+<summary><strong>Set it once — proxy and environment settings</strong></summary>
+
+Manage shared environment variables and per-app overrides in the Settings tab.
+Optionally derive proxy variables from the system HTTP proxy and require launch
+checks before opening an app.
+
+![Settings: system proxy checks, automatic proxy environment variables and shared configuration](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/desktop-settings.png)
+
+</details>
 
 ## Installation
 
