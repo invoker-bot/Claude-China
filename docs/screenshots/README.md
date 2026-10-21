@@ -1,7 +1,7 @@
 # README screenshots
 
-All five PNGs show the current desktop UI in English at a 1120 × 780 logical viewport
-with a 2× pixel scale. The multilingual interface is for the next release, not v0.4.1.
+All five PNGs show the v0.4.2 desktop UI in English at a 1120 × 780 logical viewport
+with a 2× pixel scale.
 They use the browser preview's in-memory example data with English profile names
 and session titles; no real profiles, credentials, project history or native app
 status are captured.

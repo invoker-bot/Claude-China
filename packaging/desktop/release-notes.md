@@ -1,34 +1,35 @@
-## Claude China 0.4.1
+## Claude China 0.4.2
 
-This release adds searchable CLI session history and favorite project folders
-to My terminals. The desktop installers include Python; installing the CLI
-package separately is optional.
+This release adds desktop language settings and an English screenshot tour.
+The desktop installers include Python; installing the CLI package separately
+is optional.
 
 ### What's new
 
-- **Session history:** browse and search local Claude Code, Codex CLI and Grok
-  CLI sessions for the selected profile, including sessions started outside the
-  launcher. Resume the selected session in its original project directory.
-- **Favorite projects:** pin folders, revisit recent projects and start a fresh
-  conversation with the selected CLI profile. Missing directories are identified
-  before launch. Favorites and recent projects persist across launcher restarts.
-- **Launch validation:** resume and new-session actions use the configured
-  environment, proxy and safety checks. Conflicting default session or directory
-  arguments are rejected instead of opening a different conversation or project.
-- **Profile isolation:** history follows the selected profile's CLI home. Reading
-  history does not launch a provider, change its files or contact a remote service.
-- **UI reliability:** profile changes discard stale history responses, and repeated
-  clicks cannot create duplicate terminal launches while a launch is pending.
+- **Display language:** choose English, Simplified Chinese, Traditional Chinese
+  or the system default in Settings → General. Unsupported system languages
+  fall back to English.
+- **Immediate switching:** language changes apply across apps, terminals,
+  settings, launch diagnostics, the tray and the macOS application menu.
+  The selection saves automatically and persists after restart.
+- **Preserved drafts and user data:** switching language keeps unfinished
+  settings, profile names, session titles, paths and credentials intact.
+  CLI commands and launched provider apps keep their own language settings.
+- **Offline translations:** the message catalogs ship inside the desktop
+  installers and Python package, with no translation service required.
+- **English README tour:** five screenshots demonstrate app launching,
+  session history, favorite projects, proxy settings and language selection.
+  A reproducible capture script uses isolated English example data.
 
-See the [terminal workspace guide](https://github.com/invoker-bot/Claude-China/blob/main/docs/desktop-terminals.md)
-for supported history formats and limits.
+See the [language settings guide](https://github.com/invoker-bot/Claude-China/blob/main/docs/desktop-localization.md)
+for supported languages and localization behavior.
 
 ### Install and upgrade
 
 - **Windows x64:** run `*-setup.exe`. Remove it through Settings → Apps → Installed apps.
 - **Linux x64:** install the `.deb` with apt or the `.rpm` with dnf / your software manager. Remove the `claude-china-desktop` package to uninstall.
 
-v0.4.1 publishes Windows, Linux and the CLI. macOS Intel and Apple Silicon builds
+v0.4.2 publishes Windows, Linux and the CLI. macOS Intel and Apple Silicon builds
 are validated in GitHub Actions and remain available there as development
 artifacts; this Release does not include DMG downloads.
 
@@ -38,7 +39,7 @@ the launcher settings. The packages do not include Claude, Codex or Grok Bot the
 
 From v0.4.0, choose **检查更新 → 下载更新 → 安装并重启** in the desktop app.
 Only Claude China restarts; running Claude, Codex and Grok Bot apps stay open.
-Save or cancel unsaved settings before updating. Install v0.4.1 manually when
+Save or cancel unsaved settings before updating. Install v0.4.2 manually when
 upgrading from v0.3.0, which predates the in-app update controls.
 
 Windows signing service enrollment is pending; Windows downloads currently

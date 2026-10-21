@@ -33,8 +33,7 @@ per-app environment settings, and check for launcher updates from the header.
 
 ## Desktop tour
 
-All screenshots show the current source in English with example profiles and
-session history. The multilingual interface is coming in the next release.
+All screenshots show v0.4.2 in English with example profiles and session history.
 
 <details>
 <summary><strong>Pick up where you left off — searchable session history</strong></summary>
@@ -71,11 +70,10 @@ checks before opening an app.
 <details>
 <summary><strong>Make it yours — display language</strong></summary>
 
-The current source adds **Settings → General → Display language**, with English,
+Choose **Settings → General → Display language**, with English,
 Simplified Chinese, Traditional Chinese and a system default. Language changes
 apply immediately, including the tray and macOS application menu, and are saved
-automatically without discarding unfinished settings. This feature is coming in
-the next desktop release; it is not included in v0.4.1.
+automatically without discarding unfinished settings. Available since v0.4.2.
 
 ![English desktop settings with display language selection](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/desktop-language-en.png)
 
@@ -99,9 +97,9 @@ Download the desktop app from
 [GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
 It includes Python and the desktop dependencies; installing the CLI is optional.
 
-v0.4.1 publishes Windows and Linux installers plus the CLI. macOS Intel and
+v0.4.2 publishes Windows and Linux installers plus the CLI. macOS Intel and
 Apple Silicon packages are currently build-validation artifacts in GitHub
-Actions, not downloads attached to the v0.4.1 Release.
+Actions, not downloads attached to the v0.4.2 Release.
 
 | Platform | Download | Install | Uninstall |
 | --- | --- | --- | --- |
@@ -171,7 +169,7 @@ Grok Bot's `grok-bot` desktop command is detected automatically; select an
 installed executable in settings for other or portable desktop apps. Terminal
 commands such as `claude`, `codex` and `grok` are not treated as desktop apps.
 
-Windows signing service enrollment is pending; the v0.4.1 Windows installer is
+Windows signing service enrollment is pending; the v0.4.2 Windows installer is
 unsigned. The macOS Actions artifacts are ad-hoc signed and not notarized.
 Developer ID signing and Apple notarization can be enabled once credentials
 are configured; see the
