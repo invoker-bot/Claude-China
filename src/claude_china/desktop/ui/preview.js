@@ -26,12 +26,17 @@ if (new URLSearchParams(location.search).has("preview")) {
   let timer;
   let maximized = false;
   const clone = value => JSON.parse(JSON.stringify(value));
-  let takeoverEnabled = false;
-  const takeoverState = () => ({ supported: true, enabled: takeoverEnabled,
-    message: takeoverEnabled ? '已接管原入口；每次启动和更新后重启都会重新检查并注入变量。（预览）' : '未接管原入口。（预览）' });
+  const takeoverEnabled = {};
+  const takeoverState = id => id !== 'grok-bot' ? ({ app_id: id, supported: false, enabled: false,
+    can_disable: false, mode: 'msix-unavailable', message: 'MSIX 安装暂不支持原入口接管，尚不能保证更新后的检查和包激活上下文。（预览）' }) :
+    ({ app_id: id, supported: true, enabled: Boolean(takeoverEnabled[id]), can_disable: Boolean(takeoverEnabled[id]),
+      message: takeoverEnabled[id] ? '已接管此 EXE 原入口及同路径更新重启；每次重新检查并注入变量。（预览）' : '未接管原入口。仅覆盖固定 EXE 路径及同路径更新。（预览）' });
   window.pywebview = { api: {
-    get_takeover_status: async () => takeoverState(),
-    set_grok_takeover: async enabled => { takeoverEnabled = enabled; return { ok: true, state: takeoverState() }; },
+    get_takeover_status: async (id = 'grok-bot') => takeoverState(id),
+    set_takeover: async (id, enabled) => {
+      if (!takeoverState(id).supported) return { ok: false, error: takeoverState(id).message };
+      takeoverEnabled[id] = enabled; return { ok: true, state: takeoverState(id) };
+    },
     get_window_state: async () => ({ custom_titlebar: true, maximized }),
     window_action: async action => {
       if (action === "maximize") maximized = !maximized;

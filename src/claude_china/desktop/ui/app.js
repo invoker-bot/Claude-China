@@ -59,7 +59,7 @@ window.openLauncherPanel = panel => {
   else if (panel === "updates" || panel === "update-status") openUpdates(panel === "updates");
 };
 function showDialog(panel) {
-  if (panel === 'grok-bot' && READY) refreshTakeover();
+  if (READY && APPS.some(app => app.id === panel)) refreshTakeover(panel);
   const overlay = document.getElementById("launcher-overlay");
   const opening = overlay.hidden;
   if (opening) dialogFocus = document.activeElement;

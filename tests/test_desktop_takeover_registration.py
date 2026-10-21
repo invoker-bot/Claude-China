@@ -147,7 +147,7 @@ def test_elevated_helper_cannot_register_another_broker_or_app(setup):
 
 def test_uninstall_after_disable_does_not_request_admin_again(setup, monkeypatch):
     monkeypatch.setattr(registration.sys, 'platform', 'win32')
-    monkeypatch.setattr(registration, 'manifest_path', lambda: setup.path)
+    monkeypatch.setattr(registration, 'manifest_path', lambda app_id='grok-bot': setup.path if app_id == 'grok-bot' else setup.path.with_name(app_id + '.json'))
     monkeypatch.setattr(registration, '_elevate', lambda *_: pytest.fail('Already disabled'))
     registration.apply_registration(setup.path, True)
     registration.apply_registration(setup.path, False)
@@ -156,8 +156,50 @@ def test_uninstall_after_disable_does_not_request_admin_again(setup, monkeypatch
 
 def test_uninstall_refuses_to_leave_owned_registration_without_manifest(setup, monkeypatch):
     monkeypatch.setattr(registration.sys, 'platform', 'win32')
-    monkeypatch.setattr(registration, 'manifest_path', lambda: setup.path)
+    monkeypatch.setattr(registration, 'manifest_path', lambda app_id='grok-bot': setup.path if app_id == 'grok-bot' else setup.path.with_name(app_id + '.json'))
     registration.apply_registration(setup.path, True)
     setup.path.unlink()
     with pytest.raises(ValueError):
         registration.uninstall()
+
+
+def test_three_registrations_are_independent_and_uninstall_cleans_each(setup, monkeypatch):
+    paths = {}
+    monkeypatch.setattr(registration.sys, 'platform', 'win32')
+    monkeypatch.setattr(registration.ctypes, 'windll', SimpleNamespace(shell32=SimpleNamespace(IsUserAnAdmin=lambda: True)), raising=False)
+    for app_id, name in [('grok-bot', 'Grok Bot.exe'), ('claude', 'Claude.exe'), ('codex', 'Codex.exe')]:
+        target = setup.target.with_name(name)
+        target.touch()
+        path = setup.path.with_name(app_id + '.json')
+        path.write_text(json.dumps(dict(setup.manifest, app_id=app_id, target=str(target))), encoding='utf-8')
+        paths[app_id] = path
+        registration.apply_registration(path, True)
+        assert registration.read_registration(app_id)['target'] == str(target)
+    assert len(setup.registry.data) == 6
+    before = deepcopy(setup.registry.data)
+    registration.apply_registration(paths['codex'], False)
+    assert registration.read_registration('codex') is None
+    for app_id in ('claude', 'grok-bot'):
+        key = registration.registry_key(app_id)
+        assert setup.registry.data[key] == before[key]
+        assert setup.registry.data[key + '\\' + registration.FILTER] == before[key + '\\' + registration.FILTER]
+    monkeypatch.setattr(registration, 'manifest_path', lambda app_id='grok-bot': paths[app_id])
+    assert registration.uninstall() == 0
+    assert setup.registry.data == {}
+
+
+def test_register_rejects_msix_even_when_manually_selected_as_exe(setup):
+    (setup.target.parent / 'AppxManifest.xml').write_text('<Package/>', encoding='utf-8')
+    with pytest.raises(ValueError, match='MSIX'):
+        registration.apply_registration(setup.path, True)
+    assert setup.registry.data == {}
+
+
+def test_register_rejects_versioned_squirrel_path(setup):
+    target = setup.target.parent / 'app-1.2.3' / 'Claude.exe'
+    target.parent.mkdir()
+    target.touch()
+    setup.path.write_text(json.dumps(dict(setup.manifest, app_id='claude', target=str(target))), encoding='utf-8')
+    with pytest.raises(ValueError, match='版本'):
+        registration.apply_registration(setup.path, True)
+    assert setup.registry.data == {}

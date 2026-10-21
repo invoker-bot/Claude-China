@@ -152,20 +152,40 @@ class LauncherBridge:
         return {"ok": True}
 
     # ---- settings ----
-    def get_takeover_status(self):
-        from .takeover_windows import get_status
-        return get_status()
+    def get_takeover_status(self, app_id='grok-bot'):
+        from .takeover import get_status
+        from .platforms.base import AppStatus
+        try:
+            app = get_app(app_id)
+            data = cfg.load_desktop_config()
+            status = self._backend.detect(app, cfg.get_app_path(data, app_id))
+        except (KeyError, TypeError, ValueError, OSError):
+            status = AppStatus(app_id)
+        try:
+            return get_status(app_id, status)
+        except (KeyError, TypeError, ValueError, OSError):
+            return {'app_id': app_id, 'supported': False, 'enabled': False,
+                    'can_disable': False, 'message': '无法读取此应用的接管状态。'}
 
     def set_grok_takeover(self, enabled):
-        from .takeover_windows import set_enabled
+        # Preserve the API used by an already open UI from the previous release.
+        return self.set_takeover('grok-bot', enabled)
+
+    def set_takeover(self, app_id, enabled):
+        from .takeover import set_enabled
+        from .platforms.base import AppStatus
         if not isinstance(enabled, bool):
             return {"ok": False, "error": "无效的接管设置。"}
-        data = cfg.load_desktop_config()
-        status = self._backend.detect(get_app('grok-bot'), cfg.get_app_path(data, 'grok-bot'))
         try:
-            if enabled and (not status.found or not status.direct):
-                raise ValueError('未找到可接管的 Grok Bot EXE。')
-            return {"ok": True, "state": set_enabled(enabled, status.launch_target)}
+            app = get_app(app_id)
+        except (KeyError, TypeError):
+            return {"ok": False, "error": "未知的接管应用。"}
+        try:
+            status = AppStatus(app_id)
+            if enabled:
+                data = cfg.load_desktop_config()
+                status = self._backend.detect(app, cfg.get_app_path(data, app_id))
+            return {"ok": True, "state": set_enabled(app_id, enabled, status)}
         except (ValueError, OSError) as exc:
             return {"ok": False, "error": str(exc)}
 

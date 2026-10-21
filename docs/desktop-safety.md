@@ -44,8 +44,10 @@ proxy exit does not prove the user's physical location, residency or eligibility
 It does not evaluate account history, IP reputation, legal/organization
 eligibility, DNS-based application split routing, or the app's own network
 configuration. By default it guards starts requested through this launcher.
-On Windows, enabling [Grok Bot original-entry takeover](windows-launch-takeover.md)
-also checks that application's original EXE, shortcuts and update restarts.
+On Windows, enabling [original-entry takeover](windows-launch-takeover.md)
+for a supported fixed-path EXE also checks that application's original EXE,
+shortcuts and same-path update restarts. Each app has a separate opt-in control;
+MSIX and versioned installation paths are currently unsupported.
 That opt-in feature registers a Windows launch filter; it does not change the
 system proxy or the user's global environment variables. Other applications'
 external entries are unaffected.

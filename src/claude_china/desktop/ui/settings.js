@@ -16,7 +16,7 @@ function renderAppSettingsPanels() {
       `<div class="field"><h3 class="field-label">应用路径</h3><p class="field-hint">默认自动检测，也可以手动选择。保存后生效。</p>` +
       `<div class="path-row"><code class="path-value" id="path-${id}"></code><button class="btn" id="pick-${id}" type="button">${icon("folder")}选择路径</button></div>` +
       `<button class="text-button path-reset" id="reset-${id}" type="button">恢复自动检测</button></div>` +
-      (app.id === 'grok-bot' ? `<div class="field"><h3 class="field-label">接管原入口</h3><p class="field-hint">从原快捷方式、EXE 或更新后重启时，使用已保存的启动检查和环境变量。启用或停用需要管理员授权，立即生效。</p><p id="takeover-status" role="status">正在读取接管状态…</p><button class="btn" id="takeover-toggle" type="button" disabled>启用接管</button><p class="form-error" id="takeover-error" role="alert" hidden></p></div>` : '') +
+      `<div class="field"><h3 class="field-label">接管原入口</h3><p class="field-hint">受支持的安装方式可在原入口启动和同路径更新重启时，使用已保存的检查和环境变量。此开关独立生效；Windows 会请求管理员授权。</p><p id="takeover-status-${id}" role="status">正在读取接管状态…</p><button class="btn" id="takeover-toggle-${id}" type="button" disabled>启用接管</button><p class="form-error" id="takeover-error-${id}" role="alert" hidden></p></div>` +
       `<div class="field"><h3 class="field-label">专有环境变量</h3><p class="field-hint">只对 ${name} 生效，同名变量优先于通用设置。</p>` +
       `<div class="env-columns" aria-hidden="true"><span>变量名</span><span>值</span></div><div class="env-list" id="env-${id}"></div>` +
       `<button class="add-row" id="add-${id}" type="button">${icon("plus")}添加变量</button></div>` +
@@ -29,31 +29,49 @@ function renderAppSettingsPanels() {
     document.getElementById(`add-${app.id}`).onclick = () => addEnvRow(`env-${app.id}`);
     document.getElementById(`cancel-${app.id}`).onclick = () => cancelSettings(app.id);
     document.getElementById(`save-${app.id}`).onclick = () => saveEditor(app.id);
+    document.getElementById(`takeover-toggle-${app.id}`).onclick = () => toggleTakeover(app.id);
   }
 }
 
-let GROK_TAKEOVER = { supported: false, enabled: false };
-async function refreshTakeover() {
-  if (!document.getElementById('takeover-toggle')) return;
-  try { GROK_TAKEOVER = await api().get_takeover_status(); }
-  catch (_) { GROK_TAKEOVER = { supported: false, enabled: false, message: '无法读取接管状态。' }; }
-  document.getElementById('takeover-status').textContent = GROK_TAKEOVER.message;
-  const button = document.getElementById('takeover-toggle');
-  button.textContent = GROK_TAKEOVER.enabled ? '停用接管' : '启用接管';
-  button.disabled = !GROK_TAKEOVER.supported;
-  button.onclick = async () => {
-    const error = document.getElementById('takeover-error');
-    error.hidden = true;
-    if (hasUnsavedSettings()) {
-      error.textContent = '请先保存或取消修改，再设置原入口接管。'; error.hidden = false; return;
-    }
-    button.disabled = true;
-    try {
-      const result = await api().set_grok_takeover(!GROK_TAKEOVER.enabled);
-      if (!result.ok) throw new Error(result.error || '无法修改接管设置。');
-    } catch (reason) { error.textContent = reason.message; error.hidden = false; }
-    finally { await refreshTakeover(); }
-  };
+const TAKEOVER = {};
+const TAKEOVER_REQUESTS = {};
+const TAKEOVER_BUSY = new Set();
+function renderTakeover(id) {
+  const state = TAKEOVER[id] || {};
+  document.getElementById(`takeover-status-${id}`).textContent = state.message || '正在读取接管状态…';
+  const button = document.getElementById(`takeover-toggle-${id}`);
+  button.textContent = state.can_disable || state.enabled ? '停用接管' : '启用接管';
+  button.disabled = TAKEOVER_BUSY.has(id) || SAVING.has(id) || !(state.supported || state.can_disable);
+}
+async function refreshTakeover(id) {
+  if (!id) return Promise.all(APPS.map(app => refreshTakeover(app.id)));
+  const button = document.getElementById(`takeover-toggle-${id}`);
+  if (!button) return;
+  const request = TAKEOVER_REQUESTS[id] = (TAKEOVER_REQUESTS[id] || 0) + 1;
+  button.disabled = true;
+  let state;
+  try { state = await api().get_takeover_status(id); }
+  catch (_) { state = { supported: false, enabled: false, message: '无法读取接管状态。' }; }
+  if (request !== TAKEOVER_REQUESTS[id]) return;
+  TAKEOVER[id] = state;
+  renderTakeover(id);
+}
+async function toggleTakeover(id) {
+  if (TAKEOVER_BUSY.has(id)) return;
+  const error = document.getElementById(`takeover-error-${id}`);
+  error.hidden = true;
+  if (hasUnsavedSettings()) {
+    error.textContent = '请先保存或取消修改，再设置原入口接管。'; error.hidden = false; return;
+  }
+  TAKEOVER_BUSY.add(id);
+  TAKEOVER_REQUESTS[id] = (TAKEOVER_REQUESTS[id] || 0) + 1;
+  renderTakeover(id);
+  try {
+    const state = TAKEOVER[id] || {};
+    const result = await api().set_takeover(id, !(state.can_disable || state.enabled));
+    if (!result.ok) throw new Error(result.error || '无法修改接管设置。');
+  } catch (reason) { error.textContent = reason.message; error.hidden = false; }
+  finally { TAKEOVER_BUSY.delete(id); await refreshTakeover(id); }
 }
 
 function envContainer(id) { return id === "common" ? "common-env" : `env-${id}`; }
@@ -180,5 +198,6 @@ async function saveEditor(id) {
     SAVING.delete(id);
     controls.forEach(el => { el.disabled = false; });
     markDrafts();
+    if (APPS.some(app => app.id === id)) await refreshTakeover(id);
   }
 }

@@ -8,6 +8,7 @@ from unittest.mock import Mock
 import pytest
 
 from claude_china.desktop import config, safety, takeover
+from claude_china.desktop.platforms.windows import WindowsBackend
 
 
 @pytest.fixture
@@ -62,18 +63,79 @@ def test_takeover_refuses_every_other_application(tmp_path, name):
     target = tmp_path / name
     target.touch()
     with pytest.raises(ValueError, match='Grok Bot'):
-        takeover.prepare_launch(target)
+        takeover.checked_target(target)
 
 
 def test_takeover_does_not_stop_or_launch_an_existing_app_during_preflight(guard, monkeypatch):
     target, _, _ = guard
     stop = Mock(side_effect=AssertionError('Do not stop any app'))
     launch = Mock(side_effect=AssertionError('Do not launch during preflight'))
-    monkeypatch.setattr(takeover.WindowsBackend, 'stop', stop)
-    monkeypatch.setattr(takeover.WindowsBackend, 'launch', launch)
+    monkeypatch.setattr(WindowsBackend, 'stop', stop)
+    monkeypatch.setattr(WindowsBackend, 'launch', launch)
     assert takeover.prepare_launch(target)[0]['ok']
     stop.assert_not_called()
     launch.assert_not_called()
+
+
+@pytest.mark.parametrize('app_id,name', [('claude', 'Claude.exe'), ('codex', 'Codex.exe'),
+                                       ('grok-bot', 'Grok Bot.exe')])
+def test_each_app_rechecks_and_uses_only_its_own_settings(guard, app_id, name):
+    target, data, check = guard
+    target = target.with_name(name)
+    target.touch()
+    data['apps'][app_id] = {'env_vars': {'ONLY_THIS_APP': app_id}}
+    first, env = takeover.prepare_launch(target, inherited={}, app_id=app_id)
+    assert first['ok'] and env['ONLY_THIS_APP'] == app_id
+    assert check.call_args.args[0] == app_id
+    data['apps'][app_id]['env_vars'] = {'NEW_SETTING': 'new'}
+    second, env = takeover.prepare_launch(target, inherited=env, app_id=app_id)
+    assert second['ok'] and env['NEW_SETTING'] == 'new'
+    assert 'ONLY_THIS_APP' not in env
+    check.return_value = {'status': 'unknown', 'reason': 'fixture'}
+    blocked, env = takeover.prepare_launch(target, inherited=env, app_id=app_id)
+    assert not blocked['ok'] and env is None
+    assert check.call_count == 3
+
+
+@pytest.mark.parametrize('platform', ['win32', 'darwin', 'linux'])
+def test_preflight_delegates_proxy_to_selected_platform_without_launching(guard, monkeypatch, platform):
+    from claude_china.desktop.platforms import get_backend
+    monkeypatch.setattr(sys, 'platform', platform)
+    backend = get_backend()
+    monkeypatch.setattr(backend, 'system_http_proxy', Mock(return_value='http://127.0.0.1:1234'))
+    monkeypatch.setattr(backend, 'proxy_enabled', Mock(return_value=True))
+    monkeypatch.setattr(backend, 'stop', Mock(side_effect=AssertionError('must not stop')))
+    monkeypatch.setattr(backend, 'launch', Mock(side_effect=AssertionError('must not launch')))
+    target, data, _ = guard
+    data.update(auto_proxy_env=True, check_system_proxy=True)
+    result, env = takeover.prepare_launch(target, inherited={}, backend=backend)
+    assert result['ok']
+    assert env['HTTP_PROXY'] == env['HTTPS_PROXY'] == 'http://127.0.0.1:1234'
+    backend.system_http_proxy.assert_called_once()
+    backend.stop.assert_not_called()
+    backend.launch.assert_not_called()
+
+
+def test_proxy_parse_error_blocks_all_apps(guard, monkeypatch):
+    from claude_china.desktop.proxy import SystemProxyError
+    target, data, _ = guard
+    data['auto_proxy_env'] = True
+    backend = WindowsBackend()
+    monkeypatch.setattr(backend, 'system_http_proxy', Mock(side_effect=SystemProxyError('invalid')))
+    for app_id in ('claude', 'codex', 'grok-bot'):
+        result, env = takeover.prepare_launch(target, app_id=app_id, backend=backend)
+        assert not result['ok'] and env is None
+
+
+@pytest.mark.parametrize('app_id,name', [('claude', 'Claude.exe'), ('codex', 'Codex.exe')])
+def test_manifest_binds_each_application_to_its_executable(tmp_path, app_id, name):
+    target = tmp_path / name
+    target.touch()
+    manifest = {'schema': 1, 'app_id': app_id, 'target': str(target), 'owner': 'a' * 32}
+    assert takeover.validate_manifest(manifest, [str(target), '--deep-link']) == target.resolve()
+    manifest['app_id'] = 'grok-bot'
+    with pytest.raises(ValueError):
+        takeover.validate_manifest(manifest, [str(target)])
 
 
 def test_takeover_manifest_rejects_target_replacement_or_other_app(tmp_path):
