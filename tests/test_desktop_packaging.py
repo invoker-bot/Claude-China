@@ -1,4 +1,6 @@
 from pathlib import Path
+import subprocess
+from unittest.mock import Mock
 
 import pytest
 
@@ -53,3 +55,52 @@ def test_freezer_uses_checkout_ui_even_when_an_older_distribution_is_installed(m
     data = analysis.call_args.kwargs["datas"]
     assert (str(build_desktop.ROOT / "src/claude_china/desktop/ui"), "claude_china/desktop/ui") in data
     assert ("/old-site-packages/claude_china", "claude_china") not in data
+
+
+def test_macos_detach_retries_busy_image_without_forcing(monkeypatch, tmp_path):
+    command = Mock(side_effect=[subprocess.CalledProcessError(16, "hdiutil"), None])
+    monkeypatch.setattr(build_desktop, "command", command)
+    sleep = Mock()
+    monkeypatch.setattr("time.sleep", sleep)
+    build_desktop.detach_macos_dmg(tmp_path)
+    assert command.call_count == 2
+    assert all(call.args[0] == ["hdiutil", "detach", tmp_path] for call in command.call_args_list)
+    sleep.assert_called_once_with(2)
+
+
+@pytest.mark.parametrize("code, attempts", [(16, 5), (1, 1)])
+def test_macos_detach_reports_persistent_and_other_errors(monkeypatch, tmp_path, code, attempts):
+    command = Mock(side_effect=subprocess.CalledProcessError(code, "hdiutil"))
+    monkeypatch.setattr(build_desktop, "command", command)
+    sleep = Mock()
+    monkeypatch.setattr("time.sleep", sleep)
+    with pytest.raises(subprocess.CalledProcessError):
+        build_desktop.detach_macos_dmg(tmp_path)
+    assert command.call_count == attempts
+    assert sleep.call_count == attempts - 1
+
+
+@pytest.mark.parametrize("gui_error", [None, RuntimeError("GUI failed")])
+def test_macos_image_detaches_after_successful_or_failed_gui(monkeypatch, tmp_path, gui_error):
+    output, work = tmp_path / "installers", tmp_path / "work"
+    output.mkdir()
+    dmg = output / f"Claude-China-{build_desktop.VERSION}-macos-x64.dmg"
+    dmg.write_bytes(b"fixture")
+    mount = work / "mounted"
+    monkeypatch.setattr(build_desktop, "OUTPUT", output)
+    monkeypatch.setattr(build_desktop, "WORK", work)
+    monkeypatch.setattr(Path, "is_symlink", lambda self: self == mount / "Applications")
+    command, detach, smoke = Mock(), Mock(), Mock(side_effect=gui_error)
+    monkeypatch.setattr(build_desktop, "command", command)
+    monkeypatch.setattr(build_desktop, "detach_macos_dmg", detach)
+    monkeypatch.setattr(build_desktop, "smoke_test", smoke)
+    if gui_error:
+        with pytest.raises(RuntimeError, match="GUI failed"):
+            build_desktop.verify_macos_dmg()
+    else:
+        build_desktop.verify_macos_dmg()
+    command.assert_called_once_with(["hdiutil", "attach", dmg, "-nobrowse", "-mountpoint", mount])
+    smoke.assert_called_once_with(
+        mount / "Claude China.app/Contents/MacOS/claude-china-desktop", work / "dmg-smoke.json",
+    )
+    detach.assert_called_once_with(mount)

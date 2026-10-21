@@ -129,12 +129,7 @@ jobs:
           .venv/Scripts/python.exe tools/test_windows_installer.py $installer.FullName
       - name: Verify macOS disk image
         if: runner.os == 'macOS'
-        run: |
-          mkdir -p build/desktop/mounted
-          hdiutil attach dist/installers/*.dmg -nobrowse -mountpoint "$PWD/build/desktop/mounted"
-          trap 'hdiutil detach "$PWD/build/desktop/mounted"' EXIT
-          test -L "build/desktop/mounted/Applications"
-          python -c "from pathlib import Path; from tools.build_desktop import smoke_test; smoke_test(Path('build/desktop/mounted/Claude China.app/Contents/MacOS/claude-china-desktop').resolve(), Path('build/desktop/dmg-smoke.json').resolve())"
+        run: python -c "from tools.build_desktop import verify_macos_dmg; verify_macos_dmg()"
       - name: Verify Linux package installation and removal
         if: runner.os == 'Linux'
         run: |

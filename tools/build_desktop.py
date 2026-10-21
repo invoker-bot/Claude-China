@@ -11,6 +11,7 @@ import runpy
 import shutil
 import subprocess
 import sys
+import time
 import urllib.request
 
 if __package__:
@@ -165,6 +166,36 @@ def macos_installer(arch, signing=None):
             "gatekeeper": True,
         }, indent=2), encoding="utf-8")
     return [target]
+
+
+def detach_macos_dmg(mount):
+    # Finder/WebKit can briefly retain the volume after the smoke process exits.
+    # Retry only EBUSY; never force-unmount or hide a persistent cleanup failure.
+    for attempt in range(5):
+        try:
+            command(["hdiutil", "detach", mount])
+            return
+        except subprocess.CalledProcessError as error:
+            if error.returncode != 16 or attempt == 4:
+                raise
+            time.sleep(2)
+
+
+def verify_macos_dmg():
+    images = list(OUTPUT.glob(f"Claude-China-{VERSION}-macos-*.dmg"))
+    if len(images) != 1:
+        raise RuntimeError(f"Expected one current-version DMG, found {len(images)}")
+    mount = WORK / "mounted"
+    mount.mkdir(parents=True, exist_ok=True)
+    if any(mount.iterdir()):
+        raise RuntimeError("DMG verification mountpoint is not empty")
+    command(["hdiutil", "attach", images[0], "-nobrowse", "-mountpoint", mount])
+    try:
+        if not (mount / "Applications").is_symlink():
+            raise RuntimeError("DMG is missing the Applications link")
+        smoke_test(mount / "Claude China.app/Contents/MacOS/claude-china-desktop", WORK / "dmg-smoke.json")
+    finally:
+        detach_macos_dmg(mount)
 
 
 def linux_installers():
