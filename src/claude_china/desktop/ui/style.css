@@ -335,3 +335,79 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 .language-setting .field-hint { display: block; margin-top: 8px; }
 .language-setting select { min-width: 148px; max-width: 200px; border: 1px solid var(--line); border-radius: 6px; background: var(--input); color: var(--text); padding: 9px 10px; font: inherit; font-size: 13px; }
 @media (max-width: 760px) { .language-setting { align-items: flex-start; flex-direction: column; gap: 12px; } }
+
+/* Local usage and activity, in the same workspace as apps and terminals. */
+.usage-page { padding-bottom: 28px; }
+.usage-toolbar { display: flex; gap: 16px; align-items: end; }
+.usage-toolbar label { display: flex; flex-direction: column; gap: 6px; color: var(--muted); font-size: 12px; min-width: 135px; }
+.usage-page select { color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 6px; padding: 9px 11px; font: inherit; max-width: 100%; min-width: 0; }
+.usage-project-filter { flex: 1; min-width: 0 !important; }
+.usage-status { display: flex; align-items: center; gap: 15px; min-height: 42px; color: var(--muted); font-size: 12px; }
+.usage-status progress { width: 120px; height: 5px; accent-color: var(--accent); }
+.usage-coverage-note { margin: 0 0 13px; }
+.usage-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.usage-kpi { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 17px 19px; }
+.usage-kpi p { font-size: 13px; color: var(--muted); }
+.usage-kpi strong { display: block; font-size: 30px; font-weight: 650; margin-block: 3px; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
+.usage-kpi:first-child strong { color: var(--accent); }
+.usage-kpi small { color: var(--muted); font-size: 11px; }
+.usage-breakdown { display: flex; flex-wrap: wrap; gap: 10px 26px; grid-column: 1/-1; color: var(--muted); font-size: 12px; padding: 2px 3px; }
+.usage-breakdown b { color: var(--text); font-weight: 500; margin-left: 7px; }
+.usage-card { padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--header); margin-bottom: 16px; min-width: 0; }
+.usage-card h2 { font-size: 16px; font-weight: 600; }
+.usage-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.usage-card-head select { flex: none; min-width: 145px; }
+.usage-card-head p, .usage-note { font-size: 12px; color: var(--muted); margin-top: 5px; }
+.usage-chart { display: flex; align-items: end; gap: 4px; height: 155px; padding-top: 18px; margin-top: 8px; border-bottom: 1px solid var(--line); }
+.usage-day { height: 100%; flex: 1; min-width: 0; max-width: 60px; display: flex; align-items: end; }
+.usage-day i { display: block; width: 100%; min-height: 2px; background: var(--accent); opacity: .78; border-radius: 3px 3px 0 0; }
+.usage-day:hover i, .usage-day:focus i { opacity: 1; }
+.usage-day i.is-empty { background: var(--line); }
+.usage-axis { display: flex; justify-content: space-between; margin-top: 8px; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+.usage-axis span:nth-child(2)::before { content: '↑ '; }
+.usage-daily-details { margin-top: 14px; color: var(--muted); font-size: 12px; }
+.usage-daily-details summary { cursor: pointer; width: fit-content; }
+.usage-daily-details .usage-table-scroll { max-height: 250px; overflow-y: auto; }
+.usage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+.usage-model { margin-top: 19px; }
+.usage-model > div:first-child { display: flex; gap: 12px; justify-content: space-between; font-size: 12px; }
+.usage-model span { overflow-wrap: anywhere; }
+.usage-model b { flex: none; font-weight: 500; }
+.usage-meter { height: 5px; border-radius: 4px; background: var(--line-soft); margin-top: 8px; overflow: hidden; }
+.usage-meter i { display: block; height: 100%; background: #8f9cf8; border-radius: 4px; }
+.usage-project-row { width: 100%; display: grid; grid-template-columns: 1fr auto; text-align: left; gap: 3px 10px; padding: 13px 0; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; }
+.usage-project-row:last-child { border-bottom: 0; }
+.usage-project-row:hover { color: var(--accent); }
+.usage-project-row > span { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usage-project-row strong { font-size: 12px; font-weight: 500; }
+.usage-project-row small { color: var(--muted); font-size: 11px; }
+.usage-empty { color: var(--muted); padding-block: 28px; font-size: 13px; }
+.usage-table-scroll { overflow-x: auto; }
+.usage-table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; white-space: nowrap; }
+.usage-table th, .usage-table td { padding: 10px 8px; border-bottom: 1px solid var(--line-soft); text-align: right; }
+.usage-table th { color: var(--muted); font-weight: 500; }
+.usage-table :is(th, td):first-child { text-align: left; padding-left: 0; }
+.usage-table tr:last-child td { border-bottom: 0; }
+.usage-warnings { padding-left: 18px; margin-bottom: 0; color: var(--muted); font-size: 12px; }
+.usage-warnings:empty { display: none; }
+@media (max-width: 1050px) { .app-header { gap: 22px; } .top-nav { gap: 20px; } }
+@media (max-width: 760px) {
+  .usage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .usage-grid { grid-template-columns: 1fr; gap: 0; }
+  .usage-toolbar { flex-wrap: wrap; gap: 12px; }
+  .usage-toolbar label { flex: 1; }
+  .usage-project-filter { flex-basis: 100% !important; }
+  .usage-kpi { padding: 13px; }
+  .usage-card { padding: 16px; }
+  .usage-chart { gap: 2px; }
+}
+@media (max-width: 640px) {
+  .app-header, .custom-titlebar .app-header { flex-wrap: wrap; height: auto; padding: 6px 18px 0; gap: 0 16px; }
+  .app-header .top-nav { order: 4; flex-basis: 100%; justify-content: space-between; gap: 10px; height: 46px; }
+  .app-header .header-update { display: none; }
+  .app-header .header-space { min-width: 0; margin: 0; }
+  .app-header .window-controls { height: 38px; border-left: 0; }
+  .usage-page .page-heading { align-items: flex-start; gap: 12px; }
+  .usage-page .page-heading .btn { font-size: 12px; padding-inline: 10px; }
+  .usage-page .page-heading .btn svg { display: none; }
+}

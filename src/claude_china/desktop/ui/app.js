@@ -60,7 +60,7 @@ window.openLauncherPanel = panel => {
   else showSettings(panel);
 };
 function setMainView(view) {
-  const views = { apps: ['launcher-main', 'home-button'], terminals: ['terminals-main', 'terminals-button'], settings: ['settings-main', 'open-settings'] };
+  const views = { apps: ['launcher-main', 'home-button'], terminals: ['terminals-main', 'terminals-button'], usage: ['usage-main', 'usage-button'], settings: ['settings-main', 'open-settings'] };
   if (!Object.prototype.hasOwnProperty.call(views, view)) return;
   MAIN_VIEW = view;
   for (const [name, [pageId, buttonId]] of Object.entries(views)) {
@@ -74,9 +74,10 @@ function setMainView(view) {
   updateWorkspaceCount();
   markDrafts();
   if (view === 'terminals') refreshTerminals();
+  if (view === 'usage') refreshUsage(true);
 }
 function updateWorkspaceCount() {
-  document.getElementById('app-count').textContent = MAIN_VIEW === 'terminals' ? `${TERMINALS.profiles.length} 个配置` : MAIN_VIEW === 'settings' ? '本机设置' : `${APPS.length} 个应用`;
+  document.getElementById('app-count').textContent = MAIN_VIEW === 'usage' ? '本机统计' : MAIN_VIEW === 'terminals' ? `${TERMINALS.profiles.length} 个配置` : MAIN_VIEW === 'settings' ? '本机设置' : `${APPS.length} 个应用`;
 }
 function showSettings(panel = currentPanel) {
   if (!READY) { pendingPanel = panel; return; }

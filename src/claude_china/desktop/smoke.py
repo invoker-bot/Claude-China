@@ -207,6 +207,33 @@ def _verify_terminal_history(window):
     window.evaluate_js("document.getElementById('home-button').click()")
 
 
+def _verify_statistics(window):
+    """Exercise the actual native bridge against a disposable usage fixture."""
+    from datetime import datetime, timezone
+    from pathlib import Path
+    from . import config, usage
+    root = config.DESKTOP_CONFIG_FILE.parent
+    if root == Path.home() / '.claudec' or usage.discover_sources() != [{'tool': 'claude', 'root': str(root / 'usage-fixture')}]:
+        raise RuntimeError('Statistics smoke must use isolated sources and cache')
+    log = root / 'usage-fixture/projects/smoke/session.jsonl'
+    log.parent.mkdir(parents=True, exist_ok=True)
+    row = {'type': 'assistant', 'timestamp': datetime.now(timezone.utc).isoformat(),
+           'sessionId': 'usage-smoke-session', 'cwd': str(root), 'requestId': 'usage-smoke-request',
+           'message': {'id': 'usage-smoke-message', 'model': 'claude-fixture',
+                       'usage': {'input_tokens': 20, 'output_tokens': 10,
+                                 'cache_read_input_tokens': 100, 'cache_creation_input_tokens': 30}}}
+    log.write_text(json.dumps(row) + '\n', encoding='utf-8')
+    window.evaluate_js("document.getElementById('usage-button').click()")
+    _wait_js(window, "USAGE && USAGE.scan.phase === 'ready' && USAGE.totals.tokens === 160")
+    if not window.evaluate_js("!document.getElementById('usage-main').hidden && USAGE.totals.sessions === 1 && USAGE.totals.projects === 1"):
+        raise RuntimeError('Native statistics did not render fixture aggregates')
+    window.evaluate_js("document.getElementById('usage-tool').value = 'grok-bot'; document.getElementById('usage-tool').dispatchEvent(new Event('change'))")
+    _wait_js(window, "USAGE.totals.tokens === null && USAGE.totals.sessions === 0")
+    if not (root / 'usage-v1.sqlite').is_file():
+        raise RuntimeError('Statistics index escaped the isolated settings directory')
+    window.evaluate_js("document.getElementById('home-button').click()")
+
+
 def verify_window(window, tray, report):
     result = {"ok": False, "version": __version__, "platform": sys.platform,
               "frozen": bool(getattr(sys, "frozen", False)), "pid": os.getpid()}
@@ -394,6 +421,8 @@ def verify_window(window, tray, report):
         result["terminal_history_and_projects"] = True
         _verify_languages(window, tray)
         result["language_switch_and_drafts"] = True
+        _verify_statistics(window)
+        result["local_usage_statistics"] = True
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_settings_page", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_keeps_settings_page",

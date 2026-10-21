@@ -30,10 +30,24 @@ per-app environment settings, and check for launcher updates from the header.
 - Open project terminals and manage CLI profiles in the desktop app
 - Search local CLI session history and resume a specific conversation
 - Pin favorite project folders and start new sessions with the selected profile
+- Inspect local token usage, active sessions, projects and daily trends (next desktop release)
 
 ## Desktop tour
 
-All screenshots show v0.4.2 in English with example profiles and session history.
+Screenshots use the English interface and sample data. The statistics preview
+shows the next desktop release; the other views are available in v0.4.2.
+
+<details>
+<summary><strong>Understand your usage — local statistics</strong></summary>
+
+Compare token usage, active sessions and projects by day, tool or project.
+Statistics are indexed locally in the background. Missing usage is clearly
+marked, including Grok Bot's activity-only records. See the
+[statistics guide](docs/desktop-statistics.md) for supported sources and limits.
+
+![Local statistics: token usage, active sessions, projects and daily trends in English](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/usage-statistics.png)
+
+</details>
 
 <details>
 <summary><strong>Pick up where you left off — searchable session history</strong></summary>

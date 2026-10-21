@@ -56,6 +56,36 @@ if (new URLSearchParams(location.search).has("preview")) {
     ({ app_id: id, supported: true, enabled: Boolean(takeoverEnabled[id]), can_disable: Boolean(takeoverEnabled[id]),
       message: takeoverEnabled[id] ? '已接管此 EXE 原入口及同路径更新重启；每次重新检查并注入变量。（预览）' : '未接管原入口。仅覆盖固定 EXE 路径及同路径更新。（预览）' });
   window.pywebview = { api: {
+    start_usage_scan: async () => ({ok:true,data:{phase:'ready'}}),
+    get_usage_report: async (days, tool, project) => {
+      if (modes.get('usage') === 'error') return {ok:false,error:'无法读取统计，请重试。'};
+      const rows = [], names = ['claude', 'codex', 'grok', 'grok-bot'];
+      const projects = ['D:\\Projects\\atlas', 'D:\\Projects\\website', 'D:\\Projects\\research'];
+      const models = ['claude-opus', 'gpt-codex', 'grok-build', ''];
+      for (let day=days-1; day>=0; day--) {
+        const date = new Date();date.setDate(date.getDate()-day);
+        const label = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        names.forEach((name, i) => {
+          if ((day+i)%5===0 || modes.get('usage')==='empty') return;
+          rows.push({date:label,tool:name,project:i===3?'':projects[(day+i)%3],model:models[i],session:`${name}-${day%9}`,tokens:i===3?null:Math.round((i+1)*35000*(1+Math.sin(day*1.4)**2))});
+        });
+      }
+      const toolRows = rows.filter(row => tool==='all'||row.tool===tool);
+      const filtered = toolRows.filter(row => !project||row.project===project);
+      const aggregate = list => {
+        const known=list.some(row=>row.tokens!==null), tokens=list.reduce((sum,row)=>sum+(row.tokens||0),0);
+        return {tokens:known?tokens:null,input_tokens:known?Math.round(tokens*.9):null,output_tokens:known?tokens-Math.round(tokens*.9):null,cached_tokens:known?Math.round(tokens*.72):null,cache_write_tokens:known?Math.round(tokens*.03):null,reasoning_tokens:known?Math.round(tokens*.04):null,
+          sessions:new Set(list.map(row=>row.session)).size,projects:new Set(list.filter(row=>row.project).map(row=>row.project)).size,active_days:new Set(list.map(row=>row.date)).size};
+      };
+      const daily=[];
+      for(let offset=days-1;offset>=0;offset--){const d=new Date();d.setDate(d.getDate()-offset);const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;daily.push({date,...aggregate(filtered.filter(row=>row.date===date))});}
+      return {ok:true,data:{totals:aggregate(filtered),daily,
+        models:models.filter(Boolean).map(model=>({model,...aggregate(filtered.filter(row=>row.model===model))})).filter(row=>row.tokens!==null),
+        projects:projects.map(path=>({project:path,...aggregate(filtered.filter(row=>row.project===path))})).filter(row=>row.sessions),
+        tools:names.map(name=>({tool:name,files:24,...aggregate(filtered.filter(row=>row.tool===name))})),
+        project_options:[...new Set(toolRows.map(row=>row.project).filter(Boolean))],updated_at:Date.now()/1000,
+        scan:{phase:'ready'},warnings:['界面预览使用示例数据。','Grok Bot 仅统计本地缓存的会话活动，未提供 token 和项目明细。']}};
+    },
     get_locale: previewLocale,
     set_language: async value => {
       if (modes.get('save') === 'error') return {ok: false, error: '无法保存语言设置，请重试。'};

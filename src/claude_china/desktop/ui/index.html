@@ -14,6 +14,7 @@
     <nav class="top-nav" aria-label="主导航">
       <button class="top-link is-active" id="home-button" type="button" aria-current="page" aria-controls="launcher-main">我的应用</button>
       <button class="top-link" id="terminals-button" type="button" aria-controls="terminals-main">我的终端</button>
+      <button class="top-link" id="usage-button" type="button" aria-controls="usage-main">统计</button>
       <button class="top-link" id="open-settings" type="button" aria-controls="settings-main">设置<span class="draft-dot" aria-hidden="true"></span></button>
     </nav>
     <div class="header-space window-drag" aria-hidden="true"></div>
@@ -35,6 +36,28 @@
       <div><h2 id="launch-settings-title">启动设置</h2><p id="common-summary"></p></div>
       <button class="text-button" id="gear-common" type="button" aria-controls="editor-common">管理设置<span data-icon="arrow"></span></button>
     </section>
+  </main>
+  <main class="panel usage-page" id="usage-main" aria-labelledby="usage-title" hidden>
+    <div class="page-heading"><div><h1 id="usage-title">用量与活跃</h1><p>了解本机 AI 工具的使用情况。</p></div><button class="btn" id="usage-refresh" type="button"><span data-icon="refresh"></span>刷新统计</button></div>
+    <div class="usage-toolbar">
+      <label>时间范围<select id="usage-days"><option value="1">今天</option><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="90">近 90 天</option></select></label>
+      <label>工具<select id="usage-tool"><option value="all">全部工具</option><option value="claude">Claude Code</option><option value="codex">Codex</option><option value="grok">Grok CLI</option><option value="grok-bot">Grok Bot</option></select></label>
+      <label class="usage-project-filter">项目<select id="usage-project"><option value="">全部项目</option></select></label>
+    </div>
+    <div class="usage-status"><p id="usage-status" role="status">首次扫描可能需要一些时间，可切换页面继续使用。</p><progress id="usage-progress" aria-label="统计扫描进度" hidden></progress></div>
+    <p class="form-error" id="usage-error" role="alert" hidden></p>
+    <p class="usage-note usage-coverage-note" id="usage-partial" hidden>部分来源数据不完整，详见下方的数据覆盖说明。</p>
+    <div class="usage-metrics" id="usage-metrics"></div>
+    <section class="usage-card usage-trend" aria-labelledby="usage-trend-title">
+      <div class="usage-card-head"><div><h2 id="usage-trend-title">每日趋势</h2><p>按本机时区统计，包含缓存输入。</p></div><label class="sr-only" for="usage-metric">趋势指标</label><select id="usage-metric"><option value="tokens">Token 用量</option><option value="sessions">活跃会话</option></select></div>
+      <div class="usage-chart" id="usage-chart" role="group" aria-label="每日统计图表"></div><div class="usage-axis" id="usage-axis"></div>
+      <details class="usage-daily-details"><summary>查看每日明细</summary><div class="usage-table-scroll" id="usage-daily-table"></div></details>
+    </section>
+    <div class="usage-grid">
+      <section class="usage-card" aria-labelledby="usage-models-title"><h2 id="usage-models-title">模型分布</h2><div id="usage-models"></div></section>
+      <section class="usage-card" aria-labelledby="usage-projects-title"><h2 id="usage-projects-title">项目排行</h2><p class="usage-note">选择项目可筛选本页全部统计。</p><div id="usage-projects"></div></section>
+    </div>
+    <section class="usage-card" aria-labelledby="usage-sources-title"><h2 id="usage-sources-title">数据覆盖</h2><div id="usage-sources"></div><p class="usage-note">仅统计本机保留的记录。未提供的 token 显示为 —，不代表零用量。共享数据目录的配置会合并统计。</p><ul class="usage-warnings" id="usage-warnings"></ul></section>
   </main>
   <main class="panel" id="terminals-main" hidden>
     <div class="page-heading"><div><h1>我的终端</h1><p>继续上次的会话，或在熟悉的项目开始新工作。</p></div><div class="terminal-heading-actions"><button class="icon-button refresh-button" id="refresh-terminals" type="button" aria-label="刷新终端工作区" title="刷新配置与历史"><span data-icon="refresh"></span></button><button class="btn btn--solid" id="new-cli-profile" type="button"><span data-icon="plus"></span>新增配置</button></div></div>
@@ -130,6 +153,6 @@
     <button id="footer-about" type="button" aria-label="关于 Claude China"><span id="footer-version"></span></button>
   </footer>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <script src="i18n.js"></script><script src="icons.js"></script><script src="settings.js"></script><script src="safety.js"></script><script src="app.js"></script><script src="terminals.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
+  <script src="i18n.js"></script><script src="icons.js"></script><script src="settings.js"></script><script src="safety.js"></script><script src="app.js"></script><script src="terminals.js"></script><script src="usage.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
 </body>
 </html>

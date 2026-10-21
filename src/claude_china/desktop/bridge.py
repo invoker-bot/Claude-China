@@ -1,5 +1,6 @@
 import logging
 import os
+import threading
 
 from .apps import APP_REGISTRY, get_app
 from . import config as cfg
@@ -32,6 +33,8 @@ class LauncherBridge:
         self._updater = None
         self._window_controls = None
         self._language_changed = None
+        self._usage_service = None
+        self._usage_lock = threading.Lock()
         self._refresh_detection()
 
     def _attach_window(self, window, open_dialog, screen_height=None):
@@ -206,6 +209,27 @@ class LauncherBridge:
 
     def list_cli_history(self, profile_name):
         return self._terminal_request(lambda service: service.history(profile_name))
+
+    def _usage(self):
+        from .usage import UsageService
+        with self._usage_lock:
+            if self._usage_service is None:
+                self._usage_service = UsageService()
+            return self._usage_service
+
+    def start_usage_scan(self):
+        try:
+            return {'ok': True, 'data': self._usage().start()}
+        except Exception:
+            return {'ok': False, 'error': '无法读取统计索引，请检查本机文件权限。'}
+
+    def get_usage_report(self, days=30, tool='all', project=''):
+        try:
+            return {'ok': True, 'data': self._usage().report(days, tool, project)}
+        except ValueError:
+            return {'ok': False, 'error': '无效的统计筛选条件。'}
+        except Exception:
+            return {'ok': False, 'error': '无法读取统计索引，请检查本机文件权限。'}
 
     def resume_cli_session(self, profile_name, session_id):
         return self._terminal_request(lambda service: service.resume_session(profile_name, session_id))
