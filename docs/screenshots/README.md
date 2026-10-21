@@ -1,7 +1,8 @@
 # README screenshots
 
-All five PNGs show the v0.4.2 desktop UI in English at a 1120 × 780 logical viewport
-with a 2× pixel scale.
+All six PNGs show the v0.4.3 desktop UI in English with a 2× pixel scale.
+The statistics view uses a 1280 × 1000 logical viewport; the other five use
+1120 × 780.
 They use the browser preview's in-memory example data with English profile names
 and session titles; no real profiles, credentials, project history or native app
 status are captured.
@@ -11,6 +12,7 @@ status are captured.
 - `favorite-projects.png`: saved project folders and new sessions.
 - `desktop-settings.png`: system proxy checks and environment variables.
 - `desktop-language-en.png`: display language selection in general settings.
+- `usage-statistics.png`: token usage, tool calls, model breakdown and estimated API costs.
 
 The root README uses absolute raw GitHub image URLs so the same images can
 load when the package description is rendered on PyPI.
@@ -40,7 +42,7 @@ app, searches history, favorites a demo project and saves demo settings through
 the UI, then waits for notifications to disappear before capturing. It checks the
 page title, English locale, loaded images, horizontal overflow, expected UI state
 and browser console.
-Review all five images for clipping and legibility before committing them.
+Review all six images for clipping and legibility before committing them.
 
 Capture verification used headless Edge with Playwright; the Browser plugin was
 not available in the authoring environment. Screenshots demonstrate the UI, not

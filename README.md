@@ -30,12 +30,12 @@ per-app environment settings, and check for launcher updates from the header.
 - Open project terminals and manage CLI profiles in the desktop app
 - Search local CLI session history and resume a specific conversation
 - Pin favorite project folders and start new sessions with the selected profile
-- Inspect local token usage, tool calls, models, estimated API costs and daily trends (next desktop release)
+- Inspect local token usage, tool calls, models, estimated API costs and daily trends
 
 ## Desktop tour
 
-Screenshots use the English interface and sample data. The statistics preview
-shows the next desktop release; the other views are available in v0.4.2.
+Screenshots use the English interface and sample data. Local statistics are
+available in v0.4.3.
 
 <details>
 <summary><strong>Understand your usage — local statistics</strong></summary>
@@ -113,9 +113,9 @@ Download the desktop app from
 [GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
 It includes Python and the desktop dependencies; installing the CLI is optional.
 
-v0.4.2 publishes Windows and Linux installers plus the CLI. macOS Intel and
+v0.4.3 publishes Windows and Linux installers plus the CLI. macOS Intel and
 Apple Silicon packages are currently build-validation artifacts in GitHub
-Actions, not downloads attached to the v0.4.2 Release.
+Actions, not downloads attached to the v0.4.3 Release.
 
 | Platform | Download | Install | Uninstall |
 | --- | --- | --- | --- |
@@ -185,7 +185,7 @@ Grok Bot's `grok-bot` desktop command is detected automatically; select an
 installed executable in settings for other or portable desktop apps. Terminal
 commands such as `claude`, `codex` and `grok` are not treated as desktop apps.
 
-Windows signing service enrollment is pending; the v0.4.2 Windows installer is
+Windows signing service enrollment is pending; the v0.4.3 Windows installer is
 unsigned. The macOS Actions artifacts are ad-hoc signed and not notarized.
 Developer ID signing and Apple notarization can be enabled once credentials
 are configured; see the

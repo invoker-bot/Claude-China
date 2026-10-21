@@ -113,8 +113,16 @@ async function main() {
     await page.locator('#save-settings').click();
     assert.equal(await page.locator('#auto-proxy-env').isChecked(), true);
     await screenshot('desktop-settings');
+
+    await page.setViewportSize({ width: 1280, height: 1000 });
+    await page.locator('#usage-button').click();
+    await page.waitForFunction(() => USAGE && USAGE.totals.cost_usd > 0);
+    assert.equal(await page.locator('.usage-kpi').count(), 6);
+    assert.equal(await page.locator('#usage-title').textContent(), 'Usage & activity');
+    assert.equal(await page.locator('#usage-models tbody tr').count(), 3);
+    await screenshot('usage-statistics');
     assert.deepEqual(errors, []);
-    console.log('All five English screenshots passed page, image, overflow and console checks.');
+    console.log('All six English screenshots passed page, image, overflow and console checks.');
   } finally {
     await browser.close();
   }

@@ -120,11 +120,12 @@ read or overwrite the user's settings.
 ## Release workflow
 
 `.github/workflows/desktop-release.yml` builds Windows x64, macOS Intel, macOS
-Apple Silicon and Linux x64 on native GitHub runners. PRs and manual dispatch
-only upload Actions artifacts. A `v*` tag must match
+Apple Silicon and Linux x64 on native GitHub runners. Manual dispatch only
+uploads Actions artifacts; ordinary branch pushes and PRs do not trigger builds.
+A `v*` tag must match
 `src/claude_china/__init__.py`; all build and validation jobs must succeed
 before the workflow publishes the selected installers and `SHA256SUMS` to the
-matching GitHub Release. For v0.4.0, `PUBLISH_MACOS` is `false`: only the Windows
+matching GitHub Release. For v0.4.3, `PUBLISH_MACOS` is `false`: only the Windows
 EXE and Linux DEB/RPM are published, with their three checksum sidecars. The
 macOS builds remain Actions artifacts. Set `PUBLISH_MACOS` to `true` to include
 both Mac architectures in a subsequent release. The collector requires exact

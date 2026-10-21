@@ -7,8 +7,8 @@ project. The daily chart switches between tokens, sessions, calls and costs, wit
 daily table. Selecting a project in the ranking applies that project to the page.
 All labels support English, Simplified Chinese and Traditional Chinese.
 
-This feature is in the development checkout and will ship with the next desktop
-release. It does not add a CLI dependency or require installing usage plugins.
+Available since v0.4.3. It does not add a CLI dependency or require installing
+usage plugins.
 
 ## Sources and coverage
 
