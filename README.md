@@ -33,8 +33,8 @@ per-app environment settings, and check for launcher updates from the header.
 
 ## Desktop tour
 
-The app, terminal and proxy screenshots show v0.4.1 with demo data. The language
-preview below shows the current source for the next release.
+All screenshots show the current source in English with example profiles and
+session history. The multilingual interface is coming in the next release.
 
 <details>
 <summary><strong>Pick up where you left off — searchable session history</strong></summary>
