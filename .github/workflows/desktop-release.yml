@@ -26,6 +26,12 @@ on:
 permissions:
   contents: read
 
+env:
+  # v0.4.0 ships Windows/Linux; macOS remains available as CI build artifacts.
+  PUBLISH_MACOS: 'false'
+  # Enable explicitly after credentials are configured; signing failures never fall back.
+  SIGN_MACOS: 'false'
+
 jobs:
   build:
     timeout-minutes: 60
@@ -100,7 +106,7 @@ jobs:
         if: runner.os == 'Windows'
         run: python tools/build_desktop.py
       - name: Prepare macOS signing credentials
-        if: runner.os == 'macOS' && (github.event_name == 'push' || inputs.macos_signing == true)
+        if: runner.os == 'macOS' && (env.SIGN_MACOS == 'true' || inputs.macos_signing == true)
         env:
           MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
           MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
@@ -111,7 +117,7 @@ jobs:
       - name: Build and test macOS bundle
         if: runner.os == 'macOS'
         env:
-          REQUIRE_MACOS_SIGNING: ${{ github.event_name == 'push' || inputs.macos_signing == true }}
+          REQUIRE_MACOS_SIGNING: ${{ env.SIGN_MACOS == 'true' || inputs.macos_signing == true }}
         run: |
           if [ "$REQUIRE_MACOS_SIGNING" = "true" ]; then
             python tools/build_desktop.py --smoke --signed
@@ -184,6 +190,9 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
       - uses: actions/download-artifact@v4
         with:
           pattern: desktop-*
@@ -191,12 +200,12 @@ jobs:
       - name: Collect and verify installer checksums
         shell: bash
         run: |
-          mkdir release
-          find artifacts -type f \( -name '*.exe' -o -name '*.dmg' -o -name '*.deb' -o -name '*.rpm' -o -name '*.sha256' \) -exec cp {} release/ \;
-          cd release
-          cat *.sha256 > SHA256SUMS
-          sha256sum --check SHA256SUMS
-          test "$(wc -l < SHA256SUMS)" -eq 5
+          if [ "$PUBLISH_MACOS" = "true" ]; then
+            python tools/prepare_desktop_release.py --include-macos
+          else
+            python tools/prepare_desktop_release.py
+          fi
+          (cd release && sha256sum --check SHA256SUMS)
       - name: Publish native installers on GitHub Releases
         env:
           GH_TOKEN: ${{ github.token }}

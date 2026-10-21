@@ -30,8 +30,11 @@ the CLI package separately is optional.
 ### Install and upgrade
 
 - **Windows x64:** run `*-setup.exe`. Remove it through Settings → Apps → Installed apps.
-- **macOS:** choose `arm64` for Apple Silicon or `x64` for Intel, open the DMG and drag Claude China to Applications. Quit and move the app to Trash to uninstall.
 - **Linux x64:** install the `.deb` with apt or the `.rpm` with dnf / your software manager. Remove the `claude-china-desktop` package to uninstall.
+
+v0.4.0 publishes Windows, Linux and the CLI. macOS Intel and Apple Silicon builds
+are validated in GitHub Actions and remain available there as development
+artifacts; this Release does not include DMG downloads.
 
 Windows setup installs Microsoft's WebView2 Runtime if missing (internet required).
 Linux requires GTK 3 and WebKitGTK 4.1; select an installed desktop executable in
@@ -40,10 +43,10 @@ the launcher settings. The packages do not include Claude, Codex or Grok Bot the
 Install v0.4.0 manually when upgrading from v0.3.0, which predates the in-app
 update controls. Future compatible releases can use the new updater.
 
-macOS release builds must pass Developer ID signing and Apple notarization.
 Windows signing service enrollment is pending; Windows downloads currently
 remain unsigned and may show trust warnings. Check downloads against
 `SHA256SUMS`. See the [signing setup and status](https://github.com/invoker-bot/Claude-China/blob/main/packaging/desktop/SIGNING.md).
+The macOS Actions artifacts use ad-hoc signing and are not notarized.
 
 The old `claudec desktop install` / `uninstall` commands now show migration
 instructions. Quit the old Python launcher and remove its shortcut before

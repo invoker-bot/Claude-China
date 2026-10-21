@@ -94,11 +94,15 @@ base64 -i /absolute/path/DeveloperID.p12 | tr -d '\n' |
 Set the remaining values in the GitHub UI, or use `gh secret set NAME` without
 `--body` to enter secrets interactively.
 
-Run **Actions → Desktop installers → Run workflow**, with `macos_signing`
-enabled, before tagging a release. This builds Actions artifacts without
-publishing a release. Both Intel and Apple Silicon signing runs must pass.
-The `v*` tag workflow always requires macOS signing credentials and never
-silently replaces failed signing with an ad-hoc signature.
+Before a signed macOS release, run **Actions → Desktop installers → Run workflow**
+with `macos_signing` enabled. This builds Actions artifacts without publishing a
+release. Both Intel and Apple Silicon signing runs must pass before claiming
+signed macOS distribution.
+The v0.4.0 tag publishes Windows/Linux while macOS remains a CI artifact.
+`SIGN_MACOS: 'false'` in the workflow permits ad-hoc macOS validation without
+credentials. Set `SIGN_MACOS` to `true` to require signing on subsequent runs,
+and `PUBLISH_MACOS` to `true` when including both DMGs in a release. Explicitly
+requested signing never falls back to an ad-hoc package after a failure.
 
 The workflow creates a temporary runner keychain, imports the identity and
 validates the notary credentials. Only its certificate fingerprint, Team ID,

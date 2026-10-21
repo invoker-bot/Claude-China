@@ -123,8 +123,13 @@ read or overwrite the user's settings.
 Apple Silicon and Linux x64 on native GitHub runners. PRs and manual dispatch
 only upload Actions artifacts. A `v*` tag must match
 `src/claude_china/__init__.py`; all build and validation jobs must succeed
-before the workflow publishes five installer files and `SHA256SUMS` to the
-matching GitHub Release. The existing PyPI workflow remains independent.
+before the workflow publishes the selected installers and `SHA256SUMS` to the
+matching GitHub Release. For v0.4.0, `PUBLISH_MACOS` is `false`: only the Windows
+EXE and Linux DEB/RPM are published, with their three checksum sidecars. The
+macOS builds remain Actions artifacts. Set `PUBLISH_MACOS` to `true` to include
+both Mac architectures in a subsequent release. The collector requires exact
+versioned filenames and verifies every selected file before copying anything
+into the release directory. The existing PyPI workflow remains independent.
 Update `pyproject.toml` and `__version__` together before tagging a new version.
 
 Validation covers the full pytest suite, each frozen GUI, the Windows
@@ -145,9 +150,11 @@ The existing v0.3.0 downloads are unsigned on Windows and ad-hoc signed on macOS
 
 PR builds and default manual builds remain unsigned/ad-hoc. Manual runs can
 enable `macos_signing` to exercise Developer ID signing and notarization.
-Every future `v*` tag requires those macOS credentials: missing credentials or
-failed signature/notarization/Gatekeeper checks stop the desktop release.
-The workflow never falls back to an ad-hoc macOS release.
+`SIGN_MACOS` is currently `false`, so missing signing credentials do not block
+the Windows/Linux release. Set it to `true` to require signed macOS builds on
+tags as well as other runs. An explicitly requested signed build fails if
+credentials, signature, notarization or Gatekeeper checks fail; it never falls
+back to ad-hoc signing. Signing and publishing macOS are independent switches.
 
 Windows signing still requires an approved signing provider and its workflow
 integration. Its default build currently remains unsigned. `--signed` is

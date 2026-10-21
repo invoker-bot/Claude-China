@@ -40,11 +40,15 @@ Download the desktop app from
 [GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
 It includes Python and the desktop dependencies; installing the CLI is optional.
 
+v0.4.0 publishes Windows and Linux installers plus the CLI. macOS Intel and
+Apple Silicon packages are currently build-validation artifacts in GitHub
+Actions, not downloads attached to the v0.4.0 Release.
+
 | Platform | Download | Install | Uninstall |
 | --- | --- | --- | --- |
 | Windows x64 | `*-windows-x64-setup.exe` | Run the installer | Settings → Apps → Installed apps → Claude China |
-| macOS Apple Silicon | `*-macos-arm64.dmg` | Drag Claude China to Applications | Quit the app, then move it to Trash |
-| macOS Intel | `*-macos-x64.dmg` | Drag Claude China to Applications | Quit the app, then move it to Trash |
+| macOS Apple Silicon | `*-macos-arm64.dmg` (Actions artifact) | Drag Claude China to Applications | Quit the app, then move it to Trash |
+| macOS Intel | `*-macos-x64.dmg` (Actions artifact) | Drag Claude China to Applications | Quit the app, then move it to Trash |
 | Debian / Ubuntu x64 | `*-linux-x64.deb` | Open with the software installer, or `sudo apt install ./<file>.deb` | Software manager, or `sudo apt remove claude-china-desktop` |
 | Fedora x64 | `*-linux-x64.rpm` | Open with the software installer, or `sudo dnf install ./<file>.rpm` | Software manager, or `sudo dnf remove claude-china-desktop` |
 
@@ -101,9 +105,10 @@ Grok Bot's `grok-bot` desktop command is detected automatically; select an
 installed executable in settings for other or portable desktop apps. Terminal
 commands such as `claude`, `codex` and `grok` are not treated as desktop apps.
 
-The v0.3.0 installers have no verified publisher signature. Windows signing
-service enrollment is pending. Future macOS release builds require Developer ID
-signing and Apple notarization; see the
+Windows signing service enrollment is pending; the v0.4.0 Windows installer is
+unsigned. The macOS Actions artifacts are ad-hoc signed and not notarized.
+Developer ID signing and Apple notarization can be enabled once credentials
+are configured; see the
 [signing setup guide](packaging/desktop/SIGNING.md). A valid Windows signature
 does not guarantee that a new download has sufficient SmartScreen reputation.
 
