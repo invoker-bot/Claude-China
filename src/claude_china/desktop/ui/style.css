@@ -345,11 +345,12 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 .usage-status { display: flex; align-items: center; gap: 15px; min-height: 42px; color: var(--muted); font-size: 12px; }
 .usage-status progress { width: 120px; height: 5px; accent-color: var(--accent); }
 .usage-coverage-note { margin: 0 0 13px; }
-.usage-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.usage-metrics { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
 .usage-kpi { border: 1px solid var(--line); background: var(--surface); border-radius: 10px; padding: 17px 19px; }
 .usage-kpi p { font-size: 13px; color: var(--muted); }
 .usage-kpi strong { display: block; font-size: 30px; font-weight: 650; margin-block: 3px; letter-spacing: -.6px; font-variant-numeric: tabular-nums; }
 .usage-kpi:first-child strong { color: var(--accent); }
+.usage-cost-kpi strong { color: var(--accent); font-size: 25px; overflow-wrap: anywhere; }
 .usage-kpi small { color: var(--muted); font-size: 11px; }
 .usage-breakdown { display: flex; flex-wrap: wrap; gap: 10px 26px; grid-column: 1/-1; color: var(--muted); font-size: 12px; padding: 2px 3px; }
 .usage-breakdown b { color: var(--text); font-weight: 500; margin-left: 7px; }
@@ -368,13 +369,15 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 .usage-daily-details { margin-top: 14px; color: var(--muted); font-size: 12px; }
 .usage-daily-details summary { cursor: pointer; width: fit-content; }
 .usage-daily-details .usage-table-scroll { max-height: 250px; overflow-y: auto; }
-.usage-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
-.usage-model { margin-top: 19px; }
-.usage-model > div:first-child { display: flex; gap: 12px; justify-content: space-between; font-size: 12px; }
-.usage-model span { overflow-wrap: anywhere; }
-.usage-model b { flex: none; font-weight: 500; }
-.usage-meter { height: 5px; border-radius: 4px; background: var(--line-soft); margin-top: 8px; overflow: hidden; }
-.usage-meter i { display: block; height: 100%; background: #8f9cf8; border-radius: 4px; }
+.usage-detail-table td:first-child { min-width: 180px; }
+.usage-table td small { display: block; color: var(--muted); font-size: 10px; }
+.usage-filter-link { border: 0; padding: 0; color: var(--accent); background: transparent; font: inherit; text-align: left; }
+.usage-filter-link:hover { text-decoration: underline; }
+.usage-pricing details { margin-top: 12px; }
+.usage-pricing summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+.usage-call-controls { display: flex; gap: 12px; align-items: center; }
+.usage-call-controls input[type=search] { border: 1px solid var(--line); border-radius: 6px; background: var(--input); color: var(--text); padding: 8px; width: 200px; }
+.usage-call-controls label { white-space: nowrap; color: var(--muted); font-size: 12px; }
 .usage-project-row { width: 100%; display: grid; grid-template-columns: 1fr auto; text-align: left; gap: 3px 10px; padding: 13px 0; border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; }
 .usage-project-row:last-child { border-bottom: 0; }
 .usage-project-row:hover { color: var(--accent); }
@@ -393,12 +396,14 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 @media (max-width: 1050px) { .app-header { gap: 22px; } .top-nav { gap: 20px; } }
 @media (max-width: 760px) {
   .usage-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .usage-grid { grid-template-columns: 1fr; gap: 0; }
+  .usage-cost-kpi { grid-column: 1/-1; grid-row: 1; }
   .usage-toolbar { flex-wrap: wrap; gap: 12px; }
   .usage-toolbar label { flex: 1; }
   .usage-project-filter { flex-basis: 100% !important; }
   .usage-kpi { padding: 13px; }
   .usage-card { padding: 16px; }
+  .usage-call-controls { align-items: flex-start; flex-direction: column; }
+  .usage-call-controls input[type=search] { width: 150px; }
   .usage-chart { gap: 2px; }
 }
 @media (max-width: 640px) {

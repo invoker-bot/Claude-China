@@ -30,7 +30,7 @@ per-app environment settings, and check for launcher updates from the header.
 - Open project terminals and manage CLI profiles in the desktop app
 - Search local CLI session history and resume a specific conversation
 - Pin favorite project folders and start new sessions with the selected profile
-- Inspect local token usage, active sessions, projects and daily trends (next desktop release)
+- Inspect local token usage, tool calls, models, estimated API costs and daily trends (next desktop release)
 
 ## Desktop tour
 
@@ -40,7 +40,9 @@ shows the next desktop release; the other views are available in v0.4.2.
 <details>
 <summary><strong>Understand your usage — local statistics</strong></summary>
 
-Compare token usage, active sessions and projects by day, tool or project.
+Compare token usage, active sessions and projects by day, application or model.
+Explore Bash, Read, Write and MCP call counts, plus estimated API-equivalent
+token costs with visible pricing sources and coverage.
 Statistics are indexed locally in the background. Missing usage is clearly
 marked, including Grok Bot's activity-only records. See the
 [statistics guide](docs/desktop-statistics.md) for supported sources and limits.

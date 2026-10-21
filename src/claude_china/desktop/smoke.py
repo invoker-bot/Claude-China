@@ -219,7 +219,8 @@ def _verify_statistics(window):
     log.parent.mkdir(parents=True, exist_ok=True)
     row = {'type': 'assistant', 'timestamp': datetime.now(timezone.utc).isoformat(),
            'sessionId': 'usage-smoke-session', 'cwd': str(root), 'requestId': 'usage-smoke-request',
-           'message': {'id': 'usage-smoke-message', 'model': 'claude-fixture',
+           'message': {'id': 'usage-smoke-message', 'model': 'claude-opus-5-5',
+                       'content': [{'type': 'tool_use', 'id': 'usage-smoke-call', 'name': 'Bash', 'input': {'command': 'fixture only'}}],
                        'usage': {'input_tokens': 20, 'output_tokens': 10,
                                  'cache_read_input_tokens': 100, 'cache_creation_input_tokens': 30}}}
     log.write_text(json.dumps(row) + '\n', encoding='utf-8')
@@ -227,6 +228,10 @@ def _verify_statistics(window):
     _wait_js(window, "USAGE && USAGE.scan.phase === 'ready' && USAGE.totals.tokens === 160")
     if not window.evaluate_js("!document.getElementById('usage-main').hidden && USAGE.totals.sessions === 1 && USAGE.totals.projects === 1"):
         raise RuntimeError('Native statistics did not render fixture aggregates')
+    if not window.evaluate_js("USAGE.totals.cost_usd > 0 && USAGE.totals.tool_calls === 1 && USAGE.tool_calls[0].name === 'Bash'"):
+        raise RuntimeError('Native statistics omitted cost or tool calls')
+    window.evaluate_js("document.getElementById('usage-model').value = 'claude-opus-5-5'; document.getElementById('usage-model').dispatchEvent(new Event('change'))")
+    _wait_js(window, "USAGE.models.length === 1 && USAGE.models[0].price.input === 4")
     window.evaluate_js("document.getElementById('usage-tool').value = 'grok-bot'; document.getElementById('usage-tool').dispatchEvent(new Event('change'))")
     _wait_js(window, "USAGE.totals.tokens === null && USAGE.totals.sessions === 0")
     if not (root / 'usage-v1.sqlite').is_file():

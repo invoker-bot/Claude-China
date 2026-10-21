@@ -51,39 +51,56 @@ if (new URLSearchParams(location.search).has("preview")) {
   const cliPublic = p => ({...clone(p), supported:true, endpoint:p.base_url ? new URL(p.base_url).hostname : ''});
   const cliFailure = () => ({ok:false, error:'此配置已发生变化，请重新打开后再操作。'});
   const takeoverEnabled = {};
+  const demoPrices = {
+    'claude-opus-5-5': {model:'claude-opus-5-5',input:4,output:20,cached:.2,write:5,long_write:8,source:'https://platform.claude.com/docs/en/about-claude/pricing'},
+    'gpt-6.1-sol': {model:'gpt-6.1-sol',input:2,output:10,cached:.1,write:2.5,long_write:5,source:'https://developers.openai.com/api/docs/pricing'}
+  };
   const takeoverState = id => id !== 'grok-bot' ? ({ app_id: id, supported: false, enabled: false,
     can_disable: false, mode: 'msix-unavailable', message: 'MSIX 安装暂不支持原入口接管，尚不能保证更新后的检查和包激活上下文。（预览）' }) :
     ({ app_id: id, supported: true, enabled: Boolean(takeoverEnabled[id]), can_disable: Boolean(takeoverEnabled[id]),
       message: takeoverEnabled[id] ? '已接管此 EXE 原入口及同路径更新重启；每次重新检查并注入变量。（预览）' : '未接管原入口。仅覆盖固定 EXE 路径及同路径更新。（预览）' });
   window.pywebview = { api: {
     start_usage_scan: async () => ({ok:true,data:{phase:'ready'}}),
-    get_usage_report: async (days, tool, project) => {
+    open_usage_price_source: async model => ({ok:Boolean(demoPrices[model] && window.open(demoPrices[model].source, '_blank', 'noopener'))}),
+    get_usage_report: async (days, tool, project, modelFilter = 'all') => {
       if (modes.get('usage') === 'error') return {ok:false,error:'无法读取统计，请重试。'};
       const rows = [], names = ['claude', 'codex', 'grok', 'grok-bot'];
       const projects = ['D:\\Projects\\atlas', 'D:\\Projects\\website', 'D:\\Projects\\research'];
-      const models = ['claude-opus', 'gpt-codex', 'grok-build', ''];
+      const models = ['claude-opus-5-5', 'gpt-6.1-sol', 'grok-4.7-build', ''];
       for (let day=days-1; day>=0; day--) {
         const date = new Date();date.setDate(date.getDate()-day);
         const label = `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
         names.forEach((name, i) => {
           if ((day+i)%5===0 || modes.get('usage')==='empty') return;
-          rows.push({date:label,tool:name,project:i===3?'':projects[(day+i)%3],model:models[i],session:`${name}-${day%9}`,tokens:i===3?null:Math.round((i+1)*35000*(1+Math.sin(day*1.4)**2))});
+          const tokens=i===3?null:Math.round((i+1)*35000*(1+Math.sin(day*1.4)**2)), price=demoPrices[models[i]];
+          const input_tokens=Math.round(tokens*.9),output_tokens=tokens-input_tokens,cached_tokens=Math.round(tokens*.72),cache_write_tokens=Math.round(tokens*.03);
+          rows.push({date:label,tool:name,project:i===3?'':projects[(day+i)%3],model:models[i],session:`${name}-${day%9}`,tokens,
+            input_tokens,output_tokens,cached_tokens,cache_write_tokens,
+            calls:i===0?{Bash:12+day%9,Read:8+day%6,Write:3,'mcp__docs__fetch':2}:i===1?{exec_command:15+day%7,apply_patch:5,'mcp__cua_repl.js':4}:{},
+            cost_usd:price?((input_tokens-cached_tokens-cache_write_tokens)*price.input+cached_tokens*price.cached+cache_write_tokens*price.write+output_tokens*price.output)/1e6:null});
         });
       }
       const toolRows = rows.filter(row => tool==='all'||row.tool===tool);
-      const filtered = toolRows.filter(row => !project||row.project===project);
+      const projectRows = toolRows.filter(row => !project||row.project===project);
+      const filtered = projectRows.filter(row => modelFilter==='all'||row.model===modelFilter);
       const aggregate = list => {
         const known=list.some(row=>row.tokens!==null), tokens=list.reduce((sum,row)=>sum+(row.tokens||0),0);
-        return {tokens:known?tokens:null,input_tokens:known?Math.round(tokens*.9):null,output_tokens:known?tokens-Math.round(tokens*.9):null,cached_tokens:known?Math.round(tokens*.72):null,cache_write_tokens:known?Math.round(tokens*.03):null,reasoning_tokens:known?Math.round(tokens*.04):null,
+        const priced=list.filter(row=>row.cost_usd!==null),unpriced=list.filter(row=>row.tokens!==null&&row.cost_usd===null),missing=new Set(list.filter(row=>row.tokens===null).map(row=>row.session)).size;
+        return {tokens:known?tokens:null,...Object.fromEntries(['input_tokens','output_tokens','cached_tokens','cache_write_tokens'].map(key=>[key,known?list.reduce((sum,row)=>sum+(row[key]||0),0):null])),reasoning_tokens:known?Math.round(tokens*.04):null,
+          cost_usd:priced.length?priced.reduce((sum,row)=>sum+row.cost_usd,0):null,cost_status:!priced.length?'unavailable':unpriced.length||missing?'partial':'estimated',priced_tokens:priced.reduce((sum,row)=>sum+row.tokens,0),unpriced_tokens:unpriced.reduce((sum,row)=>sum+row.tokens,0),priced_records:priced.length,unpriced_records:unpriced.length,assumed_records:0,missing_usage_sessions:missing,
+          tool_calls:list.length&&list.every(row=>row.tool==='grok-bot')?null:list.reduce((sum,row)=>sum+Object.values(row.calls).reduce((a,b)=>a+b,0),0),
           sessions:new Set(list.map(row=>row.session)).size,projects:new Set(list.filter(row=>row.project).map(row=>row.project)).size,active_days:new Set(list.map(row=>row.date)).size};
       };
       const daily=[];
       for(let offset=days-1;offset>=0;offset--){const d=new Date();d.setDate(d.getDate()-offset);const date=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;daily.push({date,...aggregate(filtered.filter(row=>row.date===date))});}
+      const calls=new Map();
+      for(const row of filtered) for(const [name,count] of Object.entries(row.calls)){const key=row.tool+':'+name;const item=calls.get(key)||{name,tool:row.tool,calls:0,is_mcp:name.startsWith('mcp__'),sessionIds:new Set()};item.calls+=count;item.sessionIds.add(row.session);calls.set(key,item);}
       return {ok:true,data:{totals:aggregate(filtered),daily,
-        models:models.filter(Boolean).map(model=>({model,...aggregate(filtered.filter(row=>row.model===model))})).filter(row=>row.tokens!==null),
+        tool_calls:[...calls.values()].map(({sessionIds,...row})=>({...row,sessions:sessionIds.size})).sort((a,b)=>b.calls-a.calls),
+        models:models.map((model,i)=>({model,tool:names[i],price:demoPrices[model]||null,...aggregate(filtered.filter(row=>row.model===model))})).filter(row=>row.tokens!==null),
         projects:projects.map(path=>({project:path,...aggregate(filtered.filter(row=>row.project===path))})).filter(row=>row.sessions),
         tools:names.map(name=>({tool:name,files:24,...aggregate(filtered.filter(row=>row.tool===name))})),
-        project_options:[...new Set(toolRows.map(row=>row.project).filter(Boolean))],updated_at:Date.now()/1000,
+        project_options:[...new Set(toolRows.map(row=>row.project).filter(Boolean))],model_options:[...new Set(projectRows.filter(row=>row.tokens!==null).map(row=>row.model))],pricing:{checked_on:'2026-10-22',currency:'USD',ready:true},updated_at:Date.now()/1000,
         scan:{phase:'ready'},warnings:['界面预览使用示例数据。','Grok Bot 仅统计本地缓存的会话活动，未提供 token 和项目明细。']}};
     },
     get_locale: previewLocale,

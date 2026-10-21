@@ -13,14 +13,17 @@ import threading
 import time
 
 from .usage_records import ADAPTER_VERSION, COUNTERS, Parser, text
+from . import usage_pricing as pricing
 
 
 TOOLS = ('claude', 'codex', 'grok', 'grok-bot')
+COST_FIELDS = ('cost_usd', 'priced_tokens', 'unpriced_tokens', 'priced_records', 'unpriced_records', 'assumed_records')
 MAX_LINE = 4 * 1024 * 1024
 MARKERS = {
     'claude': (b'"assistant"', b'"user"', b'relocated'),
-    'codex': (b'token_usage_record', b'token_count', b'session_meta', b'turn_context', b'user_message'),
-    'grok': (b'turn_completed', b'user_message_chunk', b'agent_message_chunk'),
+    'codex': (b'token_usage_record', b'token_count', b'session_meta', b'turn_context', b'user_message',
+              b'"function_call"', b'"custom_tool_call"', b'"web_search_call"', b'"local_shell_call"'),
+    'grok': (b'turn_completed', b'user_message_chunk', b'agent_message_chunk', b'tool_call'),
 }
 WARNINGS = {
     'invalid_timestamp': '部分记录缺少有效时间，未计入统计。',
@@ -31,6 +34,8 @@ WARNINGS = {
     'bad_record': '部分日志损坏或记录过大，已跳过。',
     'read_error': '部分日志无法读取，已保留上次统计。',
     'bot_activity_only': 'Grok Bot 仅统计本地缓存的会话活动，未提供 token 和项目明细。',
+    'unsupported_calls': '部分工具调用缺少名称或调用 ID，未计入调用次数。',
+    'inherited_calls': '部分 Codex 子任务的继承调用已跳过，避免重复计数。',
 }
 
 
@@ -142,6 +147,15 @@ class UsageIndex:
                 CREATE INDEX IF NOT EXISTS daily_date ON daily(date, tool);
                 CREATE TABLE IF NOT EXISTS metadata (key TEXT PRIMARY KEY, value TEXT);
             ''')
+            # Preserve old aggregates while a newer adapter is scanning. Price
+            # changes rebuild only daily summaries, not the source transcripts.
+            for table, additions in [('records', [('cache_write_long_tokens', 'INTEGER'), ('call_name', "TEXT DEFAULT ''")]),
+                                     ('daily', [(key, 'REAL' if key == 'cost_usd' else 'INTEGER') for key in COST_FIELDS]
+                                      + [('call_name', "TEXT DEFAULT ''"), ('tool_calls', 'INTEGER DEFAULT 0')])]:
+                existing = {row['name'] for row in db.execute('PRAGMA table_info(%s)' % table)}
+                for key, kind in additions:
+                    if key not in existing:
+                        db.execute('ALTER TABLE %s ADD COLUMN %s %s' % (table, key, kind))
 
     @contextmanager
     def connect(self):
@@ -185,20 +199,43 @@ class UsageIndex:
                 warnings.update(json.loads(row['state']).get('warnings', []))
             # Build compact day/session/model groups once per scan, rather than
             # sorting hundreds of thousands of requests on every UI filter.
-            if db.total_changes or not db.execute('SELECT 1 FROM metadata WHERE key=?', ('daily-v1',)).fetchone():
-                db.execute('DELETE FROM daily')
-                db.execute('''INSERT INTO daily
-                    SELECT date(timestamp,'unixepoch','localtime'), tool, session, project, model,
-                    SUM(input_tokens), SUM(output_tokens), SUM(cached_tokens),
-                    SUM(cache_write_tokens), SUM(reasoning_tokens)
-                    FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY tool,key ORDER BY
-                        COALESCE(input_tokens,0)+COALESCE(output_tokens,0) DESC, timestamp DESC, path) AS rank
-                        FROM records)
-                    WHERE rank=1 GROUP BY date(timestamp,'unixepoch','localtime'), tool, session, project, model''')
-                db.execute('INSERT OR REPLACE INTO metadata VALUES (?,?)', ('daily-v1', '1'))
+            version = db.execute('SELECT value FROM metadata WHERE key=?', ('daily-pricing',)).fetchone()
+            if db.total_changes or not version or version['value'] != pricing.PRICE_VERSION:
+                self._rebuild_daily(db)
             result.update(updated_at=time.time(), warnings=sorted(warnings))
             db.execute('INSERT OR REPLACE INTO metadata VALUES (?, ?)', ('scan', json.dumps(result)))
         return result
+
+    @staticmethod
+    def _rebuild_daily(db):
+        groups = {}
+        rows = db.execute('''SELECT *, date(timestamp,'unixepoch','localtime') AS date,
+            MAX(CASE WHEN key LIKE 'request:%' OR key LIKE 'response:%' THEN input_tokens ELSE 0 END)
+                OVER (PARTITION BY tool,session,model) AS session_input_max
+            FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY tool,key ORDER BY
+                COALESCE(input_tokens,0)+COALESCE(output_tokens,0) DESC, timestamp DESC, path) AS rank
+                FROM records) WHERE rank=1''')
+        for raw in rows:
+            row = dict(raw)
+            key = tuple(row[k] for k in ('date', 'tool', 'session', 'project', 'model', 'call_name'))
+            group = groups.setdefault(key, dict.fromkeys(COUNTERS, None) | dict.fromkeys(COST_FIELDS, 0) | {'tool_calls': 0})
+            group['tool_calls'] += int(bool(row['call_name']))
+            for name in COUNTERS:
+                if row[name] is not None:
+                    group[name] = (group[name] or 0) + row[name]
+            if row['input_tokens'] is None:
+                continue
+            cost = pricing.estimate(row)
+            known = cost['usd'] is not None
+            group['priced_records' if known else 'unpriced_records'] += 1
+            group['priced_tokens' if known else 'unpriced_tokens'] += row['input_tokens'] + (row['output_tokens'] or 0)
+            group['cost_usd'] += cost['usd'] or 0
+            group['assumed_records'] += int(cost['assumed'])
+        db.execute('DELETE FROM daily')
+        columns = ('date', 'tool', 'session', 'project', 'model', 'call_name') + COUNTERS + COST_FIELDS + ('tool_calls',)
+        db.executemany('INSERT INTO daily (%s) VALUES (%s)' % (','.join(columns), ','.join('?' for _ in columns)),
+                       [key + tuple(group[k] for k in COUNTERS + COST_FIELDS + ('tool_calls',)) for key, group in groups.items()])
+        db.execute('INSERT OR REPLACE INTO metadata VALUES (?,?)', ('daily-pricing', pricing.PRICE_VERSION))
 
     def _scan_file(self, db, path, tool):
         stat = path.stat()
@@ -274,26 +311,33 @@ class UsageIndex:
 
     @staticmethod
     def _store(db, path, event):
-        values = [str(path)] + [event[k] for k in ('key', 'tool', 'session', 'project', 'model', 'timestamp') + COUNTERS]
+        columns = ('path', 'key', 'tool', 'session', 'project', 'model', 'timestamp') + COUNTERS + ('cache_write_long_tokens', 'call_name')
+        values = [str(path)] + [event[k] for k in columns[1:]]
         # Streaming fragments can update the same request. Preserve its largest
         # complete counters, never add fragments or copied requests together.
         updates = ','.join('%s=MAX(COALESCE(records.%s,0),excluded.%s)' % (k, k, k) for k in COUNTERS)
-        db.execute('INSERT INTO records VALUES (?,?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(path,key) DO UPDATE SET '
-                   + updates + ',model=excluded.model,project=excluded.project', values)
+        db.execute('INSERT INTO records (%s) VALUES (%s) ON CONFLICT(path,key) DO UPDATE SET ' %
+                   (','.join(columns), ','.join('?' for _ in columns)) + updates
+                   + ',model=excluded.model,project=excluded.project,cache_write_long_tokens=excluded.cache_write_long_tokens,call_name=excluded.call_name', values)
 
-    def report(self, days=30, tool='all', project='', now=None):
-        if type(days) is not int or days not in (1, 7, 30, 90) or tool not in ('all',) + TOOLS or not isinstance(project, str):
+    def report(self, days=30, tool='all', project='', now=None, model='all'):
+        if (type(days) is not int or days not in (1, 7, 30, 90) or tool not in ('all',) + TOOLS
+                or not isinstance(project, str) or not isinstance(model, str)):
             raise ValueError('无效的统计筛选条件。')
         now = datetime.now().astimezone() if now is None else now
         first = now.date() - timedelta(days=days - 1)
         daily = {str(first + timedelta(days=i)): _bucket() for i in range(days)}
-        totals, models, projects, tools = _bucket(), {}, {}, {}
-        project_options = set()
+        totals, models, projects, tools, calls = _bucket(), {}, {}, {}, {}
+        project_options, model_options = set(), set()
         with self.connect() as db:
             meta = db.execute('SELECT value FROM metadata WHERE key=?', ('scan',)).fetchone()
             scan = json.loads(meta['value']) if meta else {}
+            version = db.execute('SELECT value FROM metadata WHERE key=?', ('daily-pricing',)).fetchone()
+            price_ready = bool(version and version['value'] == pricing.PRICE_VERSION)
             rows = db.execute('SELECT * FROM daily WHERE date>=? AND date<=?', (str(first), str(now.date())))
             for row in rows:
+                if not price_ready:
+                    row = dict(row) | dict.fromkeys(COST_FIELDS, 0)
                 if tool != 'all' and row['tool'] != tool:
                     continue
                 day = row['date']
@@ -303,25 +347,38 @@ class UsageIndex:
                     project_options.add(row['project'])
                 if project and row['project'] != project:
                     continue
+                if row['input_tokens'] is not None or row['tool_calls']:
+                    model_options.add(row['model'])
+                if model != 'all' and row['model'] != model:
+                    continue
                 _add(totals, row, day)
                 _add(daily[day], row, day)
                 _add(tools.setdefault(row['tool'], _bucket()), row, day)
                 if row['project']:
                     _add(projects.setdefault(row['project'], _bucket()), row, day)
-                if row['input_tokens'] is not None:
-                    _add(models.setdefault(row['model'], _bucket()), row, day)
+                if row['input_tokens'] is not None or row['tool_calls']:
+                    _add(models.setdefault((row['tool'], row['model']), _bucket()), row, day)
+                if row['call_name']:
+                    _add(calls.setdefault((row['tool'], row['call_name']), _bucket()), row, day)
             file_counts = {row['tool']: row['n'] for row in db.execute('SELECT tool,COUNT(*) AS n FROM files GROUP BY tool')}
         order = lambda item: item.get('tokens') or 0
         return {'totals': _finish(totals), 'daily': [dict(date=day, **_finish(value)) for day, value in daily.items()],
-                'models': sorted([dict(model=key, **_finish(value)) for key, value in models.items()], key=order, reverse=True),
+                'models': sorted([dict(tool=key[0], model=key[1], price=pricing.lookup_price(key[1]), **_finish(value))
+                                  for key, value in models.items()], key=order, reverse=True),
                 'projects': sorted([dict(project=key, **_finish(value)) for key, value in projects.items()], key=lambda v: (v['tokens'] or 0, v['sessions']), reverse=True),
                 'tools': [dict(tool=key, files=file_counts.get(key, 0), **_finish(tools.get(key, _bucket()))) for key in TOOLS],
-                'project_options': sorted(project_options), 'updated_at': scan.get('updated_at'),
+                'project_options': sorted(project_options), 'model_options': sorted(model_options), 'updated_at': scan.get('updated_at'),
+                'pricing': {'checked_on': pricing.CHECKED_ON, 'currency': 'USD', 'ready': price_ready},
+                'tool_calls': sorted([dict(tool=key[0], name=key[1], calls=value['tool_calls'],
+                                          is_mcp=key[1].lower().startswith(('mcp__', 'mcp.', 'mcp:')),
+                                          sessions=len(value['session_ids'])) for key, value in calls.items()],
+                                     key=lambda row: (-row['calls'], row['tool'], row['name'])),
                 'warnings': [WARNINGS[k] for k in scan.get('warnings', []) if k in WARNINGS]}
 
 
 def _bucket():
-    return dict.fromkeys(COUNTERS, 0) | {'has_usage': False, 'session_ids': set(), 'project_ids': set(), 'days': set()}
+    return dict.fromkeys(COUNTERS + COST_FIELDS, 0) | {'has_usage': False, 'session_ids': set(),
+            'usage_session_ids': set(), 'project_ids': set(), 'days': set(), 'tool_calls': 0, 'call_sources': set()}
 
 
 def _add(bucket, row, day):
@@ -330,14 +387,27 @@ def _add(bucket, row, day):
     if row['project']:
         bucket['project_ids'].add(row['project'])
     bucket['days'].add(day)
+    if row['tool'] != 'grok-bot':
+        bucket['call_sources'].add(row['tool'])
+    bucket['tool_calls'] += row['tool_calls'] or 0
     if row['input_tokens'] is not None:
         bucket['has_usage'] = True
+        bucket['usage_session_ids'].add((row['tool'], row['session']))
         for key in COUNTERS:
+            bucket[key] += row[key] or 0
+        for key in COST_FIELDS:
             bucket[key] += row[key] or 0
 
 
 def _finish(bucket):
+    missing_sessions = len(bucket['session_ids'] - bucket['usage_session_ids'])
+    cost_status = ('unavailable' if not bucket['priced_records'] else
+                   'partial' if bucket['unpriced_records'] or missing_sessions else 'estimated')
     return {**{k: bucket[k] if bucket['has_usage'] else None for k in COUNTERS},
+            **{k: bucket[k] for k in COST_FIELDS if k != 'cost_usd'},
+            'cost_usd': bucket['cost_usd'] if bucket['priced_records'] else None,
+            'cost_status': cost_status, 'missing_usage_sessions': missing_sessions,
+            'tool_calls': bucket['tool_calls'] if bucket['call_sources'] or not bucket['session_ids'] else None,
             'tokens': bucket['input_tokens'] + bucket['output_tokens'] if bucket['has_usage'] else None,
             'sessions': len(bucket['session_ids']), 'projects': len(bucket['project_ids']), 'active_days': len(bucket['days'])}
 
@@ -371,8 +441,8 @@ class UsageService:
         with self.lock:
             self.status = dict(progress, phase='scanning')
 
-    def report(self, days=30, tool='all', project=''):
-        data = self.index.report(days, tool, project)
+    def report(self, days=30, tool='all', project='', model='all'):
+        data = self.index.report(days, tool, project, model=model)
         with self.lock:
             data['scan'] = dict(self.status)
         return data

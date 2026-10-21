@@ -1,8 +1,9 @@
 # Desktop statistics
 
 The **Statistics** tab shows recorded token usage, active sessions, identified
-projects and active days. Choose today, 7, 30 or 90 days, then filter by tool and
-project. The daily chart switches between tokens and sessions, with an accessible
+projects, active days, tool calls and estimated API-equivalent token costs.
+Choose today, 7, 30 or 90 days, then filter by application, exact model and
+project. The daily chart switches between tokens, sessions, calls and costs, with an accessible
 daily table. Selecting a project in the ranking applies that project to the page.
 All labels support English, Simplified Chinese and Traditional Chinese.
 
@@ -46,8 +47,58 @@ reconciled rather than added together. Inherited legacy child snapshots,
 ambiguous resets and overlapping records are handled conservatively with a
 coverage notice. In-progress Grok turns contribute activity, but their token
 usage is unavailable until `turn_completed` arrives.
-The UI deliberately does not infer subscription limits or monetary charges from
-these token counts.
+
+## Tool calls
+
+The model/application breakdown and the **Tool call breakdown** show calls by
+original name, including Bash, Read, Write, custom tools and MCP namespaces.
+Search a name or select **MCP only**; these controls narrow the call ranking,
+while date/application/model/project filters apply to the whole page.
+
+Claude `tool_use` / `server_tool_use` blocks, Codex function/custom/built-in call
+items, and Grok's structured `x.ai/tool` metadata are indexed by call ID.
+Streaming fragments, copies and Grok status updates count once; outputs do not
+add calls. Replayed Codex child calls before the child's creation are excluded;
+child calls with no trustworthy creation time are excluded with a coverage notice.
+Script-internal calls are not inferred from code or command arguments. A call
+count means a recorded invocation, not necessarily successful completion.
+
+Claude message models and Codex turn models identify the model making a call.
+Grok's mutable session summary cannot establish historical call ownership, so
+those calls appear under **Unknown model**. Grok Bot transcript caches do not
+currently provide tool-call details; their call count is unavailable, not zero.
+
+## API-equivalent costs
+
+The offline price snapshot was checked on **2026-10-22**, using official
+[OpenAI pricing](https://developers.openai.com/api/docs/pricing),
+[Claude pricing](https://platform.claude.com/docs/en/about-claude/pricing) and
+[Grok pricing](https://docs.x.ai/developers/pricing).
+The model rate table exposes prices and links to each source. Prices are USD per
+million tokens at current **Standard/global** rates, applied to all retained
+history; this is not historical invoice reconstruction or a subscription bill.
+Updating the app's price catalog recalculates cached aggregates without rereading
+transcripts. A running app never fetches prices or uploads usage automatically.
+
+Ordinary input = total input minus cached reads and writes. Each category is
+priced separately, then output cost is added. Reasoning is already part of
+output. Claude's recorded 5-minute and 1-hour cache writes use their respective
+rates; missing durations assume 5 minutes for Claude and 30 minutes for OpenAI.
+Per-request context thresholds apply to the whole request. GPT-5.5 uses the
+largest retained request in the session to select its documented session tier.
+Legacy cumulative deltas and Grok turn aggregates do not establish individual
+prompt lengths; these use the short-context rate and are marked as assumptions.
+Fast/priority modes, batch discounts, regional premiums, search/hosted-tool fees,
+taxes and subscription charges are excluded.
+
+Only explicitly listed model IDs and their dated snapshots match prices. Private
+models, `<synthetic>`, `codex-auto-review` and unverified `grok-4.7-build` /
+`grok-4.6-build` aliases remain unpriced instead of inheriting a similar name's
+rate. Unknown usage/prices display a dash, while a recorded zero remains zero.
+Totals are marked **Partial estimate** when some recorded usage is unpriced or
+some sessions have no usage. Coverage shows priced/unpriced tokens, sessions
+without usage and records using assumptions. These estimates cannot establish
+account balances, quota remaining or amounts actually paid.
 
 ## Storage and refresh
 
@@ -57,7 +108,7 @@ summary and progress; the initial scan can take minutes for large histories.
 The scanner never launches, stops or restarts a provider application.
 
 `~/.claudec/usage-v1.sqlite` contains the rebuildable local index: source file
-positions/signatures, request IDs, session IDs, project paths, model names,
+positions/signatures, request/call IDs, session IDs, tool names, project paths, model names,
 timestamps and numeric aggregates. It does not store prompts, responses, tool
 arguments, authentication credentials or raw transcripts. SQLite's WAL mode
 allows reads while a scan is running. No usage data is sent over the network.
@@ -72,14 +123,16 @@ checkpoints. Malformed or oversized records have a coverage warning.
 
 ## Validation
 
-`python -m pytest tests/test_desktop_usage.py -q` exercises native-format
+`python -m pytest tests/test_desktop_usage*.py -q` exercises native-format
 fixtures, cache/input normalization, streaming and copy deduplication, both
 Codex event orders, inherited child history, counter resets, date/tool/project
 filters, append/rewrite/delete behavior, private-data exclusion, background
-scan coordination and source locations. Fixtures never contact a provider.
+scan coordination and source locations, tool-call deduplication and namespaces,
+price normalization, context tiers, unavailable prices, model filtering and
+price-cache refresh. Fixtures never contact a provider.
 
-Browser QA covers the English and Traditional Chinese interfaces, tool/date/
-project selection, the activity chart, unknown-token/empty/error states and
+Browser QA covers all three languages, application/model/date/project selection,
+call search/MCP filtering, cost/call charts, unknown-price/empty/error states and
 desktop/narrow layouts. The committed screenshot uses preview data only.
 Windows local-read validation covers real retained logs. An isolated Windows
 WebView2 smoke checks the actual Python/JavaScript bridge and fixture statistics

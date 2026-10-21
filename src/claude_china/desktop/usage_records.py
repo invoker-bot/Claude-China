@@ -7,7 +7,7 @@ import posixpath
 
 
 COUNTERS = ('input_tokens', 'output_tokens', 'cached_tokens', 'cache_write_tokens', 'reasoning_tokens')
-ADAPTER_VERSION = 2
+ADAPTER_VERSION = 4
 
 
 def number(value):
@@ -67,7 +67,7 @@ class Parser:
     def saved_state(self):
         return dict(self.state, warnings=sorted(self.warnings))
 
-    def event(self, key, timestamp, usage=None, model=None):
+    def event(self, key, timestamp, usage=None, model=None, cache_write_long_tokens=None):
         when = stamp(timestamp)
         if when is None:
             self.warnings.add('invalid_timestamp')
@@ -81,12 +81,27 @@ class Parser:
             project = ''
         return [{'key': text(key), 'tool': self.tool, 'session': text(self.state.get('session')),
                  'project': project, 'model': text(model or self.state.get('model'), 200),
-                 'timestamp': when, **({k: None for k in COUNTERS} if usage is None else usage)}]
+                 'timestamp': when, 'cache_write_long_tokens': cache_write_long_tokens, 'call_name': '',
+                 **({k: None for k in COUNTERS} if usage is None else usage)}]
 
     def feed(self, row, offset):
         if not isinstance(row, dict):
             return []
         return getattr(self, '_' + self.tool)(row, offset)
+
+    def call(self, identifier, name, timestamp, namespace='', model=None):
+        identifier, name, namespace = text(identifier, 200), text(name, 200), text(namespace, 200)
+        if not identifier or not name:
+            self.warnings.add('unsupported_calls')
+            return []
+        if namespace and not name.startswith(namespace + '.'):
+            name = namespace + '.' + name
+        events = self.event('call:%s:%s' % (self.state.get('session', ''), identifier), timestamp, model=model)
+        for event in events:
+            event['call_name'] = name
+            if model == '':
+                event['model'] = ''
+        return events
 
     def _claude(self, row, offset):
         s = self.state
@@ -94,13 +109,27 @@ class Parser:
         s['project'] = text(row.get('relocatedCwd') or row.get('cwd')) or s.get('project', '')
         message = row.get('message')
         if row.get('type') == 'assistant' and isinstance(message, dict):
+            calls = []
+            content = message.get('content')
+            if isinstance(content, list):
+                for item in content:
+                    if isinstance(item, dict) and item.get('type') in ('tool_use', 'server_tool_use'):
+                        calls.extend(self.call(item.get('id'), item.get('name'), row.get('timestamp'), model=text(message.get('model'))))
             usage = counters(message.get('usage'), 'claude')
             key = text(message.get('id')) or text(row.get('uuid')) or '%s:%s' % (s.get('session'), offset)
             if usage is not None:
-                return self.event('request:' + key + ':' + text(row.get('requestId')), row.get('timestamp'), usage, message.get('model'))
+                creation = message['usage'].get('cache_creation')
+                long_writes = None
+                if isinstance(creation, dict):
+                    short, long = creation.get('ephemeral_5m_input_tokens'), creation.get('ephemeral_1h_input_tokens')
+                    if (type(short) is int and type(long) is int and short >= 0 and long >= 0
+                            and short + long == usage['cache_write_tokens']):
+                        long_writes = long
+                return calls + self.event('request:' + key + ':' + text(row.get('requestId')), row.get('timestamp'),
+                                  usage, message.get('model'), long_writes)
             if 'usage' in message:
                 self.warnings.add('unsupported_usage')
-            return self.event('activity:' + key, row.get('timestamp'))
+            return calls + self.event('activity:' + key, row.get('timestamp'))
         if row.get('type') == 'user':
             # Tool-result messages are not human prompts, but still establish activity.
             key = text(row.get('uuid')) or '%s:%s' % (s.get('session'), offset)
@@ -118,10 +147,18 @@ class Parser:
             s['session'] = text(payload.get('id') or payload.get('session_id'))
             s['project'] = text(payload.get('cwd'))
             s['child'] = isinstance(payload.get('source'), dict)
+            s['started_at'] = stamp(row.get('timestamp'))
             return []
         if kind == 'turn_context':
             s['model'] = text(payload.get('model'), 200)
             return []
+        if kind == 'response_item' and payload.get('type') in ('function_call', 'custom_tool_call', 'web_search_call', 'local_shell_call'):
+            when = stamp(row.get('timestamp'))
+            if s.get('child') and (not s.get('started_at') or when is None or when < s['started_at']):
+                self.warnings.add('inherited_calls')
+                return []
+            name = payload.get('name') or {'web_search_call': 'web_search', 'local_shell_call': 'local_shell'}.get(payload['type'])
+            return self.call(payload.get('call_id') or payload.get('id'), name, row.get('timestamp'), payload.get('namespace'))
         if kind == 'token_usage_record':
             owner = payload.get('thread_id') or payload.get('session_id')
             if owner and owner != s.get('session'):
@@ -189,6 +226,14 @@ class Parser:
         if not isinstance(update, dict):
             return []
         self.state['session'] = text(params.get('sessionId')) or self.state.get('session', '')
+        if update.get('sessionUpdate') in ('tool_call', 'tool_call_update'):
+            meta = update.get('_meta')
+            tool = meta.get('x.ai/tool') if isinstance(meta, dict) else None
+            if isinstance(tool, dict):
+                return self.call(update.get('toolCallId'), tool.get('name'), row.get('timestamp'), tool.get('namespace'), model='')
+            if update.get('sessionUpdate') == 'tool_call':
+                self.warnings.add('unsupported_calls')
+            return []  # Status/title updates are not additional invocations.
         if update.get('sessionUpdate') in ('user_message_chunk', 'agent_message_chunk'):
             return self.event('activity:%s:%s' % (self.state.get('session'), row.get('timestamp')), row.get('timestamp'))
         if update.get('sessionUpdate') != 'turn_completed':

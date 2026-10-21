@@ -42,21 +42,26 @@
     <div class="usage-toolbar">
       <label>时间范围<select id="usage-days"><option value="1">今天</option><option value="7">近 7 天</option><option value="30" selected>近 30 天</option><option value="90">近 90 天</option></select></label>
       <label>工具<select id="usage-tool"><option value="all">全部工具</option><option value="claude">Claude Code</option><option value="codex">Codex</option><option value="grok">Grok CLI</option><option value="grok-bot">Grok Bot</option></select></label>
+      <label>模型<select id="usage-model"><option value="all">全部模型</option></select></label>
       <label class="usage-project-filter">项目<select id="usage-project"><option value="">全部项目</option></select></label>
     </div>
     <div class="usage-status"><p id="usage-status" role="status">首次扫描可能需要一些时间，可切换页面继续使用。</p><progress id="usage-progress" aria-label="统计扫描进度" hidden></progress></div>
     <p class="form-error" id="usage-error" role="alert" hidden></p>
     <p class="usage-note usage-coverage-note" id="usage-partial" hidden>部分来源数据不完整，详见下方的数据覆盖说明。</p>
     <div class="usage-metrics" id="usage-metrics"></div>
+    <section class="usage-card" aria-labelledby="usage-details-title">
+      <div class="usage-card-head"><div><h2 id="usage-details-title">工具与模型明细</h2><p>选择工具或模型，查看对应的用量与费用。</p></div><label class="sr-only" for="usage-detail-mode">明细维度</label><select id="usage-detail-mode"><option value="models">模型明细</option><option value="tools">工具概览</option></select></div>
+      <div id="usage-models" class="usage-table-scroll"></div>
+      <div id="usage-tools" class="usage-table-scroll" hidden></div>
+    </section>
     <section class="usage-card usage-trend" aria-labelledby="usage-trend-title">
-      <div class="usage-card-head"><div><h2 id="usage-trend-title">每日趋势</h2><p>按本机时区统计，包含缓存输入。</p></div><label class="sr-only" for="usage-metric">趋势指标</label><select id="usage-metric"><option value="tokens">Token 用量</option><option value="sessions">活跃会话</option></select></div>
+      <div class="usage-card-head"><div><h2 id="usage-trend-title">每日趋势</h2><p>按本机时区统计，包含缓存输入。</p></div><label class="sr-only" for="usage-metric">趋势指标</label><select id="usage-metric"><option value="tokens">Token 用量</option><option value="sessions">活跃会话</option><option value="cost_usd">等效 API 费用</option><option value="tool_calls">工具调用</option></select></div>
       <div class="usage-chart" id="usage-chart" role="group" aria-label="每日统计图表"></div><div class="usage-axis" id="usage-axis"></div>
       <details class="usage-daily-details"><summary>查看每日明细</summary><div class="usage-table-scroll" id="usage-daily-table"></div></details>
     </section>
-    <div class="usage-grid">
-      <section class="usage-card" aria-labelledby="usage-models-title"><h2 id="usage-models-title">模型分布</h2><div id="usage-models"></div></section>
-      <section class="usage-card" aria-labelledby="usage-projects-title"><h2 id="usage-projects-title">项目排行</h2><p class="usage-note">选择项目可筛选本页全部统计。</p><div id="usage-projects"></div></section>
-    </div>
+    <section class="usage-card" aria-labelledby="usage-calls-title"><div class="usage-card-head"><div><h2 id="usage-calls-title">工具调用排行</h2><p>按调用 ID 去重，保留原始工具名称。</p></div><div class="usage-call-controls"><input id="usage-call-search" type="search" placeholder="搜索 Bash、Read、MCP…" aria-label="搜索工具调用"><label><input id="usage-mcp-only" type="checkbox">仅 MCP</label></div></div><div id="usage-calls" class="usage-table-scroll"></div><p class="usage-note">仅统计日志明确记录的调用，不展开脚本内部调用。模型无法确认的调用归入“模型未知”。Grok Bot 的本地缓存暂不提供工具调用明细。</p></section>
+    <section class="usage-card" aria-labelledby="usage-projects-title"><h2 id="usage-projects-title">项目排行</h2><p class="usage-note">选择项目可筛选本页全部统计。</p><div id="usage-projects"></div></section>
+    <section class="usage-card usage-pricing" aria-labelledby="usage-pricing-title"><h2 id="usage-pricing-title">费用估算说明</h2><p class="usage-note">按当前公开 Standard / 全球 API 单价折算，单位 USD；这是等效 token 费用，不是订阅账单或实际扣款。不含加速、批量折扣、地区附加费和搜索等工具费用。</p><p class="usage-note" id="usage-cost-coverage"></p><details><summary>查看计价规则与单价</summary><p class="usage-note">普通输入 = 总输入 − 缓存读取 − 缓存写入。分别计价后加上输出费用；推理 token 已包含在输出中。</p><p class="usage-note">逐次请求按已知上下文门槛计价。只有汇总记录时按短上下文估算；缓存写入时长缺失时，Claude 按 5 分钟、OpenAI 按 30 分钟估算。未知价格不计入费用小计。</p><div id="usage-rates" class="usage-table-scroll"></div></details></section>
     <section class="usage-card" aria-labelledby="usage-sources-title"><h2 id="usage-sources-title">数据覆盖</h2><div id="usage-sources"></div><p class="usage-note">仅统计本机保留的记录。未提供的 token 显示为 —，不代表零用量。共享数据目录的配置会合并统计。</p><ul class="usage-warnings" id="usage-warnings"></ul></section>
   </main>
   <main class="panel" id="terminals-main" hidden>

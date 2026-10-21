@@ -223,13 +223,21 @@ class LauncherBridge:
         except Exception:
             return {'ok': False, 'error': '无法读取统计索引，请检查本机文件权限。'}
 
-    def get_usage_report(self, days=30, tool='all', project=''):
+    def get_usage_report(self, days=30, tool='all', project='', model='all'):
         try:
-            return {'ok': True, 'data': self._usage().report(days, tool, project)}
+            return {'ok': True, 'data': self._usage().report(days, tool, project, model)}
         except ValueError:
             return {'ok': False, 'error': '无效的统计筛选条件。'}
         except Exception:
             return {'ok': False, 'error': '无法读取统计索引，请检查本机文件权限。'}
+
+    def open_usage_price_source(self, model):
+        import webbrowser
+        from .usage_pricing import lookup_price
+        if not isinstance(model, str):
+            return {'ok': False}
+        price = lookup_price(model)
+        return {'ok': bool(price and webbrowser.open(price['source']))}
 
     def resume_cli_session(self, profile_name, session_id):
         return self._terminal_request(lambda service: service.resume_session(profile_name, session_id))
