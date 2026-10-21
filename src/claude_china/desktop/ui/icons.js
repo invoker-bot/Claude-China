@@ -1,5 +1,10 @@
 // One outline family shared by the launcher and settings.
 const ICON_PATHS = {
+  terminal: '<rect x="3" y="4" width="18" height="16" rx="3"/><path d="m7 9 3 3-3 3m6 0h4"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/>',
+  edit: '<path d="m15 4 5 5M4 20l5-1L21 7a2 2 0 0 0-5-5L4 14Z"/>',
+  copy: '<rect x="8" y="8" width="12" height="13" rx="2"/><path d="M16 8V3H3v13h5"/>',
+  trash: '<path d="M3 6h18M9 6V3h6v3m-10 0 1 15h12l1-15M10 10v7m4-7v7"/>',
   shield: '<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z"/><path d="m8 12 3 3 5-6"/>',
   refresh: '<path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.5 7a7.5 7.5 0 0 1 12.4-2L20 8M4 16l2.1 3A7.5 7.5 0 0 0 18.5 17"/>',
   settings: '<path d="m9 3-.6 2.3-2 .9-2.2-.6L2.7 8.2l1.7 1.7v2.2l-1.7 1.7 1.5 2.6 2.2-.6 2 .9L9 19h3l.6-2.3 2-.9 2.2.6 1.5-2.6-1.7-1.7V9.9l1.7-1.7-1.5-2.6-2.2.6-2-.9L12 3Z" transform="translate(1.5 1)"/><circle cx="12" cy="12" r="3"/>',

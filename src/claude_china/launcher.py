@@ -52,9 +52,9 @@ def clear_managed_environment(env):
         env.pop(env_var, None)
 
 
-def prepare_environment(profile):
+def prepare_environment(profile, base_env=None):
     """Prepare environment variables based on profile type and mode"""
-    env = os.environ.copy()
+    env = dict(os.environ if base_env is None else base_env)
     clear_managed_environment(env)
     ptype = profile.type
 
@@ -155,18 +155,11 @@ def merge_launch_args(
     return list(extra_args) + resolve_default_args(default_args)
 
 
-def launch(profile_dict, extra_args, use_default_args=True):
-    # Convert dict to dataclass
-    profile = profile_from_dict(profile_dict)
-    ptype = profile.type
-
+def find_command(ptype):
+    """Resolve the same installed CLI for both command-line and desktop entry."""
     if ptype not in ENV_MAP:
-        print(f"Error: unknown profile type '{ptype}'.")
-        sys.exit(1)
-
-    spec = ENV_MAP[ptype]
-    cmd = spec["cmd"]
-
+        raise ValueError(f"Unknown profile type '{ptype}'")
+    cmd = ENV_MAP[ptype]['cmd']
     # On Windows, npm global commands are .cmd files
     if sys.platform == "win32":
         cmd_path = shutil.which(f"{cmd}.cmd") or shutil.which(cmd)
@@ -177,6 +170,18 @@ def launch(profile_dict, extra_args, use_default_args=True):
         installation = find_npm_installation()
         if installation:
             cmd_path = installation.command
+    return cmd_path
+
+
+def launch(profile_dict, extra_args, use_default_args=True):
+    # Convert dict to dataclass
+    profile = profile_from_dict(profile_dict)
+    ptype = profile.type
+    if ptype not in ENV_MAP:
+        print(f"Error: unknown profile type '{ptype}'.")
+        sys.exit(1)
+    cmd = ENV_MAP[ptype]['cmd']
+    cmd_path = find_command(ptype)
 
     if not cmd_path:
         print(f"Error: '{cmd}' not found in PATH. Install it first.")

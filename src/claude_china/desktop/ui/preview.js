@@ -26,12 +26,50 @@ if (new URLSearchParams(location.search).has("preview")) {
   let timer;
   let maximized = false;
   const clone = value => JSON.parse(JSON.stringify(value));
+  let cliRevision = 1;
+  let cliProfiles = modes.has('empty-terminals') ? [] : [
+    {name:'日常开发', type:'claude', mode:'api', base_url:'https://api.anthropic.com', has_secret:true, default_args:['--model', 'sonnet'], revision:'preview-claude'},
+    {name:'工作项目', type:'codex', mode:'api', base_url:'https://api.openai.com/v1', has_secret:true, default_args:[], revision:'preview-codex'},
+    {name:'个人账号', type:'grok', mode:'login', credentials_path:'~/.claudec/accounts/personal', has_secret:false, default_args:[], revision:'preview-grok'},
+  ];
+  let terminalDirectory = 'D:\\Projects\\my-project';
+  const cliPublic = p => ({...clone(p), supported:true, endpoint:p.base_url ? new URL(p.base_url).hostname : ''});
+  const cliFailure = () => ({ok:false, error:'此配置已发生变化，请重新打开后再操作。'});
   const takeoverEnabled = {};
   const takeoverState = id => id !== 'grok-bot' ? ({ app_id: id, supported: false, enabled: false,
     can_disable: false, mode: 'msix-unavailable', message: 'MSIX 安装暂不支持原入口接管，尚不能保证更新后的检查和包激活上下文。（预览）' }) :
     ({ app_id: id, supported: true, enabled: Boolean(takeoverEnabled[id]), can_disable: Boolean(takeoverEnabled[id]),
       message: takeoverEnabled[id] ? '已接管此 EXE 原入口及同路径更新重启；每次重新检查并注入变量。（预览）' : '未接管原入口。仅覆盖固定 EXE 路径及同路径更新。（预览）' });
   window.pywebview = { api: {
+    list_cli_profiles: async () => ({ok:true, data:{directory:terminalDirectory, recent_directories:[terminalDirectory],
+      tools:[{id:'claude',display:'Claude Code',installed:true},{id:'codex',display:'Codex CLI',installed:true},{id:'grok',display:'Grok CLI',installed:false}],
+      profiles:cliProfiles.map(cliPublic)}}),
+    get_cli_profile: async name => {const p=cliProfiles.find(p=>p.name===name);return p?{ok:true,data:cliPublic(p)}:cliFailure();},
+    save_cli_profile: async (payload, original, revision) => {
+      if (modes.get('save')==='error') return {ok:false,error:'保存失败（预览）'};
+      const old=cliProfiles.find(p=>p.name===original);
+      if (original && (!old || old.revision!==revision)) return cliFailure();
+      if (!payload.name.trim() || cliProfiles.some(p=>p.name===payload.name.trim() && p.name!==original)) return {ok:false,error:'配置名称已存在或为空。'};
+      const record={...clone(payload),name:payload.name.trim(),revision:'preview-'+cliRevision++,
+        has_secret:!payload.clear_secret && Boolean(payload.secret || (old?.type===payload.type && old?.mode===payload.mode && old?.has_secret))};
+      delete record.secret;delete record.clear_secret;
+      if(record.mode==='login')record.has_secret=false;
+      cliProfiles=cliProfiles.filter(p=>p.name!==original);cliProfiles.push(record);
+      return {ok:true,data:cliPublic(record)};
+    },
+    copy_cli_profile: async (name, revision) => {
+      const p=cliProfiles.find(p=>p.name===name);if(!p || p.revision!==revision)return cliFailure();
+      let copied=name+' 副本', index=2;while(cliProfiles.some(p=>p.name===copied))copied=name+' 副本 '+index++;
+      const record={...clone(p),name:copied,revision:'preview-'+cliRevision++};cliProfiles.push(record);return {ok:true,data:cliPublic(record)};
+    },
+    delete_cli_profile: async (name, revision) => {const p=cliProfiles.find(p=>p.name===name);if(!p || p.revision!==revision)return cliFailure();cliProfiles=cliProfiles.filter(p=>p.name!==name);return {ok:true};},
+    pick_terminal_directory: async () => ({ok:true,path:'D:\\Projects\\demo project'}),
+    open_project_folder: async () => {toast('界面预览：打开项目文件夹');return {ok:true};},
+    open_terminal: async (name, directory) => {
+      if(!directory.trim())return {ok:false,error:'请选择项目目录。'};
+      if(name && modes.get('safety') && modes.get('safety')!=='supported')return {ok:false,error:'安全检查未通过：无法确认环境，已取消启动。'};
+      terminalDirectory=directory;return {ok:true};
+    },
     get_takeover_status: async (id = 'grok-bot') => takeoverState(id),
     set_takeover: async (id, enabled) => {
       if (!takeoverState(id).supported) return { ok: false, error: takeoverState(id).message };

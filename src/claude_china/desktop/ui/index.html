@@ -13,6 +13,7 @@
     <div class="brand window-drag"><img id="brand-mark" src="icon.png" width="36" height="36" alt="" draggable="false"><span>Claude China</span></div>
     <nav class="top-nav" aria-label="主导航">
       <button class="top-link is-active" id="home-button" type="button" aria-current="page">我的应用</button>
+      <button class="top-link" id="terminals-button" type="button">我的终端</button>
       <button class="top-link" id="open-settings" type="button">设置<span class="draft-dot" aria-hidden="true"></span></button>
     </nav>
     <div class="header-space window-drag" aria-hidden="true"></div>
@@ -35,11 +36,38 @@
       <button class="text-button" id="gear-common" type="button" aria-expanded="false" aria-controls="editor-common">管理设置<span data-icon="arrow"></span></button>
     </section>
   </main>
+  <main class="panel" id="terminals-main" hidden>
+    <div class="page-heading"><div><h1>我的终端</h1><p>选好配置，在项目目录开始工作。</p></div><div class="terminal-heading-actions"><button class="icon-button refresh-button" id="refresh-terminals" type="button" aria-label="刷新 CLI 配置" title="刷新 CLI 配置"><span data-icon="refresh"></span></button><button class="btn btn--solid" id="new-cli-profile" type="button"><span data-icon="plus"></span>新增配置</button></div></div>
+    <section class="terminal-project" aria-labelledby="terminal-project-title">
+      <div class="terminal-project-head"><span data-icon="folder"></span><div><h2 id="terminal-project-title">项目目录</h2><p>新终端会在这里打开</p></div><button class="btn" id="terminal-plain" type="button"><span data-icon="terminal"></span>打开终端</button></div>
+      <div class="terminal-path-row"><label class="sr-only" for="terminal-directory">项目目录</label><input id="terminal-directory" type="text" spellcheck="false" autocomplete="off" list="terminal-recent" placeholder="选择项目文件夹"><datalist id="terminal-recent"></datalist><button class="btn" id="terminal-pick" type="button">选择目录</button><button class="icon-button" id="terminal-folder" type="button" aria-label="打开项目文件夹" title="打开项目文件夹"><span data-icon="external"></span></button></div>
+    </section>
+    <div class="terminal-toolbar"><div class="terminal-filters" id="terminal-filters" role="group" aria-label="按 CLI 类型筛选"><button type="button" data-tool="all" class="is-active" aria-pressed="true">全部</button><button type="button" data-tool="claude" aria-pressed="false">Claude Code</button><button type="button" data-tool="codex" aria-pressed="false">Codex CLI</button><button type="button" data-tool="grok" aria-pressed="false">Grok CLI</button></div><label class="terminal-search"><span data-icon="search"></span><input id="terminal-search" type="search" placeholder="搜索配置" aria-label="搜索 CLI 配置"></label></div>
+    <p class="form-error terminal-error" id="terminal-error" role="alert" hidden></p>
+    <div id="terminal-profiles" class="terminal-profiles" aria-live="polite"></div>
+    <p class="terminal-note">配置与 claudec 命令行共用。配置启动遵循通用代理与安全检查；普通终端不应用 CLI 配置。</p>
+  </main>
   <footer class="foot" id="foot">
     <span id="app-count">正在读取应用…</span><span class="foot-info">设置仅保存在此设备</span>
     <button id="footer-about" type="button" aria-label="关于 Claude China"><span id="footer-version"></span></button>
   </footer>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <dialog id="cli-profile-dialog" class="cli-dialog" aria-labelledby="cli-dialog-title">
+    <form id="cli-profile-form" autocomplete="off">
+      <div class="dialog-head"><div><h2 id="cli-dialog-title">新增 CLI 配置</h2><p id="cli-dialog-description">保存在本机，与 claudec 共用。</p></div><button class="icon-button" id="cli-dialog-close" type="button" aria-label="关闭配置编辑"><span data-icon="close"></span></button></div>
+      <div class="cli-form-body" id="cli-form-fields">
+        <label class="cli-field">配置名称<input id="cli-name" type="text" required maxlength="80" placeholder="例如：日常开发"></label>
+        <div class="cli-form-row"><label class="cli-field">CLI 工具<select id="cli-type"><option value="claude">Claude Code</option><option value="codex">Codex CLI</option><option value="grok">Grok CLI</option></select></label><label class="cli-field">认证方式<select id="cli-mode"><option value="api">API 密钥</option><option value="login">登录配置目录</option></select></label></div>
+        <div id="cli-api-fields"><label class="cli-field">API 地址<input id="cli-base-url" type="url" spellcheck="false" placeholder="留空使用官方地址"></label><label class="cli-field">API 密钥 / Token<input id="cli-secret" type="password" autocomplete="new-password" spellcheck="false" placeholder="输入密钥"><span class="field-hint" id="cli-secret-hint">密钥仅保存在本机配置中，不写入终端命令历史。</span></label><label class="cli-clear-secret" id="cli-clear-secret-row" hidden><input id="cli-clear-secret" type="checkbox">清除已保存的密钥</label></div>
+        <div id="cli-login-fields" hidden><label class="cli-field">登录配置目录<div class="terminal-path-row"><input id="cli-credentials-path" type="text" spellcheck="false" placeholder="例如：~/.claudec/accounts/work"><button class="btn" id="cli-pick-credentials" type="button">选择</button></div><span class="field-hint">使用此目录的登录凭据；不会移动或删除已有凭据。</span></label></div>
+        <label class="cli-field">代理地址<span class="field-hint">留空使用自动代理设置（若已开启）</span><input id="cli-proxy" type="text" spellcheck="false" placeholder="http://127.0.0.1:7890"></label>
+        <label class="cli-field">默认参数<span class="field-hint">填写 JSON 字符串数组，例如 ["--model", "sonnet"]，留空不添加参数。</span><textarea id="cli-default-args" rows="3" spellcheck="false" placeholder='["--model", "sonnet"]'></textarea></label>
+      </div>
+      <div id="cli-delete-content" class="cli-form-body" hidden><p id="cli-delete-description"></p><p class="field-hint">只删除这条启动配置，项目文件和登录凭据目录会保留。</p></div>
+      <p class="form-error cli-form-error" id="cli-form-error" role="alert" hidden></p>
+      <div class="editor-actions"><span class="field-hint" id="cli-save-location">~/.claudec/config.yaml</span><span class="dialog-spacer"></span><button class="btn" id="cli-cancel" type="button">取消</button><button class="btn btn--solid" id="cli-submit" type="submit">保存配置</button></div>
+    </form>
+  </dialog>
   <div class="overlay" id="launcher-overlay" hidden>
     <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="dialog-title" tabindex="-1">
       <aside class="settings-sidebar">
@@ -98,6 +126,6 @@
       </div>
     </section>
   </div>
-  <script src="icons.js"></script><script src="settings.js"></script><script src="safety.js"></script><script src="app.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
+  <script src="icons.js"></script><script src="settings.js"></script><script src="safety.js"></script><script src="app.js"></script><script src="terminals.js"></script><script src="window-controls.js"></script><script src="preview.js"></script>
 </body>
 </html>

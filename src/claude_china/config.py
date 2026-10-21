@@ -1,3 +1,6 @@
+import os
+import tempfile
+
 import yaml
 
 from .config_paths import config_dir, ensure_config_file
@@ -31,8 +34,18 @@ def load_config():
 
 def save_config(data):
     CONFIG_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
-        yaml.dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=CONFIG_FILE.parent,
+                                         prefix='.config-', suffix='.tmp', delete=False) as f:
+            temporary = f.name
+            yaml.safe_dump(data, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(temporary, CONFIG_FILE)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
 
 
 def init_config():

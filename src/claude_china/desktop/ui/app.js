@@ -90,7 +90,7 @@ function showDialog(panel) {
   // Move focus before hiding the previous focused surface from assistive tech.
   if (opening) document.getElementById("dialog-close").focus();
   else if (document.activeElement.closest(".settings-panel[hidden]")) document.getElementById("dialog-title").closest(".dialog").focus();
-  for (const id of ["home-button", "open-settings", "open-updates", "launcher-main", "foot"]) {
+  for (const id of ["home-button", "terminals-button", "open-settings", "open-updates", "launcher-main", "terminals-main", "foot"]) {
     const el = document.getElementById(id);
     el.inert = true;
     el.setAttribute("aria-hidden", "true");
@@ -100,7 +100,7 @@ function closeDialog() {
   const overlay = document.getElementById("launcher-overlay");
   if (overlay.hidden) return;
   overlay.hidden = true;
-  for (const id of ["home-button", "open-settings", "open-updates", "launcher-main", "foot"]) {
+  for (const id of ["home-button", "terminals-button", "open-settings", "open-updates", "launcher-main", "terminals-main", "foot"]) {
     const el = document.getElementById(id); el.inert = false; el.removeAttribute("aria-hidden");
   }
   document.querySelectorAll('[id^="gear-"]').forEach(el => el.setAttribute("aria-expanded", "false"));
@@ -139,7 +139,7 @@ function renderApps() {
     document.getElementById(`gear-${app.id}`).onclick = () => showDialog(app.id);
     updateBay(app.id, app.found, app.running);
   }
-  document.getElementById("app-count").textContent = `${APPS.length} 个应用`;
+  updateWorkspaceCount();
   renderAppSettingsPanels();
 }
 function rerenderBay(id) { const app = findApp(id); if (app) updateBay(id, app.found, app.running); }

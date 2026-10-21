@@ -63,6 +63,45 @@ def _verify_platform_menu(window):
         _wait_js(window, "document.getElementById('editor-common').classList.contains('is-open')")
 
 
+def _verify_terminal_profiles(window):
+    """Use the smoke entry point's isolated store, never real CLI credentials."""
+    from .. import config as cli_config
+    window.evaluate_js("closeDialog(); document.getElementById('terminals-button').click()")
+    _wait_js(window, "!TERMINAL_LOADING && !document.getElementById('terminals-main').hidden")
+    if cli_config.load_config()['profiles']:
+        raise RuntimeError('Terminal smoke store was not isolated')
+    window.evaluate_js("document.getElementById('new-cli-profile').click()")
+    window.evaluate_js("""
+        document.getElementById('cli-name').value = 'smoke-terminal';
+        document.getElementById('cli-secret').value = 'isolated-smoke-credential';
+        document.getElementById('cli-profile-form').requestSubmit();
+    """)
+    _wait_js(window, "!CLI_SAVING && !TERMINAL_LOADING && TERMINALS.profiles.length === 1")
+    window.evaluate_js("document.querySelector('[data-cli-action=edit]').click()")
+    _wait_js(window, "document.getElementById('cli-profile-dialog').open")
+    if not window.evaluate_js("document.getElementById('cli-secret').value === ''"):
+        raise RuntimeError('The profile editor exposed a stored credential')
+    window.evaluate_js("""
+        document.getElementById('cli-name').value = 'smoke-renamed';
+        document.getElementById('cli-profile-form').requestSubmit();
+    """)
+    _wait_js(window, "!CLI_SAVING && !TERMINAL_LOADING && TERMINALS.profiles[0].name === 'smoke-renamed'")
+    profile = cli_config.load_config()['profiles']['smoke-renamed']
+    if profile.get('token') != 'isolated-smoke-credential':
+        raise RuntimeError('Editing a CLI profile lost the stored credential')
+    window.evaluate_js("document.querySelector('[data-cli-action=copy]').click()")
+    _wait_js(window, "!TERMINAL_LOADING && TERMINALS.profiles.length === 2")
+    window.evaluate_js("document.querySelectorAll('[data-cli-action=delete]')[1].click()")
+    _wait_js(window, "document.getElementById('cli-profile-dialog').open")
+    window.evaluate_js("document.getElementById('cli-profile-form').requestSubmit()")
+    _wait_js(window, "!CLI_SAVING && !TERMINAL_LOADING && TERMINALS.profiles.length === 1")
+    if len(cli_config.load_config()['profiles']) != 1:
+        raise RuntimeError('The desktop and CLI profile stores diverged')
+    window.evaluate_js("document.getElementById('home-button').click()")
+    if not window.evaluate_js("!document.getElementById('launcher-main').hidden"):
+        raise RuntimeError('Cannot return from My Terminals to My Apps')
+
+
 def verify_window(window, tray, report):
     result = {"ok": False, "version": __version__, "platform": sys.platform,
               "frozen": bool(getattr(sys, "frozen", False)), "pid": os.getpid()}
@@ -242,6 +281,8 @@ def verify_window(window, tray, report):
         window.evaluate_js("rememberSafetyReport('claude', {status:'unsupported', reason:'Test blocked region', network:{country_code:'CN'}})")
         result["safety_blocked_display"] = window.evaluate_js(
             "document.getElementById('safety-result').dataset.status === 'unsupported'")
+        _verify_terminal_profiles(window)
+        result["terminal_profile_crud"] = True
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_dialog", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_preserves_edits",

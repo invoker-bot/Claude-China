@@ -39,9 +39,13 @@ def main(argv=None):
     parser.add_argument("--takeover-launch", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--takeover-register", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--takeover-uninstall", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--terminal-session", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--disable", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("target_args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.terminal_session:
+        from .terminal_host import run_session
+        return run_session(args.terminal_session)
     if args.takeover_launch:
         from .takeover import run_broker
         target_args = args.target_args[1:] if args.target_args[:1] == ['--'] else args.target_args
@@ -62,15 +66,19 @@ def main(argv=None):
 
     if args.smoke_test:
         from . import config
+        from .. import config as cli_config
         report = args.smoke_test.resolve()
         previous = config.DESKTOP_CONFIG_FILE
+        previous_cli = cli_config.CONFIG_FILE
         # Exercise the packaged GUI without reading or changing real profiles.
         with tempfile.TemporaryDirectory(prefix="claude-china-smoke-") as directory:
             try:
                 config.DESKTOP_CONFIG_FILE = Path(directory) / "desktop.yaml"
+                cli_config.CONFIG_FILE = Path(directory) / "config.yaml"
                 run_gui(smoke_report=report)
             finally:
                 config.DESKTOP_CONFIG_FILE = previous
+                cli_config.CONFIG_FILE = previous_cli
         return 0 if report.is_file() and json.loads(report.read_text())["ok"] else 1
     with _installer_mutex():
         run_gui()

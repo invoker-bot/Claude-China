@@ -20,6 +20,7 @@ Repository: [invoker-bot/Claude-China](https://github.com/invoker-bot/Claude-Chi
 - Set per-profile default arguments such as `--model`
 - Upgrade the supported AI CLIs through npm
 - Standalone Windows, macOS and Linux desktop launcher
+- Open project terminals and manage CLI profiles in the desktop app
 
 ## Installation
 
@@ -348,6 +349,32 @@ through Spotlight or the Applications folders and launches the bundle executable
 directly to pass environment variables. On Linux, it resolves the installed
 `grok-bot` desktop command. All platforms also accept a manually selected path.
 Grok Bot desktop controls do not manage the separate Grok CLI or its profiles.
+
+### My Terminals
+
+**我的终端**, next to **我的应用**, manages Claude Code, Codex CLI and Grok CLI
+profiles in the same `~/.claudec/config.yaml` used by `claudec`. Search or filter
+profiles, create API or login profiles, edit/rename, copy and delete them.
+Editing leaves an existing key unchanged when the key field is blank; explicitly
+clear it to remove it. Stored keys are not returned to the page. Deleting a
+profile keeps its project files and login directory. Refresh to load external
+CLI edits; an outdated edit/delete is rejected instead of overwriting changes.
+
+Choose a project directory, reopen a recent directory, open it in the system
+file manager, or open an ordinary terminal. **启动终端** on a profile starts that
+CLI in the selected directory with the saved arguments and environment. The
+CLI must already be installed and visible on `PATH`. API/login settings and a
+profile's explicit proxy take precedence; automatic system proxy validation and
+the desktop safety rules also apply. An invalid proxy or failed strict safety
+check prevents the CLI from starting. Ordinary terminals do not apply a profile.
+
+Windows uses PowerShell, macOS uses Terminal (automation permission may be
+required), and Linux uses an installed terminal such as GNOME Terminal, Konsole
+or xterm. The shell remains open after the CLI exits. The selected profile is
+read and checked again inside the new terminal, so credentials never need to be
+written into shell history or temporary launch scripts. Profile variables apply
+to that CLI process, not to later commands typed into the remaining shell.
+See [terminal behavior and validation](docs/desktop-terminals.md).
 
 ## Development
 

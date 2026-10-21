@@ -152,6 +152,49 @@ class LauncherBridge:
         return {"ok": True}
 
     # ---- settings ----
+    def _terminal_request(self, action, **values):
+        from .terminals import TerminalService
+        try:
+            result = action(TerminalService(self._backend))
+            return {'ok': True, **values, 'data': result}
+        except ValueError as exc:
+            return {'ok': False, 'error': str(exc)}
+        except Exception:
+            # Do not expose YAML contents or subprocess output containing keys.
+            return {'ok': False, 'error': '无法完成终端操作，请检查 CLI 配置或安装后重试。'}
+
+    def list_cli_profiles(self):
+        return self._terminal_request(lambda service: {**service.workspace(), 'profiles': service.list_profiles()})
+
+    def get_cli_profile(self, name):
+        return self._terminal_request(lambda service: service.get_profile(name))
+
+    def save_cli_profile(self, payload, original_name=None, revision=None):
+        return self._terminal_request(lambda service: service.save_profile(payload, original_name, revision))
+
+    def copy_cli_profile(self, name, revision):
+        return self._terminal_request(lambda service: service.copy_profile(name, revision))
+
+    def delete_cli_profile(self, name, revision):
+        return self._terminal_request(lambda service: service.delete_profile(name, revision))
+
+    def open_terminal(self, profile_name=None, directory=''):
+        return self._terminal_request(lambda service: service.launch(profile_name, directory))
+
+    def open_project_folder(self, directory):
+        from .terminal_host import open_directory
+        return self._terminal_request(lambda service: open_directory(directory))
+
+    def pick_terminal_directory(self):
+        if self._window is None:
+            return {'ok': False, 'cancelled': True}
+        try:
+            import webview
+            selected = self._window.create_file_dialog(webview.FOLDER_DIALOG)
+            return {'ok': True, 'path': selected[0]} if selected else {'ok': False, 'cancelled': True}
+        except Exception:
+            return {'ok': False, 'error': '无法打开文件夹选择窗口。'}
+
     def get_takeover_status(self, app_id='grok-bot'):
         from .takeover import get_status
         from .platforms.base import AppStatus
