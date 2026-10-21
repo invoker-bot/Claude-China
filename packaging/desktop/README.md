@@ -107,11 +107,12 @@ Outputs go to `dist/installers/`, with a SHA-256 sidecar for each package.
 `--freeze-only` builds just the runnable bundle; `--skip-freeze` reuses it.
 `--smoke` opens an actual hidden native webview, loads the bundled HTML/CSS/JS
 and icon, waits for the UI to initialize through the real Python bridge, and
-verifies update-dialog dispatch, unsaved-edit protection and Escape handling.
+verifies update-page dispatch, unsaved-edit protection and Settings tab navigation.
 On Windows/Linux it checks the integrated titlebar, usable window controls while
-Settings is open, and the absence of a native menu bar. On Windows it also exercises
+Settings is selected, and the absence of a native menu bar. On Windows it also exercises
 the real minimize and maximize/restore commands. It opens Settings
-through the page navigation. On macOS it activates the native Settings menu and
+through the page navigation, checks that drafts survive tab switches and that
+Escape does not dismiss the Settings page. On macOS it activates the native Settings menu and
 checks the standard Quit binding.
 It writes `build/desktop/smoke.json`, uses temporary configuration and does not
 read or overwrite the user's settings.

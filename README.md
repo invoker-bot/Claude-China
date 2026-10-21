@@ -83,8 +83,8 @@ Failures are shown in the launcher when it reopens.
 You can also install a newer package over the existing installation.
 Uninstalling preserves profiles and settings in `~/.claudec/`, legacy files in
 `~/.code-ai/`, and your login credential directories.
-The existing v0.3.0 release predates the update controls; install the first
-release containing this feature manually once.
+The v0.3.0 release predates the update controls; install v0.4.0 manually once
+to enable subsequent in-app updates on Windows and Linux.
 
 CLI requirements:
 
