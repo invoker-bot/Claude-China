@@ -50,7 +50,7 @@ def jobs_dir():
     return config_dir() / 'terminal-jobs'
 
 
-def create_job(profile, directory):
+def create_job(profile, directory, session_id=None):
     root = jobs_dir()
     root.mkdir(mode=0o700, parents=True, exist_ok=True)
     for old in root.glob('*.json'):
@@ -58,7 +58,10 @@ def create_job(profile, directory):
             old.unlink(missing_ok=True)
     path = root / (uuid.uuid4().hex + '.json')
     with os.fdopen(os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'w', encoding='utf-8') as f:
-        json.dump({'schema': 1, 'profile': profile, 'directory': directory, 'expires_at': time.time() + 300}, f)
+        request = {'schema': 1, 'profile': profile, 'directory': directory, 'expires_at': time.time() + 300}
+        if session_id is not None:
+            request['session_id'] = session_id
+        json.dump(request, f)
     return path
 
 
@@ -81,6 +84,8 @@ def consume_job(path):
         raise ValueError('终端启动请求已过期，请从启动器重试。')
     if data.get('profile') is not None and not isinstance(data['profile'], str):
         raise ValueError('无效的配置名称。')
+    if 'session_id' in data and (not isinstance(data['session_id'], str) or data.get('profile') is None):
+        raise ValueError('无效的会话恢复请求。')
     return data
 
 
@@ -155,7 +160,8 @@ def run_session(path):
         directory = directory_path(job.get('directory'))
         if job['profile'] is None:
             return 0
-        argv, env = TerminalService(get_backend()).prepare(job['profile'], directory)
+        options = {'session_id': job['session_id']} if 'session_id' in job else {}
+        argv, env = TerminalService(get_backend()).prepare(job['profile'], directory, **options)
         print('Claude China · ' + job['profile'], flush=True)
         # Credentials exist only in the child's environment, never terminal
         # history, shell source or the temporary launch request.

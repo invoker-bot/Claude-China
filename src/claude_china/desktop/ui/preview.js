@@ -22,7 +22,7 @@ if (new URLSearchParams(location.search).has("preview")) {
     claude: { path: "", env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" } },
     codex: { path: "", env_vars: {} }, "grok-bot": { path: "", env_vars: {} },
   };
-  let state = { phase: "idle", current: "0.3.0", latest: "", can_install: true, message: "手动检查新版本", progress: 0 };
+  let state = { phase: "idle", current: "0.4.0", latest: "", can_install: true, message: "手动检查新版本", progress: 0 };
   let timer;
   let maximized = false;
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -33,6 +33,13 @@ if (new URLSearchParams(location.search).has("preview")) {
     {name:'个人账号', type:'grok', mode:'login', credentials_path:'~/.claudec/accounts/personal', has_secret:false, default_args:[], revision:'preview-grok'},
   ];
   let terminalDirectory = 'D:\\Projects\\my-project';
+  let terminalRecent = [terminalDirectory, 'D:\\Projects\\docs-site'];
+  let terminalFavorites = [terminalDirectory];
+  const terminalSessions = [
+    {id:'019a1111-2222-7333-8444-555555555555',title:'完善项目登录与权限流程',directory:terminalDirectory,updated_at:'2026-10-21T08:30:00Z',available:true},
+    {id:'019a1111-2222-7333-8444-666666666666',title:'整理文档站点与导航',directory:'D:\\Projects\\docs-site',updated_at:'2026-10-20T09:15:00Z',available:true},
+    {id:'019a1111-2222-7333-8444-777777777777',title:'旧版页面探索',directory:'D:\\Archived\\old-project',updated_at:'2026-10-18T03:00:00Z',available:false},
+  ];
   const cliPublic = p => ({...clone(p), supported:true, endpoint:p.base_url ? new URL(p.base_url).hostname : ''});
   const cliFailure = () => ({ok:false, error:'此配置已发生变化，请重新打开后再操作。'});
   const takeoverEnabled = {};
@@ -41,9 +48,23 @@ if (new URLSearchParams(location.search).has("preview")) {
     ({ app_id: id, supported: true, enabled: Boolean(takeoverEnabled[id]), can_disable: Boolean(takeoverEnabled[id]),
       message: takeoverEnabled[id] ? '已接管此 EXE 原入口及同路径更新重启；每次重新检查并注入变量。（预览）' : '未接管原入口。仅覆盖固定 EXE 路径及同路径更新。（预览）' });
   window.pywebview = { api: {
-    list_cli_profiles: async () => ({ok:true, data:{directory:terminalDirectory, recent_directories:[terminalDirectory],
+    list_cli_profiles: async () => ({ok:true, data:{directory:terminalDirectory, recent_directories:clone(terminalRecent),favorite_directories:clone(terminalFavorites),
+      projects:[...new Set([...terminalFavorites,...terminalRecent])].map(directory=>({directory,name:directory.split('\\').pop(),favorite:terminalFavorites.includes(directory),available:true})),
       tools:[{id:'claude',display:'Claude Code',installed:true},{id:'codex',display:'Codex CLI',installed:true},{id:'grok',display:'Grok CLI',installed:false}],
       profiles:cliProfiles.map(cliPublic)}}),
+    list_cli_history: async name => {
+      const profile=cliProfiles.find(p=>p.name===name);if(!profile)return cliFailure();
+      if(modes.get('history')==='error')return {ok:false,error:'无法读取历史目录（预览）'};
+      return {ok:true,data:{sessions:modes.has('empty-history')||profile.type==='grok'?[]:clone(terminalSessions),warnings:[],truncated:false}};
+    },
+    set_terminal_favorite: async (directory, favorite) => {
+      if(!directory.trim())return {ok:false,error:'请选择项目目录。'};
+      terminalFavorites=terminalFavorites.filter(p=>p!==directory);if(favorite)terminalFavorites.unshift(directory);return {ok:true};
+    },
+    resume_cli_session: async (name, id) => {
+      const session=terminalSessions.find(s=>s.id===id);if(!session?.available)return {ok:false,error:'此会话的项目目录已不存在。'};
+      return window.pywebview.api.open_terminal(name,session.directory);
+    },
     get_cli_profile: async name => {const p=cliProfiles.find(p=>p.name===name);return p?{ok:true,data:cliPublic(p)}:cliFailure();},
     save_cli_profile: async (payload, original, revision) => {
       if (modes.get('save')==='error') return {ok:false,error:'保存失败（预览）'};
@@ -68,7 +89,7 @@ if (new URLSearchParams(location.search).has("preview")) {
     open_terminal: async (name, directory) => {
       if(!directory.trim())return {ok:false,error:'请选择项目目录。'};
       if(name && modes.get('safety') && modes.get('safety')!=='supported')return {ok:false,error:'安全检查未通过：无法确认环境，已取消启动。'};
-      terminalDirectory=directory;return {ok:true};
+      terminalDirectory=directory;terminalRecent=[directory,...terminalRecent.filter(p=>p!==directory)].slice(0,20);return {ok:true};
     },
     get_takeover_status: async (id = 'grok-bot') => takeoverState(id),
     set_takeover: async (id, enabled) => {
@@ -121,7 +142,7 @@ if (new URLSearchParams(location.search).has("preview")) {
       timer = setTimeout(() => {
         const mode = modes.get("update");
         state = { ...state, phase: mode === "error" ? "error" : mode === "latest" ? "latest" : "available",
-          latest: "0.4.0", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。" : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.4.0" };
+          latest: mode === "latest" ? "0.4.0" : "0.4.1", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。" : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.4.1（预览）" };
       }, 600);
       return clone(state);
     },

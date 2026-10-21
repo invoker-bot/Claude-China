@@ -12,6 +12,8 @@ const ICON_PATHS = {
   arrow: '<path d="m9 5 7 7-7 7"/>',
   info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-10v.1"/>',
   folder: '<path d="M3 7V5h6l2 2h10v13H3Z"/>',
+  star: '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-3-5.6 3 1.1-6.2L3 9.6l6.2-.9Z"/>',
+  history: '<path d="M3 4v5h5M3.5 9a9 9 0 1 1-.2 6M12 7v5l3 2"/>',
   plus: '<circle cx="12" cy="12" r="9"/><path d="M12 8v8m-4-4h8"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
   minimize: '<path d="M5 12h14"/>',

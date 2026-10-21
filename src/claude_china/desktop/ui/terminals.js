@@ -1,4 +1,10 @@
-let TERMINALS = { profiles: [], tools: [], recent_directories: [] };
+let TERMINALS = { profiles: [], tools: [], recent_directories: [], favorite_directories: [], projects: [] };
+let TERMINAL_VIEW = 'history';
+let TERMINAL_HISTORY = { sessions: [], warnings: [], truncated: false };
+let TERMINAL_HISTORY_LOADING = false;
+let TERMINAL_HISTORY_REQUEST = 0;
+let TERMINAL_PROJECTS = [];
+let TERMINAL_STARTING = false;
 let TERMINAL_FILTER = 'all';
 let TERMINAL_LOADING = false;
 let TERMINAL_DIRTY = false;
@@ -22,11 +28,132 @@ async function refreshTerminals() {
     const result = await api().list_cli_profiles();
     if (!result.ok) throw new Error(result.error);
     TERMINALS = result.data;
+    const select = document.getElementById('terminal-launch-profile');
+    const selected = select.value || TERMINALS.last_profile;
+    const profiles = TERMINALS.profiles.filter(p => p.supported);
+    select.innerHTML = profiles.length ? profiles.map(p => `<option value="${esc(p.name)}">${esc(p.name)} · ${esc(CLI_NAMES[p.type])}</option>`).join('') : '<option value="">请先添加 CLI 配置</option>';
+    if (profiles.some(p => p.name === selected)) select.value = selected;
+    select.disabled = !profiles.length;
+    document.getElementById('terminal-new-session').disabled = !profiles.length;
     if (!TERMINAL_DIRTY) document.getElementById('terminal-directory').value = TERMINALS.directory;
     document.getElementById('terminal-recent').innerHTML = TERMINALS.recent_directories.map(p => `<option value="${esc(p)}"></option>`).join('');
-    renderTerminalProfiles();
+    renderTerminalWorkspace();
+    await refreshTerminalHistory();
   } catch (error) { terminalError(error.message || '无法读取 CLI 配置。'); }
   finally { TERMINAL_LOADING = false; document.getElementById('refresh-terminals').disabled = false; }
+}
+
+function selectedTerminalProfile() {
+  return document.getElementById('terminal-launch-profile').value;
+}
+
+function terminalFavorite(directory) {
+  return (TERMINALS.favorite_directories || []).includes(directory);
+}
+
+function renderTerminalWorkspace() {
+  renderTerminalProfiles();
+  renderTerminalHistory();
+  renderTerminalProjects();
+  const favorite = terminalFavorite(document.getElementById('terminal-directory').value);
+  const star = document.getElementById('terminal-favorite');
+  star.classList.toggle('is-favorite', favorite);
+  star.setAttribute('aria-pressed', String(favorite));
+  star.title = favorite ? '取消收藏当前项目' : '收藏当前项目';
+  star.setAttribute('aria-label', star.title);
+}
+
+function setTerminalView(view) {
+  TERMINAL_VIEW = view;
+  document.getElementById('terminal-history-pane').hidden = view !== 'history';
+  document.getElementById('terminal-projects-pane').hidden = view !== 'projects';
+  document.getElementById('terminal-profiles').hidden = view !== 'profiles';
+  document.getElementById('terminal-filters').hidden = view !== 'profiles';
+  document.querySelectorAll('[data-terminal-view]').forEach(button => {
+    button.classList.toggle('is-active', button.dataset.terminalView === view);
+    button.setAttribute('aria-pressed', String(button.dataset.terminalView === view));
+  });
+  document.getElementById('terminal-search').placeholder = {history: '搜索会话或项目', projects: '搜索项目文件夹', profiles: '搜索 CLI 配置'}[view];
+  renderTerminalWorkspace();
+}
+
+async function refreshTerminalHistory() {
+  const request = ++TERMINAL_HISTORY_REQUEST;
+  const profile = selectedTerminalProfile();
+  TERMINAL_HISTORY = {sessions: [], warnings: [], truncated: false};
+  TERMINAL_HISTORY_LOADING = Boolean(profile);
+  renderTerminalHistory();
+  try {
+    if (!profile) return;
+    const result = await api().list_cli_history(profile);
+    if (request !== TERMINAL_HISTORY_REQUEST) return;
+    if (!result.ok) throw new Error(result.error);
+    TERMINAL_HISTORY = result.data;
+  } catch (error) {
+    if (request === TERMINAL_HISTORY_REQUEST) terminalError(error.message || '无法读取历史会话。');
+  } finally {
+    if (request === TERMINAL_HISTORY_REQUEST) {
+      TERMINAL_HISTORY_LOADING = false;
+      renderTerminalHistory(); renderTerminalProjects();
+    }
+  }
+}
+
+function terminalEmpty(title, description, symbol = 'history') {
+  return `<div class="terminal-empty">${icon(symbol)}<h2>${esc(title)}</h2><p>${esc(description)}</p></div>`;
+}
+
+function renderTerminalHistory() {
+  const list = document.getElementById('terminal-history');
+  const note = document.getElementById('terminal-history-note');
+  const profile = TERMINALS.profiles.find(p => p.name === selectedTerminalProfile());
+  note.textContent = profile ? `读取“${profile.name}”所用目录的本地会话，包含从其他入口启动的记录。` : '选择一条 CLI 配置来查看对应的历史。';
+  if (TERMINAL_HISTORY.truncated) note.textContent += ' 仅显示最近 200 条。';
+  if (TERMINAL_HISTORY.warnings.length) note.textContent += ' ' + TERMINAL_HISTORY.warnings.join(' ');
+  if (TERMINAL_HISTORY_LOADING) { list.innerHTML = '<p class="terminal-section-note">正在读取本地历史…</p>'; return; }
+  const query = document.getElementById('terminal-search').value.trim().toLowerCase();
+  const entries = TERMINAL_HISTORY.sessions.map((session, index) => ({session, index})).filter(({session: s}) => `${s.title} ${s.directory} ${s.id}`.toLowerCase().includes(query));
+  if (!entries.length) {
+    list.innerHTML = terminalEmpty(query ? '没有匹配的会话' : '还没有历史会话', query ? '试试项目名称、会话标题或会话 ID。' : '在上方选择项目和配置，新建会话。CLI 保存记录后会显示在这里。'); return;
+  }
+  list.innerHTML = entries.map(({session: s, index}) => {
+    const date = new Date(s.updated_at);
+    const time = Number.isNaN(date.getTime()) ? '' : date.toLocaleString('zh-CN', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
+    const favorite = terminalFavorite(s.directory);
+    return `<article class="terminal-session" data-session-index="${index}"><span class="terminal-session-icon" aria-hidden="true">${profile?.type === 'grok' ? icon('terminal') : appSymbol(profile?.type)}</span><div class="terminal-session-info"><h2 title="${esc(s.id)}">${esc(s.title)}</h2><p class="terminal-session-path" title="${esc(s.directory)}">${esc(s.directory)}</p><p class="terminal-session-meta">${esc(CLI_NAMES[profile?.type] || '')} · ${esc(time)}${s.available ? '' : ' · 项目目录已不存在'}</p></div><div class="terminal-session-actions"><button class="icon-button ${favorite ? 'is-favorite' : ''}" type="button" data-session-action="favorite" aria-label="${favorite ? '取消收藏' : '收藏'}项目 ${esc(s.directory)}" aria-pressed="${favorite}" ${!s.available && !favorite ? 'disabled' : ''}>${icon('star')}</button><button class="btn" type="button" data-session-action="directory" ${s.available ? '' : 'disabled'} title="将此项目设为新会话目录">选用目录</button><button class="btn btn--key" type="button" data-session-action="resume" ${s.available ? '' : 'disabled'}>${icon('history')}继续会话</button></div></article>`;
+  }).join('');
+}
+
+function renderTerminalProjects() {
+  const projects = new Map((TERMINALS.projects || []).map(p => [p.directory, {...p}]));
+  for (const session of TERMINAL_HISTORY.sessions) {
+    if (!projects.has(session.directory)) projects.set(session.directory, {directory:session.directory, name:session.directory.split(/[\\/]/).filter(Boolean).pop() || session.directory, available:session.available, favorite:terminalFavorite(session.directory)});
+  }
+  TERMINAL_PROJECTS = [...projects.values()].sort((a, b) => Number(b.favorite) - Number(a.favorite));
+  const query = document.getElementById('terminal-search').value.trim().toLowerCase();
+  const entries = TERMINAL_PROJECTS.map((project, index) => ({project, index})).filter(({project:p}) => p.directory.toLowerCase().includes(query));
+  const list = document.getElementById('terminal-projects');
+  if (!entries.length) { list.innerHTML = terminalEmpty(query ? '没有匹配的项目' : '还没有常用项目', query ? '试试文件夹名称或完整路径。' : '选择项目目录后点击星标收藏；最近启动的项目也会出现在这里。', 'folder'); return; }
+  list.innerHTML = entries.map(({project:p, index}) => `<article class="terminal-project-card" data-project-index="${index}"><div class="terminal-project-card-head">${icon('folder')}<h2>${esc(p.name)}</h2><button class="icon-button ${p.favorite ? 'is-favorite' : ''}" type="button" data-project-action="favorite" aria-label="${p.favorite ? '取消收藏' : '收藏'} ${esc(p.name)}" aria-pressed="${p.favorite}" ${!p.available && !p.favorite ? 'disabled' : ''}>${icon('star')}</button></div><p class="terminal-session-path">${esc(p.directory)}</p><p class="terminal-session-meta">${p.favorite ? '已收藏' : '最近使用'}${p.available ? '' : ' · 项目目录已不存在'}</p><div class="terminal-project-card-actions"><button class="btn btn--key" type="button" data-project-action="new" ${p.available && selectedTerminalProfile() ? '' : 'disabled'}>${icon('plus')}新建会话</button><button class="btn" type="button" data-project-action="directory" ${p.available ? '' : 'disabled'}>选用目录</button><button class="icon-button" type="button" data-project-action="folder" aria-label="打开文件夹 ${esc(p.name)}" ${p.available ? '' : 'disabled'}>${icon('external')}</button></div></article>`).join('');
+}
+
+function useTerminalDirectory(directory) {
+  document.getElementById('terminal-directory').value = directory;
+  TERMINAL_DIRTY = true;
+  renderTerminalWorkspace();
+  toast('已选用项目目录，可在上方新建会话');
+}
+
+async function favoriteTerminalDirectory(directory, button) {
+  button.disabled = true; terminalError();
+  try {
+    const favorite = !terminalFavorite(directory);
+    const result = await api().set_terminal_favorite(directory, favorite);
+    if (!result.ok) throw new Error(result.error);
+    toast(favorite ? '已收藏项目' : '已取消收藏');
+    await refreshTerminals();
+  } catch (error) { terminalError(error.message || '无法保存项目收藏。'); }
+  finally { if (button.isConnected) button.disabled = false; }
 }
 
 function renderTerminalProfiles() {
@@ -51,20 +178,21 @@ function renderTerminalProfiles() {
   }).join('');
 }
 
-async function terminalAction(name, button) {
-  if (button.disabled) return;
+async function terminalAction(name, button, directory = document.getElementById('terminal-directory').value, sessionId = null) {
+  if (button.disabled || TERMINAL_STARTING) return;
+  TERMINAL_STARTING = true;
   const label = button.innerHTML;
   button.disabled = true;
   button.textContent = name === null ? '正在打开…' : '正在检查…';
   terminalError();
   try {
-    const result = await api().open_terminal(name, document.getElementById('terminal-directory').value);
+    const result = sessionId ? await api().resume_cli_session(name, sessionId) : await api().open_terminal(name, directory);
     if (!result.ok) throw new Error(result.error);
     TERMINAL_DIRTY = false;
-    toast(name === null ? '终端已打开' : '已打开终端，将重新检查配置并启动 CLI');
+    toast(name === null ? '终端已打开' : sessionId ? '已打开终端，将重新检查环境并恢复会话' : '已打开终端，将重新检查配置并启动 CLI');
     await refreshTerminals();
   } catch (error) { terminalError(error.message || '无法打开终端。'); }
-  finally { if (button.isConnected) { button.disabled = false; button.innerHTML = label; } }
+  finally { TERMINAL_STARTING = false; if (button.isConnected) { button.disabled = false; button.innerHTML = label; } }
 }
 
 function renderCliMode() {
@@ -160,9 +288,30 @@ async function submitCliProfile(event) {
 
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('refresh-terminals').onclick = refreshTerminals;
-  document.getElementById('new-cli-profile').onclick = () => openCliEditor();
-  document.getElementById('terminal-search').oninput = renderTerminalProfiles;
-  document.getElementById('terminal-directory').oninput = () => { TERMINAL_DIRTY = true; };
+  document.getElementById('new-cli-profile').onclick = () => { setTerminalView('profiles'); openCliEditor(); };
+  document.getElementById('terminal-search').oninput = renderTerminalWorkspace;
+  document.getElementById('terminal-directory').oninput = () => { TERMINAL_DIRTY = true; renderTerminalWorkspace(); };
+  document.getElementById('terminal-views').onclick = event => {
+    const button = event.target.closest('[data-terminal-view]'); if (button) setTerminalView(button.dataset.terminalView);
+  };
+  document.getElementById('terminal-launch-profile').onchange = () => { terminalError(); refreshTerminalHistory(); renderTerminalProjects(); };
+  document.getElementById('terminal-new-session').onclick = event => { const name = selectedTerminalProfile(); if (name) terminalAction(name, event.currentTarget); };
+  document.getElementById('terminal-favorite').onclick = event => favoriteTerminalDirectory(document.getElementById('terminal-directory').value, event.currentTarget);
+  document.getElementById('terminal-history').onclick = event => {
+    const button = event.target.closest('[data-session-action]'); if (!button || button.disabled) return;
+    const session = TERMINAL_HISTORY.sessions[Number(button.closest('[data-session-index]').dataset.sessionIndex)];
+    if (button.dataset.sessionAction === 'resume') return terminalAction(selectedTerminalProfile(), button, session.directory, session.id);
+    if (button.dataset.sessionAction === 'favorite') return favoriteTerminalDirectory(session.directory, button);
+    useTerminalDirectory(session.directory);
+  };
+  document.getElementById('terminal-projects').onclick = event => {
+    const button = event.target.closest('[data-project-action]'); if (!button || button.disabled) return;
+    const project = TERMINAL_PROJECTS[Number(button.closest('[data-project-index]').dataset.projectIndex)];
+    if (button.dataset.projectAction === 'new') return terminalAction(selectedTerminalProfile(), button, project.directory);
+    if (button.dataset.projectAction === 'favorite') return favoriteTerminalDirectory(project.directory, button);
+    if (button.dataset.projectAction === 'folder') return openTerminalFolder(project.directory);
+    useTerminalDirectory(project.directory);
+  };
   document.getElementById('terminal-filters').onclick = event => {
     const filter = event.target.closest('[data-tool]'); if (!filter) return;
     TERMINAL_FILTER = filter.dataset.tool;
@@ -190,19 +339,21 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById(id).onclick = async () => {
       try {
         const result = await api().pick_terminal_directory();
-        if (result.ok) { document.getElementById(target).value = result.path; if (target === 'terminal-directory') TERMINAL_DIRTY = true; }
+        if (result.ok) { document.getElementById(target).value = result.path; if (target === 'terminal-directory') { TERMINAL_DIRTY = true; renderTerminalWorkspace(); } }
         else if (!result.cancelled) throw new Error(result.error);
       } catch (error) { target === 'terminal-directory' ? terminalError(error.message) : cliFormError(error.message); }
     };
   }
-  document.getElementById('terminal-folder').onclick = async () => {
-    terminalError();
-    try { const result = await api().open_project_folder(document.getElementById('terminal-directory').value); if (!result.ok) throw new Error(result.error); }
-    catch (error) { terminalError(error.message || '无法打开项目文件夹。'); }
-  };
+  document.getElementById('terminal-folder').onclick = () => openTerminalFolder(document.getElementById('terminal-directory').value);
   document.getElementById('cli-profile-form').onsubmit = submitCliProfile;
   for (const id of ['cli-dialog-close', 'cli-cancel']) document.getElementById(id).onclick = closeCliEditor;
   document.getElementById('cli-profile-dialog').addEventListener('cancel', event => { event.preventDefault(); closeCliEditor(); });
   document.getElementById('cli-mode').onchange = renderCliMode;
   document.getElementById('cli-type').onchange = () => { document.getElementById('cli-base-url').placeholder = CLI_BASE_URLS[document.getElementById('cli-type').value]; };
 });
+
+async function openTerminalFolder(directory) {
+  terminalError();
+  try { const result = await api().open_project_folder(directory); if (!result.ok) throw new Error(result.error); }
+  catch (error) { terminalError(error.message || '无法打开项目文件夹。'); }
+}

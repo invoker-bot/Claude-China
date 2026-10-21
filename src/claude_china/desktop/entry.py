@@ -65,20 +65,23 @@ def main(argv=None):
     from .app import run_gui
 
     if args.smoke_test:
-        from . import config
+        from . import config, terminal_history
         from .. import config as cli_config
         report = args.smoke_test.resolve()
         previous = config.DESKTOP_CONFIG_FILE
         previous_cli = cli_config.CONFIG_FILE
+        previous_history_home = terminal_history.profile_home
         # Exercise the packaged GUI without reading or changing real profiles.
         with tempfile.TemporaryDirectory(prefix="claude-china-smoke-") as directory:
             try:
                 config.DESKTOP_CONFIG_FILE = Path(directory) / "desktop.yaml"
                 cli_config.CONFIG_FILE = Path(directory) / "config.yaml"
+                terminal_history.profile_home = lambda record: Path(directory) / ('history-' + record['type'])
                 run_gui(smoke_report=report)
             finally:
                 config.DESKTOP_CONFIG_FILE = previous
                 cli_config.CONFIG_FILE = previous_cli
+                terminal_history.profile_home = previous_history_home
         return 0 if report.is_file() and json.loads(report.read_text())["ok"] else 1
     with _installer_mutex():
         run_gui()

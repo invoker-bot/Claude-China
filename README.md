@@ -374,6 +374,13 @@ profile's explicit proxy take precedence; automatic system proxy validation and
 the desktop safety rules also apply. An invalid proxy or failed strict safety
 check prevents the CLI from starting. Ordinary terminals do not apply a profile.
 
+**历史会话** reads the selected profile's local Claude Code, Codex CLI or Grok
+CLI history, including sessions started outside the launcher. Search by title
+or project and choose **继续会话** to resume the exact conversation. **常用项目**
+keeps starred and recent directories ready for **新建会话** with the selected
+profile. Missing directories are shown but cannot be launched. Resume repeats
+the same environment checks and injection as a new session.
+
 Windows uses PowerShell, macOS uses Terminal (automation permission may be
 required), and Linux uses an installed terminal such as GNOME Terminal, Konsole
 or xterm. The shell remains open after the CLI exits. The selected profile is

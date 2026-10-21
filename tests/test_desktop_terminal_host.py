@@ -133,3 +133,14 @@ def test_worker_rechecks_environment_and_never_runs_cli_when_check_fails(jobs, t
     assert terminal_host.run_session(job) == 1
     execute.assert_not_called()
     assert not job.exists()
+
+
+def test_resume_worker_passes_only_session_id_to_fresh_preparation(jobs, tmp_path, monkeypatch):
+    from claude_china.desktop import terminals
+    session_id = '019a1111-2222-7333-8444-555555555555'
+    prepare = Mock(return_value=(['fixture', '--resume', session_id], {'SAFE': 'value'}))
+    monkeypatch.setattr(terminals.TerminalService, 'prepare', prepare)
+    monkeypatch.setattr(terminal_host.process, 'run', Mock(return_value=Mock(returncode=0)))
+    path = terminal_host.create_job('work', str(tmp_path), session_id=session_id)
+    assert terminal_host.run_session(path) == 0
+    prepare.assert_called_once_with('work', str(tmp_path), session_id=session_id)

@@ -133,6 +133,53 @@ def _verify_terminal_profiles(window):
         raise RuntimeError('Cannot return from My Terminals to My Apps')
 
 
+def _verify_terminal_history(window):
+    """Exercise the native bridge with local fixtures and no provider processes."""
+    from pathlib import Path
+    from unittest.mock import patch
+    from .. import config as cli_config
+    from . import config, terminal_history, terminal_host, terminals
+    profile = next(iter(cli_config.load_config()['profiles'].values()))
+    root = terminal_history.profile_home(profile)
+    if root.parent != cli_config.CONFIG_FILE.parent or root.parent == Path.home() / '.claudec':
+        raise RuntimeError('History smoke store was not isolated')
+    project = (root.parent / 'fixture project').resolve()
+    project.mkdir()
+    session_id = '019a1111-2222-7333-8444-555555555555'
+    transcript = root / 'projects/fixture' / (session_id + '.jsonl')
+    transcript.parent.mkdir(parents=True)
+    transcript.write_text(json.dumps({'type': 'user', 'sessionId': session_id, 'cwd': str(project),
+                                     'message': {'content': 'Native history smoke'}}) + '\n', encoding='utf-8')
+    window.evaluate_js("document.getElementById('terminals-button').click(); setTerminalView('history')")
+    _wait_js(window, "!TERMINAL_LOADING && document.querySelectorAll('.terminal-session').length === 1")
+    window.evaluate_js("document.querySelector('[data-session-action=favorite]').click()")
+    _wait_js(window, "!TERMINAL_LOADING && TERMINALS.favorite_directories.length === 1")
+    if config.load_desktop_config()['terminals']['favorite_directories'] != [str(project)]:
+        raise RuntimeError('Project favorite was not saved')
+    opened = []
+    event = threading.Event()
+
+    def capture(path, directory):
+        opened.append(terminal_host.consume_job(path))
+        event.set()
+
+    with patch.object(terminal_host, 'jobs_dir', lambda: root.parent / 'jobs'), \
+            patch.object(terminal_host, 'open_terminal', capture), \
+            patch.object(terminals.TerminalService, 'prepare', return_value=(['fixture-cli'], {})):
+        window.evaluate_js("document.querySelector('[data-session-action=resume]').click()")
+        if not event.wait(10) or opened[0].get('session_id') != session_id:
+            raise RuntimeError('Native bridge did not dispatch the selected session')
+        _wait_js(window, "!TERMINAL_LOADING && !document.querySelector('[data-session-action=resume]').disabled")
+        event.clear()
+        window.evaluate_js("setTerminalView('projects'); document.querySelector('[data-project-action=new]').click()")
+        if not event.wait(10) or len(opened) != 2 or 'session_id' in opened[1]:
+            raise RuntimeError('Starting from a favorite incorrectly resumed an old session')
+        if any(job['directory'] != str(project) or job['profile'] != profile['name'] for job in opened):
+            raise RuntimeError('History/project launch lost the selected profile or directory')
+        _wait_js(window, "!TERMINAL_LOADING && !document.querySelector('[data-project-action=new]').disabled")
+    window.evaluate_js("document.getElementById('home-button').click()")
+
+
 def verify_window(window, tray, report):
     result = {"ok": False, "version": __version__, "platform": sys.platform,
               "frozen": bool(getattr(sys, "frozen", False)), "pid": os.getpid()}
@@ -316,6 +363,8 @@ def verify_window(window, tray, report):
             "document.getElementById('safety-result').dataset.status === 'unsupported'")
         _verify_terminal_profiles(window)
         result["terminal_profile_crud"] = True
+        _verify_terminal_history(window)
+        result["terminal_history_and_projects"] = True
         if not all(result[key] for key in (
             "grok_bot_settings", "menu_settings_page", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_keeps_settings_page",

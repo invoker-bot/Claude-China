@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from .. import config as cli_config
 from ..launcher import prepare_environment, resolve_default_args, PROXY_ENV_VARS
 from ..models import VALID_TYPES, OFFICIAL_BASE_URLS, profile_from_dict, profile_to_dict
-from . import config, safety
+from . import config, safety, terminal_history
 from .env import merge_env
 from .platforms.base import AppStatus
 from .proxy import SystemProxyError
@@ -41,6 +41,26 @@ def directory_path(value):
     if not path.is_absolute() or not path.is_dir():
         raise ValueError('项目目录不存在，请选择一个现有文件夹。')
     return str(path.resolve())
+
+
+def _directories(values, limit):
+    if not isinstance(values, list):
+        return []
+    result, seen = [], set()
+    for value in values:
+        if not isinstance(value, str) or any(ord(c) < 32 for c in value):
+            continue
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            continue
+        directory = str(path.resolve())
+        key = os.path.normcase(directory)
+        if key not in seen:
+            result.append(directory)
+            seen.add(key)
+        if len(result) >= limit:
+            break
+    return result
 
 
 def _url(value, label, schemes=('http', 'https')):
@@ -169,29 +189,94 @@ class TerminalService:
     def workspace(self):
         prefs = config.load_desktop_config().get('terminals', {})
         prefs = prefs if isinstance(prefs, dict) else {}
-        recent = prefs.get('recent_directories', [])
+        recent = _directories(prefs.get('recent_directories'), 20)
+        favorites = _directories(prefs.get('favorite_directories'), 50)
+        favorite_keys = {os.path.normcase(p) for p in favorites}
+        projects = _directories(favorites + recent, 70)
         return {'directory': prefs.get('directory') or str(Path.home()),
-                'recent_directories': [p for p in recent if isinstance(p, str)][:8] if isinstance(recent, list) else [],
+                'recent_directories': recent, 'favorite_directories': favorites,
+                'last_profile': prefs.get('last_profile'),
+                'projects': [{'directory': p, 'name': Path(p).name or p,
+                              'favorite': os.path.normcase(p) in favorite_keys, 'available': Path(p).is_dir()}
+                             for p in projects],
                 'tools': [{'id': kind, 'display': TOOL_NAMES[kind],
                            'installed': bool(shutil.which(kind + '.cmd') or shutil.which(kind)) if sys.platform == 'win32' else bool(shutil.which(kind))}
                           for kind in VALID_TYPES]}
 
-    def remember_directory(self, directory):
+    def remember_directory(self, directory, profile=None):
         directory = directory_path(directory)
         with _STORE_LOCK:
             data = config.load_desktop_config()
             recent = self.workspace()['recent_directories']
-            data['terminals'] = {'directory': directory,
-                                 'recent_directories': [directory] + [p for p in recent if p != directory][:7]}
+            prefs = data.get('terminals')
+            prefs = prefs if isinstance(prefs, dict) else {}
+            prefs.update(directory=directory, recent_directories=_directories([directory] + recent, 20))
+            if profile is not None:
+                prefs['last_profile'] = profile
+            data['terminals'] = prefs
             config.save_desktop_config(data)
         return directory
 
-    def prepare(self, name, directory):
-        directory_path(directory)
+    def set_favorite(self, directory, favorite):
+        if not isinstance(favorite, bool):
+            raise ValueError('无效的收藏操作。')
+        # Removing a favorite must also work after its folder was moved/deleted.
+        if favorite:
+            directory = directory_path(directory)
+        else:
+            paths = _directories([directory], 1)
+            if not paths:
+                raise ValueError('项目目录格式无效。')
+            directory = paths[0]
+        with _STORE_LOCK:
+            data = config.load_desktop_config()
+            prefs = data.get('terminals')
+            prefs = prefs if isinstance(prefs, dict) else {}
+            current = _directories(prefs.get('favorite_directories'), 50)
+            current = [p for p in current if os.path.normcase(p) != os.path.normcase(directory)]
+            if favorite:
+                if len(current) >= 50:
+                    raise ValueError('最多收藏 50 个项目，请先取消其他收藏。')
+                current.insert(0, directory)
+            prefs['favorite_directories'] = current
+            data['terminals'] = prefs
+            config.save_desktop_config(data)
+
+    def history(self, name):
         record = deepcopy(_existing(_read(), name))
         if not _public(name, record)['supported']:
             raise ValueError('此 CLI 配置类型暂不支持，请先编辑配置。')
-        argv = resolve_cli_argv(record['type']) + resolve_default_args(record.get('default_args'))
+        return terminal_history.list_sessions(record['type'], terminal_history.profile_home(record))
+
+    def _session(self, record, session_id):
+        terminal_history.resume_args(record['type'], session_id, [])
+        history = terminal_history.list_sessions(record['type'], terminal_history.profile_home(record))
+        session = next((s for s in history['sessions'] if s['id'] == session_id), None)
+        if session is None:
+            raise ValueError('此配置下找不到该会话，请刷新历史记录后重试。')
+        return session
+
+    def resume_session(self, name, session_id):
+        record = _existing(_read(), name)
+        if not _public(name, record)['supported']:
+            raise ValueError('此 CLI 配置类型暂不支持。')
+        session = self._session(record, session_id)
+        self.launch(name, session['directory'], session_id=session_id)
+
+    def prepare(self, name, directory, session_id=None):
+        directory = directory_path(directory)
+        record = deepcopy(_existing(_read(), name))
+        if not _public(name, record)['supported']:
+            raise ValueError('此 CLI 配置类型暂不支持，请先编辑配置。')
+        arguments = resolve_default_args(record.get('default_args'))
+        if session_id is not None:
+            session = self._session(record, session_id)
+            if directory_path(session['directory']) != directory:
+                raise ValueError('会话的项目目录已发生变化，请刷新历史记录。')
+            arguments = terminal_history.resume_args(record['type'], session_id, arguments)
+        else:
+            arguments = terminal_history.new_session_args(record['type'], arguments)
+        argv = resolve_cli_argv(record['type']) + arguments
         data = config.load_desktop_config()
         if config.get_check_system_proxy(data) and not self.backend.proxy_enabled():
             raise ValueError('系统代理未开启，已取消启动。')
@@ -221,15 +306,20 @@ class TerminalService:
             raise ValueError('检测期间配置发生变化，请重新启动。')
         return argv, env
 
-    def launch(self, name, directory):
+    def launch(self, name, directory, session_id=None):
         from . import terminal_host
         directory = directory_path(directory)
+        if session_id is not None and name is None:
+            raise ValueError('恢复会话需要选择 CLI 配置。')
         if name is not None:
-            self.prepare(name, directory)
-        self.remember_directory(directory)
-        path = terminal_host.create_job(name, directory)
+            if session_id is None:
+                self.prepare(name, directory)
+            else:
+                self.prepare(name, directory, session_id=session_id)
+        path = terminal_host.create_job(name, directory, session_id=session_id)
         try:
             terminal_host.open_terminal(path, directory)
         except Exception:
             path.unlink(missing_ok=True)
             raise
+        self.remember_directory(directory, profile=name)

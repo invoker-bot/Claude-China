@@ -174,3 +174,94 @@ def test_atomic_profile_write_keeps_previous_config_when_replace_fails(service, 
         service.save_profile(api_profile(name='second'))
     assert cli_config.CONFIG_FILE.read_bytes() == before
     assert not list(cli_config.CONFIG_FILE.parent.glob('.config-*.tmp'))
+
+
+def test_favorites_survive_launch_history_and_can_remove_missing_project(service, tmp_path):
+    favorite = tmp_path / 'favorite'
+    favorite.mkdir()
+    service.set_favorite(str(favorite), True)
+    service.remember_directory(str(tmp_path))
+    service.set_favorite(str(favorite), True)
+    assert service.workspace()['favorite_directories'] == [str(favorite)]
+    favorite.rmdir()
+    project = next(p for p in service.workspace()['projects'] if p['directory'] == str(favorite))
+    assert project['favorite'] and not project['available']
+    service.set_favorite(str(favorite), False)
+    assert service.workspace()['favorite_directories'] == []
+    assert config.load_desktop_config()['safety_block_unknown'] is True
+
+
+def test_resume_uses_profile_home_and_rechecks_before_worker_execution(service, tmp_path, monkeypatch):
+    from claude_china.desktop import terminal_history, terminal_host
+    session_id = '019a1111-2222-7333-8444-555555555555'
+    home = tmp_path / 'history'
+    path = home / 'projects/encoded' / (session_id + '.jsonl')
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({'type': 'user', 'sessionId': session_id, 'cwd': str(tmp_path)}) + '\n')
+    monkeypatch.setattr(terminal_history, 'profile_home', lambda record: home)
+    monkeypatch.setattr(terminal_host, 'jobs_dir', lambda: tmp_path / 'jobs')
+    open_terminal = Mock()
+    monkeypatch.setattr(terminal_host, 'open_terminal', open_terminal)
+    service.save_profile(api_profile())
+    assert service.history('work')['sessions'][0]['id'] == session_id
+    argv, env = service.prepare('work', str(tmp_path), session_id=session_id)
+    assert argv == ['fixture-claude', '--resume', session_id, '--model', 'model with spaces']
+    assert env['ANTHROPIC_AUTH_TOKEN'] == 'private-test-token'
+    service.resume_session('work', session_id)
+    job = json.loads(open_terminal.call_args.args[0].read_text())
+    assert job['session_id'] == session_id and 'private-test-token' not in json.dumps(job)
+    assert service.workspace()['last_profile'] == 'work'
+    path.unlink()
+    with pytest.raises(ValueError, match='会话'):
+        service.prepare('work', str(tmp_path), session_id=session_id)
+
+
+def test_resume_cannot_bypass_environment_checks(service, tmp_path, monkeypatch):
+    from claude_china.desktop import terminal_history, terminal_host
+    session_id = '019a1111-2222-7333-8444-555555555555'
+    monkeypatch.setattr(terminal_history, 'list_sessions', lambda *args: {'sessions': [
+        {'id': session_id, 'directory': str(tmp_path), 'available': True}], 'warnings': [], 'truncated': False})
+    service.save_profile(api_profile())
+    monkeypatch.setattr(safety, 'inspect_environment', lambda *args: {'status': 'unknown'})
+    opened = Mock()
+    monkeypatch.setattr(terminal_host, 'open_terminal', opened)
+    with pytest.raises(ValueError, match='安全检查'):
+        service.resume_session('work', session_id)
+    opened.assert_not_called()
+
+
+def test_failed_terminal_open_does_not_add_successful_project_history(service, tmp_path, monkeypatch):
+    from claude_china.desktop import terminal_host
+    monkeypatch.setattr(terminal_host, 'jobs_dir', lambda: tmp_path / 'jobs')
+    monkeypatch.setattr(terminal_host, 'open_terminal', Mock(side_effect=OSError('fixture')))
+    with pytest.raises(OSError):
+        service.launch(None, str(tmp_path))
+    assert service.workspace()['recent_directories'] == []
+
+
+def test_new_session_rejects_defaults_that_would_resume_an_old_session(service, tmp_path):
+    service.save_profile(dict(api_profile(), default_args=['--continue']))
+    with pytest.raises(ValueError, match='默认参数'):
+        service.prepare('work', str(tmp_path))
+
+
+def test_resume_worker_runs_fake_cli_with_cwd_profile_environment_and_literal_id(service, tmp_path, monkeypatch):
+    import sys
+    from claude_china.desktop import terminal_host, terminal_history, platforms
+    session_id = '019a1111-2222-7333-8444-555555555555'
+    service.save_profile(dict(api_profile(), type='grok', default_args=['--model', 'literal model']))
+    monkeypatch.setenv('OPENAI_API_KEY', 'other-account-must-not-leak')
+    monkeypatch.setattr(terminal_history, 'list_sessions', lambda *args: {'sessions': [
+        {'id': session_id, 'directory': str(tmp_path), 'available': True}], 'warnings': [], 'truncated': False})
+    monkeypatch.setattr(platforms, 'get_backend', lambda: service.backend)
+    monkeypatch.setattr(terminal_host, 'jobs_dir', lambda: tmp_path / 'jobs')
+    recorder = tmp_path / 'fake_cli.py'
+    recorder.write_text('import json, os, sys\nfrom pathlib import Path\n'
+                        'Path("received.json").write_text(json.dumps({"argv":sys.argv[1:],"cwd":os.getcwd(),'
+                        '"key":os.environ.get("XAI_API_KEY"),"leaked":os.environ.get("OPENAI_API_KEY")}))\n')
+    monkeypatch.setattr(terminals, 'resolve_cli_argv', lambda kind: [sys.executable, str(recorder)])
+    job = terminal_host.create_job('work', str(tmp_path), session_id=session_id)
+    assert terminal_host.run_session(job) == 0
+    received = json.loads((tmp_path / 'received.json').read_text())
+    assert received == {'argv': ['--resume', session_id, '--model', 'literal model'], 'cwd': str(tmp_path),
+                        'key': 'private-test-token', 'leaked': None}

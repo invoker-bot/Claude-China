@@ -181,6 +181,15 @@ class LauncherBridge:
     def open_terminal(self, profile_name=None, directory=''):
         return self._terminal_request(lambda service: service.launch(profile_name, directory))
 
+    def list_cli_history(self, profile_name):
+        return self._terminal_request(lambda service: service.history(profile_name))
+
+    def resume_cli_session(self, profile_name, session_id):
+        return self._terminal_request(lambda service: service.resume_session(profile_name, session_id))
+
+    def set_terminal_favorite(self, directory, favorite):
+        return self._terminal_request(lambda service: service.set_favorite(directory, favorite))
+
     def open_project_folder(self, directory):
         from .terminal_host import open_directory
         return self._terminal_request(lambda service: open_directory(directory))
