@@ -21,6 +21,7 @@ Issues = "https://github.com/invoker-bot/Claude-China/issues"
 
 [project.optional-dependencies]
 desktop = ["pywebview>=6.2.1", "psutil>=5.9", "pystray>=0.19.5", "Pillow>=9", "certifi>=2024.2.2"]
+test = ["pytest", "Pillow>=9", "psutil>=5.9", "certifi>=2024.2.2"]
 
 [project.scripts]
 claudec = "claude_china.cli:app"

@@ -9,6 +9,7 @@ The deprecated `ai-code-switcher` distribution is built separately from `compat/
 ## Build, Test, and Development Commands
 
 - `pip install -e .` installs the package in editable mode for local CLI development.
+- `pip install -e ".[test]"` installs the package and non-GUI test dependencies.
 - `pip install -e ".[desktop]"` installs optional desktop launcher dependencies.
 - `python -m pytest tests/ -q` runs the full pytest suite configured in `pyproject.toml`.
 - `python -m pytest tests/test_launcher.py::test_merge_launch_args_only_defaults -q` runs one targeted test.
