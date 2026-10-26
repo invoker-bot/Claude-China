@@ -113,6 +113,21 @@ def test_browser_launch_gate_fails_closed_if_tunnel_goes_down(guard, monkeypatch
         playwright_guard.check_browser(str(browser))
 
 
+def test_browser_helper_reports_errors_as_utf8_with_legacy_windows_stream(guard, monkeypatch):
+    import io
+    import sys
+    from src.claude_china.desktop import entry
+
+    bridge, _, _, _, browser = guard
+    assert bridge.apply_network_guard("playwright", options())["ok"]
+    monkeypatch.setattr(playwright_guard, "tunnel_live", lambda tunnel: False)
+    output = io.BytesIO()
+    stream = io.TextIOWrapper(output, encoding="cp936", write_through=True)
+    monkeypatch.setattr(sys, "stderr", stream)
+    assert entry.main(["--network-guard-check-browser", str(browser)]) == 1
+    assert "隧道已断开" in output.getvalue().decode("utf-8")
+
+
 def test_cli_hook_preserves_existing_node_options_and_is_idempotent(guard):
     bridge, _, _, _, _ = guard
     assert bridge.apply_network_guard("playwright", options())["ok"]

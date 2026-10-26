@@ -11,6 +11,18 @@ import tempfile
 from .. import __version__
 
 
+def _guard_output(value, stream):
+    """The Node preload consumes UTF-8 even when Windows uses a legacy code page."""
+    if stream is None:
+        return
+    binary = getattr(stream, "buffer", None)
+    if binary is None:
+        print(value, file=stream)
+    else:
+        binary.write((value + "\n").encode("utf-8"))
+        binary.flush()
+
+
 @contextmanager
 def _installer_mutex():
     """Let Inno Setup ask the user to quit before upgrade or uninstall."""
@@ -51,13 +63,13 @@ def main(argv=None):
         from .egress import GuardError
         try:
             policy = check_browser(args.network_guard_check_browser)
-            print(json.dumps({"mode": policy.get("mode", "proxy") if policy else None}))
+            _guard_output(json.dumps({"mode": policy.get("mode", "proxy") if policy else None}), sys.stdout)
             return 0
         except GuardError as exc:
-            print(str(exc), file=sys.stderr)
+            _guard_output(str(exc), sys.stderr)
             return 1
         except Exception:
-            print("无法验证 Playwright 网络防护，已阻止浏览器启动。", file=sys.stderr)
+            _guard_output("无法验证 Playwright 网络防护，已阻止浏览器启动。", sys.stderr)
             return 1
     if args.network_guard_request:
         from .platforms.windows_wfp import apply_request
