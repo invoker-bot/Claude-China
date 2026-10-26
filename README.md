@@ -114,9 +114,9 @@ Download the desktop app from
 [GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
 It includes Python and the desktop dependencies; installing the CLI is optional.
 
-v0.4.3 publishes Windows and Linux installers plus the CLI. macOS Intel and
+v0.4.4 publishes Windows and Linux installers plus the CLI. macOS Intel and
 Apple Silicon packages are currently build-validation artifacts in GitHub
-Actions, not downloads attached to the v0.4.3 Release.
+Actions, not downloads attached to the v0.4.4 Release.
 
 | Platform | Download | Install | Uninstall |
 | --- | --- | --- | --- |
@@ -189,7 +189,7 @@ Grok Bot's `grok-bot` desktop command is detected automatically; select an
 installed executable in settings for other or portable desktop apps. Terminal
 commands such as `claude`, `codex` and `grok` are not treated as desktop apps.
 
-Windows signing service enrollment is pending; the v0.4.3 Windows installer is
+Windows signing service enrollment is pending; the v0.4.4 Windows installer is
 unsigned. The macOS Actions artifacts are ad-hoc signed and not notarized.
 Developer ID signing and Apple notarization can be enabled once credentials
 are configured; see the
