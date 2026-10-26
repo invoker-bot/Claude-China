@@ -114,6 +114,20 @@ def test_static_interface_has_translations():
     assert not missing
 
 
+def test_safety_panel_merges_webrtc_into_environment_check():
+    from src.claude_china.desktop.localization import catalogs
+    html = (Path(__file__).parents[1] / 'src/claude_china/desktop/ui/index.html').read_text(encoding='utf-8')
+    panel = html[html.index('id="editor-safety"'):html.index('id="update-panel"')]
+    assert panel.count('id="safety-check"') == 1
+    assert 'id="safety-actions"' in panel
+    assert '浏览器 WebRTC 出口' not in panel
+    assert 'privacy-check' not in panel
+    assert 'privacy-result' not in panel
+    for language in ('en', 'zh-TW'):
+        for label in ('检查环境', '修复环境', '还原环境', '检查通过', '允许启动'):
+            assert label in catalogs()[language], (language, label)
+
+
 def test_language_selection_never_changes_process_environment(tmp_path, monkeypatch):
     monkeypatch.setattr(cfg, 'DESKTOP_CONFIG_FILE', tmp_path / 'desktop.yaml')
     bridge = LauncherBridge(Mock(), apps=[])

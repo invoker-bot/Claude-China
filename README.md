@@ -31,6 +31,7 @@ per-app environment settings, and check for launcher updates from the header.
 - Search local CLI session history and resume a specific conversation
 - Pin favorite project folders and start new sessions with the selected profile
 - Inspect local token usage, tool calls, models, estimated API costs and daily trends
+- Check the exit region and UDP route, and enable reversible Windows network protection while keeping WebRTC enabled
 
 ## Desktop tour
 
@@ -152,7 +153,10 @@ Settings → **安全检查** shows local timezone/language/region and checks th
 current public-IP region before each app launch or restart. Unsupported regions
 and, by default, unknown/failed checks block launching without stopping an
 already running app. The settings include automatic-check and strict-mode
-switches. Region eligibility does not guarantee account safety. See the
+switches. **检查环境** runs the region check and an auxiliary STUN probe
+together. On Windows, **启用网络防护** restricts the selected app to the pinned
+HTTP proxy endpoint; **还原网络防护** removes its protection in one click.
+Region eligibility does not guarantee account safety. See the
 [environment check guide](docs/desktop-safety.md) for supported rules, network
 privacy, limitations and maintenance.
 
@@ -417,6 +421,55 @@ Environment injection applies to directly launched processes. OS-brokered
 activation (including Windows Codex MSIX activation, required for its package
 context) may not forward custom variables to the application. The proxy
 validation still runs before that activation.
+
+### Environment check and WebRTC repair
+
+**设置 → 安全检查 → 检查环境** runs both checks at once. It compares the HTTPS
+exit (through the configured HTTP proxy) with the machine's UDP exit measured by
+a STUN binding request, and checks the selected app's public-IP region against
+the shared policy. It reports the proxy mode, Chrome/Edge policy state and the
+IPv6 default route. The WebRTC result is a heuristic: it measures the local UDP
+path, not a real browser session, and cannot replace an in-browser WebRTC test
+such as browserleaks.com/webrtc. The STUN server necessarily sees the local UDP
+exit IP. Browser-extension proxies, PAC/SOCKS proxies and split tunnels that
+route only selected browser traffic may not be visible to this check.
+
+On Windows, select an installed app and choose **启用网络防护**. After Windows
+administrator authorization, WFP permits only TCP to the system HTTP proxy's
+fixed IP and port (or localhost). All other outbound connections from the
+covered EXEs are blocked, including UDP, IPv6 and direct TCP fallback. WebRTC
+stays enabled; communication that cannot use the allowed proxy fails. The guard
+does not change browser policies, system proxy settings or global firewall rules.
+
+The guard covers EXEs in the selected installation, including bundled helpers,
+for the current Windows user. Its persistent filters and restore metadata are
+stored together in WFP; the launcher records enabled intent in
+`~/.claudec/desktop.yaml`. Closing the launcher or disconnecting the proxy does
+not remove protection. Each protected launch verifies the real filters, binary
+paths and proxy endpoint even when region checks are disabled. Changes require
+**重新应用网络防护**; an unverified protected launch is cancelled. Proxy environment
+variables are pinned and bypass variables removed for protected launches.
+
+**还原网络防护** works without the proxy or target app being available, removes
+only this app's owned filters and preserves other apps' protection. Windows
+uninstallation cleans up owned network protection before deleting the launcher;
+failed cleanup stops uninstallation. Guard buttons act immediately, independently
+of the settings Save/Cancel buttons. Previously recorded browser-policy repairs
+remain restorable through **还原浏览器策略**; new protection never writes them.
+
+This implementation supports Windows with static HTTP proxy IPs/localhost.
+PAC, hostname-based proxy endpoints, SOCKS-only and TUN-only configurations are
+not silently treated as protected. Shared runtimes and tools outside the app
+installation, delegated system-service DNS queries, and disclosure of local
+adapter addresses through browser APIs are outside its scope. Updates to a new
+installation path require reapplying protection before using that path; launching
+such a new path outside the launcher is not covered by old executable filters.
+Only use a dedicated app installation directory, not a shared runtime directory.
+
+The manual STUN request still tests the launcher itself, not a protected target
+process. Its raw UDP exit can differ from the proxy even while the target's
+direct traffic is correctly blocked. See [the native acceptance probe](tools/windows_network_guard_probe.py)
+for isolated TCP/UDP, IPv4/IPv6, offline fallback, rollback and restore checks.
 
 The home window presents application cards with status, launch/restart and stop
 controls. **设置** is a main navigation tab alongside **我的应用** and **我的终端**,

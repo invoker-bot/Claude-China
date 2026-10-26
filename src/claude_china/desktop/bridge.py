@@ -4,7 +4,7 @@ import threading
 
 from .apps import APP_REGISTRY, get_app
 from . import config as cfg
-from . import safety
+from . import egress, privacy, safety
 from .env import merge_env
 from .proxy import SystemProxyError
 
@@ -125,6 +125,18 @@ class LauncherBridge:
         env = merge_env(os.environ if self._base_env is None else self._base_env,
                         cfg.get_common_env(data),
                         cfg.get_app_env(data, app_id), proxy_url=proxy_url)
+        try:
+            guard = egress.ensure(app_id, self._backend, status, data=data)
+            if guard["enabled"]:
+                # Ignore stale per-app proxy/bypass settings under a guard.
+                for key in list(env):
+                    if key.lower() in ("http_proxy", "https_proxy", "no_proxy", "all_proxy"):
+                        env.pop(key)
+                env = merge_env(env, {}, {}, proxy_url=self._backend.system_http_proxy())
+        except egress.GuardError as exc:
+            return {"ok": False, "error": str(exc) + " 已取消启动。"}
+        except Exception:
+            return {"ok": False, "error": "无法验证系统网络防护，已取消启动。"}
         settings = cfg.get_safety_settings(data)
         report = None
         if settings["enabled"]:
@@ -338,6 +350,89 @@ class LauncherBridge:
                         "reason": "无法解析系统 HTTP 代理，自动添加代理环境变量将阻止启动。"}
         env = merge_env(os.environ, cfg.get_common_env(data), cfg.get_app_env(data, app_id), proxy_url=proxy_url)
         return self._check_safety(app_id, env, status, cfg.get_safety_settings(data))
+
+    # ---- browser WebRTC privacy ----
+    def get_network_guard(self, app_id):
+        try:
+            app = get_app(app_id)
+            data = cfg.load_desktop_config()
+            detected = self._backend.detect(app, cfg.get_app_path(data, app_id))
+            return {"ok": True, "state": egress.status(app_id, self._backend, detected)}
+        except Exception:
+            return {"ok": False, "error": "无法读取系统网络防护状态。"}
+
+    def apply_network_guard(self, app_id):
+        self._notify_activity()
+        try:
+            app = get_app(app_id)
+            data = cfg.load_desktop_config()
+            detected = self._backend.detect(app, cfg.get_app_path(data, app_id))
+            state = egress.apply(app_id, self._backend, detected)
+            return {"ok": True, "state": state}
+        except egress.GuardError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception:
+            return {"ok": False, "error": "无法应用系统网络防护。"}
+
+    def restore_network_guard(self, app_id):
+        self._notify_activity()
+        try:
+            egress.restore(app_id)
+            return self.get_network_guard(app_id)
+        except egress.GuardError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception:
+            return {"ok": False, "error": "无法还原系统网络防护。"}
+
+    def check_privacy(self):
+        self._notify_activity()
+        try:
+            report = privacy.inspect(self._backend,
+                                     self._base_env if self._base_env is not None else os.environ)
+        except Exception:
+            report = privacy.unknown_report("检查失败，请重试。")
+        try:
+            repairs = privacy.list_repairs()
+        except privacy.PrivacyError as exc:
+            return {"ok": True, "report": report, "repairs": [], "warning": str(exc)}
+        except Exception:
+            repairs = []
+        return {"ok": True, "report": report, "repairs": repairs}
+
+    def apply_privacy_fix(self, browser):
+        self._notify_activity()
+        try:
+            result = privacy.apply(self._backend, browser,
+                                   self._base_env if self._base_env is not None else os.environ)
+        except privacy.PrivacyError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception:
+            return {"ok": False, "error": "无法应用浏览器策略，请检查权限后重试。"}
+        try:
+            repairs = privacy.list_repairs()
+        except Exception:
+            repairs = []
+        return {"ok": True, "result": result, "repairs": repairs}
+
+    def restore_privacy_fix(self, browser):
+        self._notify_activity()
+        try:
+            result = privacy.restore(self._backend, browser)
+        except privacy.PrivacyError as exc:
+            return {"ok": False, "error": str(exc)}
+        except Exception:
+            return {"ok": False, "error": "还原失败，请重试。"}
+        try:
+            repairs = privacy.list_repairs()
+        except Exception:
+            repairs = []
+        return {"ok": True, "result": result, "repairs": repairs}
+
+    def get_privacy_repairs(self):
+        try:
+            return {"ok": True, "repairs": privacy.list_repairs()}
+        except privacy.PrivacyError as exc:
+            return {"ok": False, "error": str(exc)}
 
     def get_settings(self):
         data = cfg.load_desktop_config()

@@ -53,7 +53,7 @@ begin
                  '--takeover-uninstall', '', SW_HIDE, ewWaitUntilTerminated, ExitCode);
   Result := Result and (ExitCode = 0);
   if not Result then
-    MsgBox('Disable Grok Bot launch takeover in Claude China before uninstalling, or allow its administrator cleanup request.', mbError, MB_OK);
+    MsgBox('Restore network protection and disable launch takeover in Claude China before uninstalling, or allow its administrator cleanup request.', mbError, MB_OK);
 end;
 
 function HasWebView2: Boolean;

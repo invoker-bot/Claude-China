@@ -108,6 +108,17 @@ class MacBackend:
     def proxy_enabled(self) -> bool:
         return self._parse_scutil(self._scutil_output())
 
+    # ---- browser WebRTC policy ----
+    def privacy_snapshot(self):
+        return {"supported": False, "tun": None,
+                "ipv6": {"default": None, "tunnel": None}, "policies": {}}
+
+    def apply_webrtc_policy(self, browser, value):
+        raise ValueError("当前平台暂不支持修改浏览器策略。")
+
+    def restore_webrtc_policy(self, record):
+        raise ValueError("当前平台暂不支持修改浏览器策略。")
+
     def _scutil_output(self) -> str:
         try:
             return subprocess.check_output(

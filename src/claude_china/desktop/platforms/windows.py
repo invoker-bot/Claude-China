@@ -1,5 +1,6 @@
 import json
 import os
+from pathlib import Path
 import re
 import sys
 import xml.etree.ElementTree as ET
@@ -30,8 +31,58 @@ _IGNORED_PROCESS_NAMES = {
 
 _DESKTOP_PYTHON_ENV = "CLAUDEC_DESKTOP_PYTHON"
 
+_WEBRTC_POLICY_NAME = "WebRtcIPHandlingPolicy"
+_WEBRTC_POLICY_VALUE = "disable_non_proxied_udp"
+_WEBRTC_POLICY_PATHS = {
+    "chrome": r"Software\Policies\Google\Chrome",
+    "edge": r"Software\Policies\Microsoft\Edge",
+}
+_TUN_MARKERS = re.compile(
+    r"(?:^|[^a-z])(?:tun|tap|wireguard|wintun|clash|mihomo|sing-box|tailscale|openvpn|vpn)(?:[^a-z]|$)"
+)
+_VIRTUAL_SWITCH_MARKERS = ("hyper-v", "vmware", "virtualbox", "loopback")
+
+
+def _policy_state(value):
+    if value is None:
+        return "unset"
+    return {
+        "disable_non_proxied_udp": "disabled",
+        "default_public_interface_only": "public_only",
+        "default_public_and_private_interfaces": "exposed",
+        "default": "default",
+    }.get(value, "custom")
+
 
 class WindowsBackend:
+    def network_guard_targets(self, status):
+        """Enumerate this installation's EXEs, including bundled network helpers.
+
+        Shared runtimes outside this root are not silently claimed as covered.
+        Symlinks/junctions cannot widen the protected directory to another app.
+        """
+        root = Path(status.match_root).resolve(strict=True)
+        if root.is_file():
+            root = root.parent
+        if not root.is_dir() or len(root.parts) < 3:
+            raise ValueError("无法确定应用安装目录。")
+        if root.name.casefold() in {"windows", "system32", "syswow64", "program files",
+                                   "program files (x86)", "programs", "bin", "desktop"}:
+            raise ValueError("请选择独立的应用安装目录，无法保护共享运行时目录。")
+        targets = []
+        for directory, folders, files in os.walk(root, followlinks=False):
+            folders[:] = [name for name in folders if not Path(directory, name).is_symlink()
+                          and not getattr(os.path, "isjunction", lambda _: False)(str(Path(directory, name)))]
+            for name in files:
+                path = Path(directory, name)
+                if name.lower().endswith(".exe") and not path.is_symlink():
+                    targets.append(str(path.resolve(strict=True)))
+                    if len(targets) > 128:
+                        raise ValueError("应用目录包含过多程序，请选择独立的应用安装目录。")
+        if not targets:
+            raise ValueError("应用安装目录中未找到可保护的 EXE。")
+        return sorted(set(targets), key=str.casefold)
+
     # ---- detection ----
     def detect(self, app, override_path=None) -> AppStatus:
         if override_path and os.path.exists(override_path):
@@ -186,6 +237,178 @@ class WindowsBackend:
             return int(value) == 1
         except Exception:
             return False
+
+    # ---- browser WebRTC policy / routing ----
+    def privacy_snapshot(self):
+        if winreg is None:
+            return {"supported": False, "tun": None,
+                    "ipv6": {"default": None, "tunnel": None}, "policies": {}}
+        route = self._default_route("0.0.0.0/0")
+        ipv6_route = self._default_route("::/0")
+        route_known = bool(route and (route.get("Name") or route.get("Description")))
+        ipv6_known = bool(ipv6_route and (ipv6_route.get("Name") or ipv6_route.get("Description")))
+        return {
+            "supported": True,
+            "tun": self._is_tunnel(route) if route_known else None,
+            "ipv6": {
+                "default": True if ipv6_known else None,
+                "tunnel": self._is_tunnel(ipv6_route) if ipv6_known else None,
+            },
+            "policies": {browser: self._read_policy_state(browser)
+                         for browser in _WEBRTC_POLICY_PATHS},
+        }
+
+    def _default_route(self, prefix):
+        """Return the lowest-metric default route's adapter, or None."""
+        script = (
+            "$r = Get-NetRoute -DestinationPrefix '" + prefix + "' -ErrorAction SilentlyContinue | "
+            "Sort-Object RouteMetric | Select-Object -First 1; "
+            "if ($r) { $a = Get-NetAdapter -InterfaceIndex $r.ifIndex -ErrorAction SilentlyContinue; "
+            "[pscustomobject]@{Name=$a.Name; Description=$a.InterfaceDescription} | "
+            "ConvertTo-Json -Compress }"
+        )
+        try:
+            output = subprocess.check_output(
+                ["powershell", "-NoProfile", "-Command", script],
+                text=True, stderr=subprocess.DEVNULL, timeout=4,
+                creationflags=_NO_WINDOW,
+            )
+        except Exception:
+            return None
+        if not output.strip():
+            return None
+        try:
+            value = json.loads(output)
+        except ValueError:
+            return None
+        return value if isinstance(value, dict) else None
+
+    @staticmethod
+    def _is_tunnel(route):
+        text = f"{route.get('Name', '')} {route.get('Description', '')}".lower()
+        if any(marker in text for marker in _VIRTUAL_SWITCH_MARKERS):
+            return False
+        return bool(_TUN_MARKERS.search(text))
+
+    def _policy_key_exists(self, browser):
+        path = _WEBRTC_POLICY_PATHS[browser]
+        try:
+            key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, path)
+        except OSError:
+            return False
+        try:
+            return True
+        finally:
+            winreg.CloseKey(key)
+
+    def _read_policy_value(self, root, path):
+        if winreg is None:
+            return None
+        try:
+            key = winreg.OpenKey(root, path)
+        except OSError:
+            return None
+        try:
+            try:
+                value, _kind = winreg.QueryValueEx(key, _WEBRTC_POLICY_NAME)
+            except OSError:
+                return None
+            return value if isinstance(value, str) and value else None
+        finally:
+            winreg.CloseKey(key)
+
+    def _read_policy_state(self, browser):
+        if winreg is None:
+            return {"value": None, "source": None, "state": "unknown", "editable": False}
+        path = _WEBRTC_POLICY_PATHS[browser]
+        machine = self._read_policy_value(winreg.HKEY_LOCAL_MACHINE, path)
+        user = self._read_policy_value(winreg.HKEY_CURRENT_USER, path)
+        if machine is not None:
+            value, source = machine, "machine"
+        elif user is not None:
+            value, source = user, "user"
+        else:
+            value, source = None, None
+        return {"value": value, "source": source,
+                "state": _policy_state(value), "editable": source != "machine"}
+
+    def apply_webrtc_policy(self, browser, value):
+        if winreg is None:
+            raise ValueError("当前平台暂不支持修改浏览器策略。")
+        path = _WEBRTC_POLICY_PATHS.get(browser)
+        if path is None:
+            raise ValueError("不支持的浏览器。")
+        state = self._read_policy_state(browser)
+        if state["source"] == "machine":
+            if state["value"] == value:
+                raise ValueError("浏览器策略已由组织限制，无需修改。")
+            raise ValueError("浏览器策略由组织管理，无法在此修改。")
+        if state["value"] == value:
+            return {"applied": False, "already": True, "created_key": False,
+                    "previous": {"exists": True, "value": state["value"]}}
+        if state["value"] is not None:
+            raise ValueError("已存在其他 WebRTC 策略，请先手动检查。")
+
+        created = not self._policy_key_exists(browser)
+        key = None
+        try:
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, path)
+            winreg.SetValueEx(key, _WEBRTC_POLICY_NAME, 0, winreg.REG_SZ, value)
+        except OSError:
+            if key is not None:
+                try:
+                    winreg.CloseKey(key)
+                except OSError:
+                    pass
+                key = None
+            if created:
+                try:
+                    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+                except OSError:
+                    pass
+            raise ValueError("无法写入浏览器策略，请检查权限后重试。") from None
+        finally:
+            if key is not None:
+                winreg.CloseKey(key)
+        return {"applied": True, "already": False, "created_key": created,
+                "previous": {"exists": False, "value": None}}
+
+    def restore_webrtc_policy(self, record):
+        if winreg is None:
+            raise ValueError("当前平台暂不支持修改浏览器策略。")
+        browser = record.get("browser")
+        path = _WEBRTC_POLICY_PATHS.get(browser)
+        if path is None:
+            raise ValueError("不支持的浏览器。")
+        state = self._read_policy_state(browser)
+        if state["source"] == "machine":
+            return {"restored": False, "conflict": True, "current": state["value"]}
+        if state["value"] != record.get("value"):
+            return {"restored": False, "conflict": True, "current": state["value"]}
+
+        previous = record.get("previous") or {}
+        key = None
+        try:
+            key = winreg.CreateKey(winreg.HKEY_CURRENT_USER, path)
+            if previous.get("exists") and isinstance(previous.get("value"), str):
+                winreg.SetValueEx(key, _WEBRTC_POLICY_NAME, 0, winreg.REG_SZ, previous["value"])
+            else:
+                try:
+                    winreg.DeleteValue(key, _WEBRTC_POLICY_NAME)
+                except FileNotFoundError:
+                    pass
+        except OSError:
+            raise ValueError("无法还原浏览器策略，请检查权限后重试。") from None
+        finally:
+            if key is not None:
+                winreg.CloseKey(key)
+
+        if not previous.get("exists") and record.get("created_key"):
+            try:
+                winreg.DeleteKey(winreg.HKEY_CURRENT_USER, path)
+            except OSError:
+                pass
+        return {"restored": True, "conflict": False}
 
     # ---- launch / monitor ----
     @staticmethod

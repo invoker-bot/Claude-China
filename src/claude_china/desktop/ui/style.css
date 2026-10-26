@@ -175,6 +175,10 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 .safety-result[data-status="supported"] strong { color: var(--accent); }
 .safety-result[data-status="unsupported"] strong { color: var(--danger); }
 .safety-result[data-status="unknown"] strong { color: #f2ca81; }
+.safety-result[data-status="ok"] strong { color: var(--accent); }
+.safety-result[data-status="warn"] strong { color: #f2ca81; }
+.safety-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
+.safety-actions .field-hint { flex-basis: 100%; margin: 0; }
 .safety-details { margin: 14px 0; display: grid; gap: 6px; }
 .safety-details > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
 .safety-details dd { margin: 0; overflow-wrap: anywhere; user-select: text; }

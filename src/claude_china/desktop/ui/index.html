@@ -129,10 +129,13 @@
               <div class="field"><h3 class="field-label">本机环境</h3><dl class="safety-local" id="safety-local"></dl><p class="field-hint">时区与语言仅供核对，不单独作为拦截依据。</p></div>
               <div class="field">
                 <div class="safety-toolbar"><label class="field-label" for="safety-app">出口地区检查</label><select id="safety-app" aria-label="检查的应用"></select><button class="btn" id="safety-check" type="button"><span data-icon="refresh"></span>检查环境</button></div>
-                <p class="field-hint">使用已保存的启动设置，通过 HTTPS 向 ipwho.is 查询出口 IP；不会上传本机语言、时区或配置。</p>
-                <div class="safety-result" id="safety-result" role="status" aria-live="polite"><p>尚未检查。启动时会重新检测。</p></div>
+                <p class="field-hint">检查出口地区，并用启动器自身的 UDP STUN 请求辅助检查网络出口；此探测不能代表目标应用的实际连接。STUN 服务器会看到该请求的出口 IP。</p>
+                <div class="safety-result" id="safety-result" role="status" aria-live="polite"><p>尚未检查。启动时会重新检测地区。</p></div>
                 <button class="text-button safety-source" id="safety-source" type="button">查看应用官方说明<span data-icon="external"></span></button>
-                <p class="field-hint safety-limit">地区检查通过仅代表本次检测出口符合地区清单，不保证账号安全或实际所在地资格，也无法验证应用自己的网络分流。默认检查本启动器发起的启动；启用 Grok Bot 原入口接管后，也检查它的外部启动和更新后重启。</p>
+                <h3 class="field-label">系统网络防护</h3>
+                <div class="safety-actions" id="safety-actions"></div>
+                <p class="field-hint">网络防护默认保留 WebRTC。启用后，所选应用安装目录内的程序仅能通过指定 HTTP 代理联网，代理断开时禁止直连；Windows 会请求管理员授权。设置即时生效，可一键还原。</p>
+                <p class="field-hint safety-limit">网络防护目前支持 Windows 与固定 IP / localhost 的 HTTP 代理。它会持续生效，退出启动器也不会移除。应用更新或代理地址变化后需重新应用防护；启动器会阻止未通过验证的启动。安装目录之外的共享运行时、外部工具，以及网页读取本机网卡地址不在防护范围。地区检查通过仅表示本次查询符合地区清单。</p>
               </div>
               <p class="form-error" id="error-safety" role="alert" hidden></p>
             </div>

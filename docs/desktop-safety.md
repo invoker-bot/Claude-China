@@ -11,12 +11,31 @@ in `~/.claudec/desktop.yaml` as `safety_check` and `safety_block_unknown`.
 Existing environment variables and application paths are preserved. Manual
 **检查环境** uses saved settings; unsaved edits do not change launch behavior.
 
+Manual **检查环境** sends an auxiliary STUN request from the launcher and reports
+the proxy mode, Chrome/Edge policy state and IPv6 default route. It does not run
+WebRTC inside the target app. On Windows, **启用网络防护** keeps WebRTC enabled
+and installs a per-user WFP allowlist for the selected installation's EXEs:
+only TCP to the pinned HTTP proxy IP/port is permitted; direct TCP, UDP and
+IPv6 bypasses are blocked. A disconnected proxy never permits direct fallback.
+The guarded launch path verifies the actual filters and endpoint independently
+of the regional-check switches. Both activation and **还原网络防护** use Windows
+administrator authorization, with read-only verification remaining unelevated.
+
+Rules and restore metadata are committed atomically in WFP and persist after
+the launcher exits. Restore works with the proxy off or the app removed, and
+does not touch another app's rules. Windows uninstallation restores owned
+network protection before deleting the launcher. Existing browser-policy repair
+records remain available for restoration; no new browser restriction is written.
+See the [README section](../README.md#environment-check-and-webrtc-repair) for
+proxy formats, executable-path update boundaries and shared-runtime/DNS limits.
+
 Every launch/restart runs a fresh check before stopping the existing app.
 Regions in the shared denylist block launching. Unknown results also block in
 strict mode: network failure, invalid geolocation, and ambiguous proxy routing
 cannot authorize a launch. Disabling strict mode permits unknown results but
 continues blocking regions in the denylist.
-Turning off the master switch disables automatic queries and this guard.
+Turning off the master switch disables automatic region queries and region blocking.
+It does not disable an installed system network guard; use its restore button.
 The earlier system-proxy and automatic-proxy-variable checks still apply.
 
 ## What is checked

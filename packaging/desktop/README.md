@@ -61,7 +61,10 @@ and Detours MIT license are bundled in the installer. CI builds the DLL before
 running the native child-identity test. No native hook is included on macOS or
 Linux. See [Windows launch takeover](../../docs/windows-launch-takeover.md).
 
-When takeover is enabled, Windows uninstallation first removes its owned
+Windows uninstallation first restores owned WFP network protection for the
+current user, requesting administrator authorization when it is enabled. Failed
+cleanup stops uninstallation so persistent filters retain a usable restore path.
+When takeover is enabled, Windows uninstallation also removes its owned
 launch filters for all enabled apps, requesting administrator authorization as needed. Failed cleanup
 stops uninstallation so an original application entry cannot be left pointing at a
 deleted launcher. Previously disabled takeover needs no additional elevation.

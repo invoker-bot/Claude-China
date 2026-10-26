@@ -26,6 +26,32 @@ if (new URLSearchParams(location.search).has("preview")) {
       network: status === "unknown" ? {} : { ip: "203.0.113.24", country: status === "unsupported" ? "China" : "Singapore", country_code: status === "unsupported" ? "CN" : "SG" },
       reason: status === "unknown" ? "无法确认出口地区（预览示例）。" : status === "unsupported" ? "出口位于统一禁止地区：中国大陆，禁止启动。" : "出口地区已识别，未命中统一禁止名单，符合当前地区限制规则。" };
   };
+  const privacyBrowsers = {
+    chrome: { value: null, source: null, state: "unset", editable: true },
+    edge: { value: null, source: null, state: "unset", editable: true },
+  };
+  const privacyReport = () => ({
+    checked_at: new Date().toISOString(), level: "warn", mode: "system_proxy",
+    https: { ok: true, ip: "203.0.113.24", country: "Singapore", country_code: "SG" },
+    udp: { ok: true, ip: "198.51.100.9", server: "stun.example.test:3478" },
+    consistent: false,
+    policies: { supported: true, browsers: clone(privacyBrowsers) },
+    ipv6: { default: false, tunnel: null },
+    reasons: ["HTTPS 走系统代理，但 UDP 出口不同；浏览器 WebRTC 可能绕过代理。（预览示例）"],
+  });
+  let privacyRepairs = [];
+  const networkGuardEnabled = {};
+  const networkGuardState = id => ({
+    supported: modes.get('guard') !== 'unsupported', enabled: Boolean(networkGuardEnabled[id]),
+    verified: Boolean(networkGuardEnabled[id]) && modes.get('guard') !== 'changed',
+    can_restore: Boolean(networkGuardEnabled[id]), can_apply: apps.some(app => app.id === id && app.found),
+    proxy: networkGuardEnabled[id] ? {addresses: ['127.0.0.1'], port: 7890} : null,
+    executables: networkGuardEnabled[id] ? [`C:/Applications/${id}/${id}.exe`] : [],
+    message: modes.get('guard') === 'unsupported' ? '系统网络防护目前仅支持 Windows。' : networkGuardEnabled[id]
+      ? (modes.get('guard') === 'changed' ? '防护规则缺失，或代理、应用路径发生变化；启动已锁定，请重新应用或还原防护。'
+        : '已保护此应用：仅允许连接指定代理，代理断开时禁止直连；WebRTC 保持启用。')
+      : '尚未启用系统网络防护。',
+  });
   const perApp = {
     claude: { path: "", env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" } },
     codex: { path: "", env_vars: {} }, "grok-bot": { path: "", env_vars: {} },
@@ -174,6 +200,32 @@ if (new URLSearchParams(location.search).has("preview")) {
       safetySettings = { ...safetySettings, ...clone(payload) }; return { ok: true };
     },
     check_safety: async id => clone(safetyReport(id)),
+    get_network_guard: async id => ({ok: true, state: networkGuardState(id)}),
+    apply_network_guard: async id => {
+      if (modes.get('guard') === 'error') return {ok: false, error: '系统网络防护操作失败，请重试。'};
+      networkGuardEnabled[id] = true;
+      return {ok: true, state: networkGuardState(id)};
+    },
+    restore_network_guard: async id => {
+      networkGuardEnabled[id] = false;
+      return {ok: true, state: networkGuardState(id)};
+    },
+    check_privacy: async () => ({ ok: true, report: privacyReport(), repairs: clone(privacyRepairs) }),
+    apply_privacy_fix: async browser => {
+      if (!privacyRepairs.some(item => item.browser === browser)) {
+        privacyRepairs = [...privacyRepairs, { browser, value: "disable_non_proxied_udp",
+          previous: { exists: false, value: null }, created_key: true }];
+      }
+      privacyBrowsers[browser] = { value: "disable_non_proxied_udp", source: "user",
+        state: "disabled", editable: true };
+      return { ok: true, result: { applied: true }, repairs: clone(privacyRepairs) };
+    },
+    restore_privacy_fix: async browser => {
+      privacyRepairs = privacyRepairs.filter(item => item.browser !== browser);
+      privacyBrowsers[browser] = { value: null, source: null, state: "unset", editable: true };
+      return { ok: true, result: { restored: true }, repairs: clone(privacyRepairs) };
+    },
+    get_privacy_repairs: async () => ({ ok: true, repairs: clone(privacyRepairs) }),
     open_safety_source: async () => ({ ok: true }),
     get_app_settings: async id => clone(perApp[id]),
     save_settings: async payload => {

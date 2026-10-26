@@ -139,5 +139,17 @@ class PlatformBackend(Protocol):
         """Return the static HTTPS route and bypass list, or raise on ambiguity."""
         ...
 
+    def privacy_snapshot(self) -> dict:
+        """Return proxy/tunnel/browser-policy state for the WebRTC check."""
+        ...
+
+    def apply_webrtc_policy(self, browser: str, value: str) -> dict:
+        """Set one per-user browser policy value and return a restore record."""
+        ...
+
+    def restore_webrtc_policy(self, record: dict) -> dict:
+        """Restore a previously recorded value, or report a conflict."""
+        ...
+
     def pick_path_filter(self) -> tuple:
         ...

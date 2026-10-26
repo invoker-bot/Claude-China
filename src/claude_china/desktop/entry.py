@@ -41,8 +41,13 @@ def main(argv=None):
     parser.add_argument("--takeover-uninstall", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--terminal-session", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--disable", action="store_true", help=argparse.SUPPRESS)
+    parser.add_argument("--network-guard-request", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--network-guard-digest", help=argparse.SUPPRESS)
     parser.add_argument("target_args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.network_guard_request:
+        from .platforms.windows_wfp import apply_request
+        return apply_request(args.network_guard_request, args.network_guard_digest)
     if args.terminal_session:
         from .terminal_host import run_session
         return run_session(args.terminal_session)
@@ -54,6 +59,8 @@ def main(argv=None):
         from . import takeover_windows
         try:
             if args.takeover_uninstall:
+                from . import egress
+                egress.uninstall()
                 return takeover_windows.uninstall()
             takeover_windows.apply_registration(args.takeover_register, not args.disable)
             return 0

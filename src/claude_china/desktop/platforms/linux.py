@@ -97,5 +97,16 @@ class LinuxBackend:
         bypass = ast.literal_eval(self._proxy_setting("ignore-hosts"))
         return {"proxy": proxy, "bypass": ",".join(bypass)}
 
+    # ---- browser WebRTC policy ----
+    def privacy_snapshot(self):
+        return {"supported": False, "tun": None,
+                "ipv6": {"default": None, "tunnel": None}, "policies": {}}
+
+    def apply_webrtc_policy(self, browser, value):
+        raise ValueError("当前平台暂不支持修改浏览器策略。")
+
+    def restore_webrtc_policy(self, record):
+        raise ValueError("当前平台暂不支持修改浏览器策略。")
+
     def pick_path_filter(self) -> tuple:
         return ("Executable files (*)",)
