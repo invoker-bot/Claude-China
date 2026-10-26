@@ -55,6 +55,10 @@ def _policy_state(value):
 
 
 class WindowsBackend:
+    def network_guard_tunnels(self):
+        from .windows_tun import list_tunnels
+        return list_tunnels()
+
     def network_guard_targets(self, status):
         """Enumerate this installation's EXEs, including bundled network helpers.
 

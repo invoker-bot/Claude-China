@@ -1,7 +1,7 @@
-"""Persistent, opt-in per-application proxy enforcement (Windows WFP).
+"""Persistent, opt-in per-application proxy or tunnel enforcement (Windows WFP).
 
-WebRTC stays enabled. An installed guard permits only TCP to the pinned HTTP
-proxy endpoint; all other outbound connections from covered binaries fail.
+WebRTC stays enabled. Covered binaries can use only the pinned HTTP proxy or
+the selected TUN interface; other outbound connections fail closed.
 """
 
 from copy import deepcopy
@@ -16,6 +16,11 @@ from .apps import get_app
 from .proxy import http_proxy_url
 
 _LOCK = threading.RLock()
+
+
+def _target(app_id):
+    if app_id != "playwright":
+        get_app(app_id)
 
 
 class GuardError(ValueError):
@@ -68,15 +73,30 @@ def _set_intent(app_id, enabled):
         cfg.save_desktop_config(data)
 
 
-def _policy(backend, status):
+def _policy(backend, status, mode="proxy", tunnel_guid=None, custom_paths=None):
+    if status.app_id == "playwright":
+        from .playwright_guard import discover, discovery_environment
+        paths = cfg.load_desktop_config().get("network_guard_browser_paths", []) if custom_paths is None else custom_paths
+        targets = discover(discovery_environment(), extra=paths)
+    else:
+        targets = backend.network_guard_targets(status)
+    if not isinstance(targets, list) or not targets or len(targets) > 128:
+        raise GuardError("未找到可保护的程序；请先安装 Playwright 浏览器或配置应用路径。")
+    targets = sorted(set(targets), key=str.casefold)
+    if mode == "tun":
+        records = backend.network_guard_tunnels()
+        current = next((item for item in records if item.get("guid") == tunnel_guid), None)
+        if not current or not current.get("up") or not current.get("addresses"):
+            raise GuardError("请选择已连接并分配地址的 TUN 隧道。")
+        tunnel = {key: current[key] for key in ("guid", "luid", "index", "name", "addresses")}
+        return {"mode": "tun", "executables": targets, "tunnel": tunnel}
+    if mode != "proxy":
+        raise GuardError("不支持的网络防护模式。")
     endpoint = proxy_endpoint(backend.system_http_proxy())
     route = backend.safety_proxy()
     if (not isinstance(route, dict) or not route.get("proxy")
             or proxy_endpoint(route["proxy"]) != endpoint):
         raise GuardError("网络防护需要 HTTP 与 HTTPS 使用同一个固定系统代理，请关闭 PAC 自动代理。")
-    targets = backend.network_guard_targets(status)
-    if not isinstance(targets, list) or not targets or len(targets) > 128:
-        raise GuardError("无法确定应用的网络进程路径，未启用防护。")
     if any(not isinstance(path, str) or not os.path.isabs(path) or not path.lower().endswith(".exe")
            for path in targets):
         raise GuardError("应用网络进程路径无效，未启用防护。")
@@ -84,27 +104,42 @@ def _policy(backend, status):
 
 
 def status(app_id, backend=None, detected=None, data=None, for_launch=False):
-    get_app(app_id)
+    _target(app_id)
     intent = _intent(app_id, data)
     state = {"supported": supported(), "enabled": intent, "verified": False,
              "can_restore": intent, "can_apply": False, "proxy": None,
              "executables": [], "message": "系统网络防护目前仅支持 Windows。"}
+    state.update(mode="tun" if app_id == "playwright" else "proxy", tunnel=None, tunnels=[])
+    state["found"] = bool(detected and detected.found)
+    if app_id == "playwright":
+        from .playwright_guard import discover, discovery_environment
+        state["browser_paths"] = cfg.load_desktop_config().get("network_guard_browser_paths", [])
+        try:
+            state["browser_count"] = len(discover(discovery_environment(), extra=state["browser_paths"]))
+        except (OSError, GuardError, ValueError):
+            state["browser_count"] = 0
     if not state["supported"]:
         return state
     try:
         store = _store()
         policies = store.read()
         policy = policies.get(app_id)
+        if not for_launch:
+            records = backend.network_guard_tunnels() if backend else []
+            state["tunnels"] = records if isinstance(records, list) else []
         state.update(enabled=bool(policy) or state["enabled"],
                      can_restore=bool(policy) or state["can_restore"])
         if policy:
-            state.update(proxy=policy["proxy"], executables=policy["executables"])
+            state.update(proxy=policy.get("proxy"), executables=policy["executables"],
+                         mode=policy.get("mode", "proxy"), tunnel=policy.get("tunnel"))
         if for_launch and not state["enabled"]:
             return state
-        desired = _policy(backend, detected) if backend and detected and detected.found else None
+        desired = _policy(backend, detected, state["mode"], (state["tunnel"] or {}).get("guid")) if backend and detected and detected.found else None
         state["can_apply"] = desired is not None
         if policy and desired == policy and store.verify(policies):
             state.update(verified=True, message="已保护此应用：仅允许连接指定代理，代理断开时禁止直连；WebRTC 保持启用。")
+            if state["mode"] == "tun":
+                state["message"] = "已保护此应用：TCP/UDP 仅允许通过指定 TUN 隧道，断开时禁止直连；WebRTC 保持启用。"
         elif state["enabled"]:
             state["message"] = "防护规则缺失，或代理、应用路径发生变化；启动已锁定，请重新应用或还原防护。"
         else:
@@ -114,20 +149,29 @@ def status(app_id, backend=None, detected=None, data=None, for_launch=False):
     return state
 
 
-def apply(app_id, backend, detected):
-    get_app(app_id)
+def apply(app_id, backend, detected, options=None):
+    _target(app_id)
     if not supported():
         raise GuardError("系统网络防护目前仅支持 Windows。")
     if not detected.found:
         raise GuardError("未检测到应用，请先配置路径。")
     with _LOCK:
         try:
-            policy = _policy(backend, detected)
             before = _store().read()
+            options = options or {}
+            saved = before.get(app_id, {})
+            mode = options.get("mode", saved.get("mode", "tun" if app_id == "playwright" else "proxy"))
+            guid = options.get("tunnel_guid", saved.get("tunnel", {}).get("guid"))
+            policy = _policy(backend, detected, mode, guid, options.get("browser_paths"))
             policies = {**before, app_id: policy}
             _write(policies, before)
             try:
                 _set_intent(app_id, True)
+                if app_id == "playwright" and "browser_paths" in options:
+                    with cfg.CONFIG_LOCK:
+                        data = cfg.load_desktop_config()
+                        data["network_guard_browser_paths"] = list(options["browser_paths"])
+                        cfg.save_desktop_config(data)
             except Exception:
                 _write(before, policies)
                 raise GuardError("无法保存防护设置，已撤销本次修改。") from None
@@ -143,7 +187,7 @@ def apply(app_id, backend, detected):
 
 
 def restore(app_id):
-    get_app(app_id)
+    _target(app_id)
     if not supported():
         raise GuardError("系统网络防护目前仅支持 Windows。")
     with _LOCK:
@@ -171,6 +215,15 @@ def ensure(app_id, backend, detected, data=None):
     if state["enabled"] and not state["verified"]:
         raise GuardError(state["message"])
     return state
+
+
+def tun_enabled(app_id, data):
+    if not _intent(app_id, data):
+        return False
+    try:
+        return _store().read().get(app_id, {}).get("mode") == "tun"
+    except Exception:
+        raise GuardError("无法验证系统网络防护，已取消启动。") from None
 
 
 def uninstall():

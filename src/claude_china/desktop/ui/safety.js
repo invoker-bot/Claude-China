@@ -9,6 +9,25 @@ let privacyRepairsRevision = 0;
 const NETWORK_GUARDS = {};
 let networkGuardBusy = false;
 let networkGuardRevision = 0;
+const NETWORK_DRAFTS = {};
+
+function networkGuardTarget() {
+  return document.getElementById("network-guard-target").value || document.getElementById("safety-app").value;
+}
+function renderNetworkControls() {
+  const id = networkGuardTarget(), state = NETWORK_GUARDS[id];
+  if (!state) return;
+  const draft = NETWORK_DRAFTS[id] ||= {mode: state.mode || "proxy", guid: state.tunnel?.guid || "", paths: (state.browser_paths || []).join("\n")};
+  document.getElementById("network-guard-mode").value = draft.mode;
+  const tunnels = document.getElementById("network-guard-tunnel");
+  const records = state.tunnels || [];
+  tunnels.innerHTML = `<option value="">${esc(I18n.text("请选择隧道"))}</option>` + records.map(item =>
+    `<option value="${esc(item.guid)}" ${item.up && item.addresses?.length ? "" : "disabled"}>${esc(item.name)}${item.up ? "" : ` · ${esc(I18n.text("已断开"))}`}</option>`).join("");
+  tunnels.value = draft.guid;
+  document.getElementById("network-guard-tunnel-field").hidden = draft.mode !== "tun";
+  document.getElementById("network-guard-browser-field").hidden = id !== "playwright";
+  document.getElementById("network-guard-browser-paths").value = draft.paths;
+}
 
 function safetyDraft() {
   return { enabled: document.getElementById("safety-enabled").checked,
@@ -28,19 +47,22 @@ function renderSafetySettings() {
   renderLocalEnvironment(SAFETY_SETTINGS.environment || {});
   const select = document.getElementById("safety-app");
   if (!select.options.length) select.innerHTML = APPS.map(app => `<option value="${esc(app.id)}">${esc(app.display)}</option>`).join("");
+  const target = document.getElementById("network-guard-target");
+  if (!target.options.length) target.innerHTML = APPS.map(app => `<option value="${esc(app.id)}">${esc(app.display)}</option>`).join("") + `<option value="playwright">${esc(I18n.text("CLI / Playwright 浏览器"))}</option>`;
   SAVED_DRAFTS.safety = draftSnapshot("safety");
   renderEnvironmentReport();
   loadPrivacyRepairs();
   loadNetworkGuard();
 }
 async function loadNetworkGuard() {
-  const id = document.getElementById("safety-app").value;
+  const id = networkGuardTarget();
   if (!id || networkGuardBusy) return;
   const revision = networkGuardRevision;
   try {
     const result = await api().get_network_guard(id);
     if (revision !== networkGuardRevision) return;
     NETWORK_GUARDS[id] = result.ok ? result.state : { message: result.error || "无法读取系统网络防护状态。" };
+    renderNetworkControls();
   } catch (_) {
     NETWORK_GUARDS[id] = { message: "无法读取系统网络防护状态。" };
   }
@@ -143,7 +165,7 @@ function renderEnvironmentActions(privacy) {
   const actions = document.getElementById("safety-actions");
   if (!actions) return;
   actions.innerHTML = "";
-  const guard = NETWORK_GUARDS[document.getElementById("safety-app").value];
+  const id = networkGuardTarget(), guard = NETWORK_GUARDS[id], draft = NETWORK_DRAFTS[id];
   if (guard) {
     const message = document.createElement("p");
     message.className = "field-hint";
@@ -155,7 +177,10 @@ function renderEnvironmentActions(privacy) {
       enable.className = "btn";
       enable.id = "network-guard-enable";
       enable.textContent = I18n.text(guard.enabled ? "重新应用网络防护" : "启用网络防护");
-      enable.disabled = !guard.can_apply || networkGuardBusy || environmentChecking;
+      const selected = (guard.tunnels || []).find(item => item.guid === draft?.guid);
+      const canApply = draft?.mode === "tun" ? guard.found && selected?.up && selected.addresses?.length &&
+        (id !== "playwright" || guard.browser_count || draft.paths.trim()) : guard.can_apply;
+      enable.disabled = !canApply || networkGuardBusy || environmentChecking;
       enable.onclick = () => changeNetworkGuard(true);
       actions.appendChild(enable);
     }
@@ -176,6 +201,12 @@ function renderEnvironmentActions(privacy) {
       endpoint.textContent = `TCP ${guard.proxy.addresses.join(" / ")} : ${guard.proxy.port} · ${guard.executables.length} EXE`;
       actions.appendChild(endpoint);
     }
+    if (guard.tunnel) {
+      const tunnel = document.createElement("p");
+      tunnel.className = "field-hint"; tunnel.dataset.i18nSkip = "";
+      tunnel.textContent = `${guard.tunnel.name} · ${guard.tunnel.guid} · ${guard.executables.length} EXE`;
+      actions.appendChild(tunnel);
+    }
   }
   if (PRIVACY_REPAIRS.length) {
     const restore = document.createElement("button");
@@ -189,15 +220,20 @@ function renderEnvironmentActions(privacy) {
 }
 async function changeNetworkGuard(enabled) {
   if (networkGuardBusy) return;
-  const select = document.getElementById("safety-app");
+  const select = document.getElementById("network-guard-target");
   const id = select.value;
   networkGuardBusy = true;
   networkGuardRevision += 1;
   select.disabled = true;
+  for (const element of ["safety-app", "network-guard-mode", "network-guard-tunnel", "network-guard-browser-paths"])
+    document.getElementById(element).disabled = true;
   document.getElementById("safety-check").disabled = true;
   renderEnvironmentActions(PRIVACY_REPORT);
   try {
-    const result = await (enabled ? api().apply_network_guard(id) : api().restore_network_guard(id));
+    const draft = NETWORK_DRAFTS[id];
+    const options = {mode: draft.mode, tunnel_guid: draft.guid};
+    if (id === "playwright") options.browser_paths = draft.paths.split("\n").map(value => value.trim()).filter(Boolean);
+    const result = await (enabled ? api().apply_network_guard(id, options) : api().restore_network_guard(id));
     if (!result.ok) toast(result.error || "系统网络防护操作失败，请重试。");
     else {
       NETWORK_GUARDS[id] = result.state;
@@ -207,6 +243,8 @@ async function changeNetworkGuard(enabled) {
   finally {
     networkGuardBusy = false;
     select.disabled = false;
+    for (const element of ["safety-app", "network-guard-mode", "network-guard-tunnel", "network-guard-browser-paths"])
+      document.getElementById(element).disabled = false;
     document.getElementById("safety-check").disabled = false;
     await loadNetworkGuard();
   }
@@ -296,7 +334,16 @@ async function restoreEnvironment() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("safety-app").onchange = () => { renderEnvironmentReport(); loadNetworkGuard(); };
+  document.getElementById("safety-app").onchange = () => { document.getElementById("network-guard-target").value = document.getElementById("safety-app").value; renderEnvironmentReport(); loadNetworkGuard(); };
+  document.getElementById("network-guard-target").onchange = () => loadNetworkGuard();
+  for (const [element, key] of [["network-guard-mode", "mode"], ["network-guard-tunnel", "guid"], ["network-guard-browser-paths", "paths"]]) {
+    document.getElementById(element).onchange = event => {
+      const draft = NETWORK_DRAFTS[networkGuardTarget()];
+      if (!draft) return;
+      draft[key] = event.target.value;
+      renderNetworkControls(); renderEnvironmentReport();
+    };
+  }
   document.getElementById("safety-check").onclick = checkEnvironment;
   document.getElementById("save-safety").onclick = () => saveEditor("safety");
   document.getElementById("cancel-safety").onclick = () => cancelSettings("safety");

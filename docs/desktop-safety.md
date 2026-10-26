@@ -21,6 +21,23 @@ The guarded launch path verifies the actual filters and endpoint independently
 of the regional-check switches. Both activation and **还原网络防护** use Windows
 administrator authorization, with read-only verification remaining unelevated.
 
+Select **指定 TUN 隧道（支持 WebRTC UDP）** for TCP/UDP through a chosen
+connected adapter instead of an HTTP proxy. The proxy client manages its TUN
+routes and DNS. WFP pins the interface identity and source addresses for IPv4
+and IPv6, and packet-layer source guards block fallback through another NIC,
+including established UDP flows. The source guards also affect other processes
+sending from the same tunnel addresses. Adapter changes require reapplying
+protection; another tunnel is never selected automatically.
+
+**CLI / Playwright 浏览器** protects discovered cache EXEs and explicitly listed
+browser/helper paths. `claudec` and managed desktop terminals additionally load
+a pre-spawn check into Playwright's Node driver: unregistered versions are
+rejected before browser creation, and real rules/tunnel state are verified
+without elevation. Standard local Node/Python bindings are covered. External
+launchers require the same environment integration; remote and WSL/container
+browsers are outside these Windows rules. Restart existing CLI/browser
+processes after switching/restoring modes to refresh their launch options.
+
 Rules and restore metadata are committed atomically in WFP and persist after
 the launcher exits. Restore works with the proxy off or the app removed, and
 does not touch another app's rules. Windows uninstallation restores owned

@@ -279,10 +279,12 @@ class TerminalService:
             arguments = terminal_history.new_session_args(record['type'], arguments)
         argv = resolve_cli_argv(record['type']) + arguments
         data = config.load_desktop_config()
-        if config.get_check_system_proxy(data) and not self.backend.proxy_enabled():
+        from . import egress, playwright_guard
+        tun_mode = egress.tun_enabled("playwright", data)
+        if not tun_mode and config.get_check_system_proxy(data) and not self.backend.proxy_enabled():
             raise ValueError('系统代理未开启，已取消启动。')
         proxy = None
-        if config.get_auto_proxy_env(data):
+        if not tun_mode and config.get_auto_proxy_env(data):
             try:
                 proxy = self.backend.system_http_proxy()
             except SystemProxyError as exc:
@@ -293,6 +295,7 @@ class TerminalService:
                                   base_env=merge_env(os.environ, config.get_common_env(data)))
         if proxy and not record.get('proxy'):
             env.update({key: proxy for key in PROXY_ENV_VARS})
+        env = playwright_guard.prepare_environment(env, data=data)
         settings = config.get_safety_settings(data)
         if settings['enabled']:
             app_id = 'grok-bot' if record['type'] == 'grok' else record['type']

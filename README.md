@@ -435,7 +435,7 @@ exit IP. Browser-extension proxies, PAC/SOCKS proxies and split tunnels that
 route only selected browser traffic may not be visible to this check.
 
 On Windows, select an installed app and choose **启用网络防护**. After Windows
-administrator authorization, WFP permits only TCP to the system HTTP proxy's
+administrator authorization, **固定 HTTP 代理** mode permits only TCP to the system HTTP proxy's
 fixed IP and port (or localhost). All other outbound connections from the
 covered EXEs are blocked, including UDP, IPv6 and direct TCP fallback. WebRTC
 stays enabled; communication that cannot use the allowed proxy fails. The guard
@@ -450,6 +450,37 @@ paths and proxy endpoint even when region checks are disabled. Changes require
 **重新应用网络防护**; an unverified protected launch is cancelled. Proxy environment
 variables are pinned and bypass variables removed for protected launches.
 
+For WebRTC UDP, enable TUN in your proxy client first, then select **指定 TUN
+隧道（支持 WebRTC UDP）** and the connected adapter in Claude China. TUN routing
+and DNS are managed by your proxy client. This mode does not require a system
+HTTP proxy. TCP and UDP are restricted to the pinned tunnel GUID/LUID,
+interface index and assigned source addresses, for IPv4 and IPv6. Missing or
+changed tunnel identity blocks managed launches until protection is reapplied.
+Packet-level rules additionally prevent the tunnel's pinned source addresses
+from exiting another adapter, including established UDP flows after a route
+change. This source-address restriction also applies to other processes using
+those addresses.
+
+Choose **CLI / Playwright 浏览器** to protect browsers outside a desktop app's
+installation. Standard Playwright caches are discovered automatically,
+including `PLAYWRIGHT_BROWSERS_PATH` from common CLI settings. For custom paths,
+hermetic (`PLAYWRIGHT_BROWSERS_PATH=0`) installations or browser channels, add
+their browser/helper EXE paths explicitly. Registered EXEs are protected
+regardless of their parent process; other uses of the same EXE are affected too.
+New browser versions require reapplying protection.
+
+`claudec` and terminals/CLI profiles opened by the desktop launcher inject a
+Node preload into Playwright's driver, covering local Node/Python bindings.
+Unregistered/custom browser EXEs are rejected before spawning. The gate checks
+real WFP rules and tunnel identity without elevation. In TUN mode browser
+children discard inherited proxy variables and Chromium uses
+`--no-proxy-server`, while the CLI's own API proxy is preserved. External
+launchers must integrate `desktop.playwright_guard.prepare_environment()` for
+this pre-spawn check; registered EXEs remain protected without it. Remote,
+WSL/container browsers and arbitrary native launchers are not automatically
+covered. Restart existing CLI/browser processes after changing/restoring modes
+to refresh launch options, and close managed terminals before uninstalling.
+
 **还原网络防护** works without the proxy or target app being available, removes
 only this app's owned filters and preserves other apps' protection. Windows
 uninstallation cleans up owned network protection before deleting the launcher;
@@ -457,10 +488,11 @@ failed cleanup stops uninstallation. Guard buttons act immediately, independentl
 of the settings Save/Cancel buttons. Previously recorded browser-policy repairs
 remain restorable through **还原浏览器策略**; new protection never writes them.
 
-This implementation supports Windows with static HTTP proxy IPs/localhost.
-PAC, hostname-based proxy endpoints, SOCKS-only and TUN-only configurations are
-not silently treated as protected. Shared runtimes and tools outside the app
-installation, delegated system-service DNS queries, and disclosure of local
+HTTP mode supports Windows with static HTTP proxy IPs/localhost; TUN mode
+supports an explicitly selected connected tunnel. PAC, hostname-based proxy
+endpoints and SOCKS-only configurations are not treated as HTTP protection.
+Unregistered shared runtimes and tools outside the app installation, delegated
+system-service DNS queries, and disclosure of local
 adapter addresses through browser APIs are outside its scope. Updates to a new
 installation path require reapplying protection before using that path; launching
 such a new path outside the launcher is not covered by old executable filters.
@@ -470,6 +502,12 @@ The manual STUN request still tests the launcher itself, not a protected target
 process. Its raw UDP exit can differ from the proxy even while the target's
 direct traffic is correctly blocked. See [the native acceptance probe](tools/windows_network_guard_probe.py)
 for isolated TCP/UDP, IPv4/IPv6, offline fallback, rollback and restore checks.
+The [TUN acceptance probe](tools/windows_tun_guard_probe.py) creates two
+disposable Wintun adapters and benchmark/documentation-only routes. It verifies
+TCP, real Playwright HTTP and WebRTC UDP, new-browser rejection, IPv4/IPv6 route
+fallback, existing UDP flows, disconnection and restoration. Its official
+signed Wintun test dependency is not bundled or needed by the app; normal use
+relies on the proxy client's existing TUN adapter.
 
 The home window presents application cards with status, launch/restart and stop
 controls. **设置** is a main navigation tab alongside **我的应用** and **我的终端**,

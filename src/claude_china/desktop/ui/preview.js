@@ -41,14 +41,22 @@ if (new URLSearchParams(location.search).has("preview")) {
   });
   let privacyRepairs = [];
   const networkGuardEnabled = {};
+  const networkGuardOptions = {};
+  const demoTunnel = {guid:'769f00ba-f302-4549-a337-7d2f44f8e8b1',luid:123456,index:42,name:'v2ray TUN (preview)',addresses:['198.18.44.1','2001:db8:44::1'],up:true};
   const networkGuardState = id => ({
     supported: modes.get('guard') !== 'unsupported', enabled: Boolean(networkGuardEnabled[id]),
     verified: Boolean(networkGuardEnabled[id]) && modes.get('guard') !== 'changed',
     can_restore: Boolean(networkGuardEnabled[id]), can_apply: apps.some(app => app.id === id && app.found),
-    proxy: networkGuardEnabled[id] ? {addresses: ['127.0.0.1'], port: 7890} : null,
+    found: id === 'playwright' || apps.some(app => app.id === id && app.found),
+    browser_count: id === 'playwright' ? 2 : 0, browser_paths: [],
+    mode: networkGuardOptions[id]?.mode || (id === 'playwright' ? 'tun' : 'proxy'),
+    tunnel: networkGuardOptions[id]?.mode === 'tun' && networkGuardEnabled[id] ? clone(demoTunnel) : null,
+    tunnels: modes.get('tun') === 'none' ? [] : [{...demoTunnel,up:modes.get('tun') !== 'down'}],
+    proxy: networkGuardEnabled[id] && networkGuardOptions[id]?.mode !== 'tun' ? {addresses: ['127.0.0.1'], port: 7890} : null,
     executables: networkGuardEnabled[id] ? [`C:/Applications/${id}/${id}.exe`] : [],
     message: modes.get('guard') === 'unsupported' ? '系统网络防护目前仅支持 Windows。' : networkGuardEnabled[id]
       ? (modes.get('guard') === 'changed' ? '防护规则缺失，或代理、应用路径发生变化；启动已锁定，请重新应用或还原防护。'
+        : networkGuardOptions[id]?.mode === 'tun' ? '已保护此应用：TCP/UDP 仅允许通过指定 TUN 隧道，断开时禁止直连；WebRTC 保持启用。'
         : '已保护此应用：仅允许连接指定代理，代理断开时禁止直连；WebRTC 保持启用。')
       : '尚未启用系统网络防护。',
   });
@@ -201,9 +209,10 @@ if (new URLSearchParams(location.search).has("preview")) {
     },
     check_safety: async id => clone(safetyReport(id)),
     get_network_guard: async id => ({ok: true, state: networkGuardState(id)}),
-    apply_network_guard: async id => {
+    apply_network_guard: async (id, options = {}) => {
       if (modes.get('guard') === 'error') return {ok: false, error: '系统网络防护操作失败，请重试。'};
       networkGuardEnabled[id] = true;
+      networkGuardOptions[id] = clone(options);
       return {ok: true, state: networkGuardState(id)};
     },
     restore_network_guard: async id => {

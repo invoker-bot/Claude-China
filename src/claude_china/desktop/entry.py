@@ -43,8 +43,22 @@ def main(argv=None):
     parser.add_argument("--disable", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--network-guard-request", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--network-guard-digest", help=argparse.SUPPRESS)
+    parser.add_argument("--network-guard-check-browser", help=argparse.SUPPRESS)
     parser.add_argument("target_args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.network_guard_check_browser:
+        from .playwright_guard import check_browser
+        from .egress import GuardError
+        try:
+            policy = check_browser(args.network_guard_check_browser)
+            print(json.dumps({"mode": policy.get("mode", "proxy") if policy else None}))
+            return 0
+        except GuardError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
+        except Exception:
+            print("无法验证 Playwright 网络防护，已阻止浏览器启动。", file=sys.stderr)
+            return 1
     if args.network_guard_request:
         from .platforms.windows_wfp import apply_request
         return apply_request(args.network_guard_request, args.network_guard_digest)

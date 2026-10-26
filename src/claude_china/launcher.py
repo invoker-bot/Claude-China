@@ -189,6 +189,8 @@ def launch(profile_dict, extra_args, use_default_args=True):
 
     # Prepare environment
     env = prepare_environment(profile)
+    from .desktop.playwright_guard import prepare_environment as guard_environment
+    env = guard_environment(env)
 
     final_args = merge_launch_args(extra_args, profile.default_args, use_default_args)
     full_cmd = [cmd_path] + final_args

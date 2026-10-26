@@ -88,6 +88,18 @@ Linux passes the directory and helper as separate terminal arguments. The
 interactive shell remains after the CLI returns; its later commands do not
 inherit the profile environment of the worker's child.
 
+When **CLI / Playwright 浏览器** network protection is enabled, Windows managed
+terminals and `claudec` propagate a Playwright Node-driver preload via
+`NODE_OPTIONS`, preserving unrelated Node options. Registered browser EXEs are
+protected persistently by WFP; a new browser version/custom executable is
+blocked before creation until registered. TUN mode requires the selected
+tunnel, allows its WebRTC UDP, and rejects direct fallback when disconnected.
+Browser children bypass ambient HTTP proxies in this mode while the CLI's API
+proxy remains unchanged. Restore removes the owned filters and disables the
+launch check; restart existing CLI/browser processes to refresh options, and
+close managed terminals before uninstalling. See the
+[network protection guide](desktop-safety.md) for scope and limitations.
+
 ## Verification
 
 Unit coverage includes profile CRUD and stale revisions, credential redaction

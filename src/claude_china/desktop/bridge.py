@@ -104,10 +104,14 @@ class LauncherBridge:
     def launch_app(self, app_id):
         self._notify_activity()
         data = cfg.load_desktop_config()
-        if cfg.get_check_system_proxy(data) and not self._backend.proxy_enabled():
+        try:
+            tun_mode = egress.tun_enabled(app_id, data)
+        except egress.GuardError as exc:
+            return {"ok": False, "error": str(exc)}
+        if not tun_mode and cfg.get_check_system_proxy(data) and not self._backend.proxy_enabled():
             return {"ok": False, "error": "系统代理未开启，已取消启动"}
         proxy_url = None
-        if cfg.get_auto_proxy_env(data):
+        if not tun_mode and cfg.get_auto_proxy_env(data):
             try:
                 proxy_url = self._backend.system_http_proxy()
             except SystemProxyError as exc:
@@ -132,7 +136,8 @@ class LauncherBridge:
                 for key in list(env):
                     if key.lower() in ("http_proxy", "https_proxy", "no_proxy", "all_proxy"):
                         env.pop(key)
-                env = merge_env(env, {}, {}, proxy_url=self._backend.system_http_proxy())
+                if guard.get("mode") != "tun":
+                    env = merge_env(env, {}, {}, proxy_url=self._backend.system_http_proxy())
         except egress.GuardError as exc:
             return {"ok": False, "error": str(exc) + " 已取消启动。"}
         except Exception:
@@ -352,22 +357,26 @@ class LauncherBridge:
         return self._check_safety(app_id, env, status, cfg.get_safety_settings(data))
 
     # ---- browser WebRTC privacy ----
+    def _guard_detect(self, app_id, data):
+        if app_id == "playwright":
+            from .platforms.base import AppStatus
+            return AppStatus(app_id, found=True)
+        return self._backend.detect(get_app(app_id), cfg.get_app_path(data, app_id))
+
     def get_network_guard(self, app_id):
         try:
-            app = get_app(app_id)
             data = cfg.load_desktop_config()
-            detected = self._backend.detect(app, cfg.get_app_path(data, app_id))
+            detected = self._guard_detect(app_id, data)
             return {"ok": True, "state": egress.status(app_id, self._backend, detected)}
         except Exception:
             return {"ok": False, "error": "无法读取系统网络防护状态。"}
 
-    def apply_network_guard(self, app_id):
+    def apply_network_guard(self, app_id, options=None):
         self._notify_activity()
         try:
-            app = get_app(app_id)
             data = cfg.load_desktop_config()
-            detected = self._backend.detect(app, cfg.get_app_path(data, app_id))
-            state = egress.apply(app_id, self._backend, detected)
+            detected = self._guard_detect(app_id, data)
+            state = egress.apply(app_id, self._backend, detected, options)
             return {"ok": True, "state": state}
         except egress.GuardError as exc:
             return {"ok": False, "error": str(exc)}

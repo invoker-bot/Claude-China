@@ -30,8 +30,16 @@ USER_ID = "af043a0a-b34d-4f86-979c-c90371af6e66"
 REMOTE_IP = "b235ae9a-1d64-49b8-a44c-5ff3d9095045"
 REMOTE_PORT = "c35a604d-d22b-4e1a-91b4-68f674ee674b"
 PROTOCOL = "3971ef2b-623e-4f9a-8cb1-6e79b806b9a7"
+LOCAL_IP = "d9ee00de-c1ef-4617-bfe3-ffd8f5a08957"
+LOCAL_INTERFACE = "4cd62a49-59c3-4969-b7f3-bda5d32890a4"
+NEXT_INTERFACE = "93ae8f5b-7f6f-4719-98c8-14e97429ef04"
+INTERFACE_INDEX = "667fd755-d695-434a-8af5-d3835a1259bc"
 LAYERS = {4: "c38d57d1-05a7-4c33-904f-7fbceee60e82",
           6: "4a72393b-319f-44bc-84c3-ba54dcb3b6b4"}
+RECEIVE_LAYERS = {4: "e1cd9fe7-f4b5-4273-96c0-592e487b8650",
+                  6: "a3b42c97-9f04-4672-b87e-cee9c483257f"}
+PACKET_LAYERS = {4: "1e5c9fae-8a84-4135-a331-950b54229ecd",
+                 6: "a3b3ab6b-3564-488c-9117-f34e82142763"}
 
 
 class GUID(C.Structure):
@@ -183,12 +191,15 @@ def security_descriptor(sddl):
 
 def validate(policies):
     from ..apps import APP_REGISTRY
-    allowed = {app.id for app in APP_REGISTRY}
+    allowed = {app.id for app in APP_REGISTRY} | {"playwright"}
     if not isinstance(policies, dict) or not policies.keys() <= allowed:
         raise ValueError("Invalid network guard applications")
     seen = set()
     for policy in policies.values():
-        if not isinstance(policy, dict) or set(policy) != {"executables", "proxy"}:
+        if not isinstance(policy, dict):
+            raise ValueError("Invalid network guard policy")
+        tun = policy.get("mode") == "tun"
+        if set(policy) != ({"executables", "mode", "tunnel"} if tun else {"executables", "proxy"}):
             raise ValueError("Invalid network guard policy")
         paths = policy["executables"]
         if not isinstance(paths, list) or not 0 < len(paths) <= 128:
@@ -200,6 +211,21 @@ def validate(policies):
             if identity in seen:
                 raise ValueError("Applications cannot share protected executables")
             seen.add(identity)
+        if tun:
+            tunnel = policy["tunnel"]
+            if not isinstance(tunnel, dict) or set(tunnel) != {"guid", "luid", "index", "name", "addresses"}:
+                raise ValueError("Invalid tunnel identity")
+            uuid.UUID(tunnel["guid"])
+            if (type(tunnel["luid"]) is not int or not 0 < tunnel["luid"] < 2**64
+                    or type(tunnel["index"]) is not int or not 0 < tunnel["index"] < 2**32
+                    or not isinstance(tunnel["name"], str) or len(tunnel["name"]) > 256
+                    or not isinstance(tunnel["addresses"], list) or not 0 < len(tunnel["addresses"]) <= 32):
+                raise ValueError("Invalid tunnel identity")
+            for value in tunnel["addresses"]:
+                ip = ipaddress.ip_address(value)
+                if str(ip) != value or ip.is_unspecified or ip.is_multicast or ip.is_link_local or ip.is_loopback or "%" in value:
+                    raise ValueError("Invalid tunnel source address")
+            continue
         endpoint = policy["proxy"]
         if (not isinstance(endpoint, dict) or set(endpoint) != {"addresses", "port"}
                 or type(endpoint["port"]) is not int or not 1 <= endpoint["port"] <= 65535
@@ -256,7 +282,7 @@ class Engine:
             self._free(pointer)
 
     def _filters(self, callback):
-        for layer in LAYERS.values():
+        for layer in [*LAYERS.values(), *RECEIVE_LAYERS.values(), *PACKET_LAYERS.values()]:
             self._filters_at(layer, callback)
 
     def _filters_at(self, layer, callback):
@@ -334,6 +360,9 @@ class Engine:
                     _check(self.api.FwpmGetAppIdFromFileName0(canonical, C.byref(app_blob)))
                     try:
                         for version in (4, 6):
+                            if policy.get("mode") == "tun":
+                                self._tun_filters(app_id, path, version, app_blob, sd, policy["tunnel"], callback)
+                                continue
                             self._filter(app_id, path, version, app_blob, sd, None, callback)
                             for address in policy["proxy"]["addresses"]:
                                 ip = ipaddress.ip_address(address)
@@ -344,6 +373,83 @@ class Engine:
                         self._free(app_blob)
         finally:
             kernel.LocalFree(descriptor)
+        # Packet-level source guards also cover established UDP flows when a
+        # route changes without creating a new ALE flow. They never allow traffic.
+        guarded = set()
+        for policy in policies.values():
+            if policy.get("mode") != "tun":
+                continue
+            tunnel = policy["tunnel"]
+            for address in tunnel["addresses"]:
+                key = (tunnel["guid"], address)
+                if key in guarded:
+                    continue
+                guarded.add(key)
+                ip = ipaddress.ip_address(address)
+                conditions = [self._ip_condition(LOCAL_IP, ip), self._number(INTERFACE_INDEX, 3, tunnel["index"])]
+                conditions[1].match = 10  # FWP_MATCH_NOT_EQUAL: actual egress NIC.
+                self._emit("source-guard|" + "|".join(key), "TUN source guard", PACKET_LAYERS[ip.version],
+                           conditions, BLOCK, 1, callback)
+
+    @staticmethod
+    def _number(field, kind, value):
+        item = Condition()
+        item.field, item.value.type = GUID(field), kind
+        if kind == 1:
+            item.value.u8 = value
+        elif kind == 3:
+            item.value.u32 = value
+        elif kind == 4:
+            item.value.u64 = C.pointer(U64(value))
+        return item
+
+    @staticmethod
+    def _ip_condition(field, ip):
+        item = Condition()
+        item.field = GUID(field)
+        if ip.version == 4:
+            item.value.type, item.value.u32 = 3, int(ip)
+        else:
+            buffer = (U8 * 16).from_buffer_copy(ip.packed)
+            item.value.type, item.value.pointer = 11, C.cast(buffer, PTR)
+        return item
+
+    def _emit(self, key, label, layer, conditions, action, weight, callback):
+        item = Filter()
+        item.key = GUID(uuid.uuid5(uuid.UUID(str(self.key)), key))
+        item.display = Display("Claude China: " + label, "Tunnel-only network guard")
+        item.flags, item.provider = PERSISTENT, C.pointer(self.key)
+        item.layer, item.sublayer = GUID(layer), self.sublayer
+        item.weight.type, item.weight.u64 = 4, C.pointer(U64(weight))
+        values = (Condition * len(conditions))(*conditions)
+        item.count, item.conditions = len(values), values
+        item.action.type = action
+        callback(item)
+
+    def _tun_filters(self, app_id, path, version, app_blob, sd, tunnel, callback):
+        app, user = Condition(), Condition()
+        app.field, app.value.type, app.value.blob = GUID(APP_ID), 12, app_blob
+        user.field, user.value.type, user.value.blob = GUID(USER_ID), 14, C.pointer(sd)
+        base = [app, user]
+        for incoming, layers in ((False, LAYERS), (True, RECEIVE_LAYERS)):
+            prefix = app_id + "|" + path.casefold() + "|" + str(version) + ("|receive" if incoming else "|connect")
+            self._emit(prefix + "|deny", app_id, layers[version], base, BLOCK, 1, callback)
+            for value in tunnel["addresses"]:
+                ip = ipaddress.ip_address(value)
+                if ip.version != version:
+                    continue
+                conditions = base + [self._number(LOCAL_INTERFACE, 4, tunnel["luid"]), self._ip_condition(LOCAL_IP, ip)]
+                if not incoming:
+                    conditions.append(self._number(NEXT_INTERFACE, 4, tunnel["luid"]))
+                for protocol in (6, 17):
+                    self._emit(prefix + "|" + value + "|" + str(protocol), app_id, layers[version],
+                               conditions + [self._number(PROTOCOL, 1, protocol)], PERMIT, 100, callback)
+            if incoming:
+                # Inbound loopback TCP is Playwright's local control channel.
+                # No outbound loopback or UDP exception is introduced.
+                ip = ipaddress.ip_address("127.0.0.1" if version == 4 else "::1")
+                self._emit(prefix + "|control", app_id, layers[version],
+                           base + [self._number(PROTOCOL, 1, 6), self._ip_condition(REMOTE_IP, ip)], PERMIT, 100, callback)
 
     def _filter(self, app_id, path, version, app_blob, sd, endpoint, callback):
         item = Filter()

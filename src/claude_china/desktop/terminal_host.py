@@ -100,6 +100,8 @@ def _ps_quote(value):
 def open_terminal(path, directory):
     helper = _helper(path)
     if sys.platform == 'win32':
+        from .playwright_guard import prepare_environment as guard_environment
+        env = guard_environment(os.environ)
         shell = shutil.which('pwsh.exe') or shutil.which('powershell.exe')
         if not shell:
             raise ValueError('未找到 PowerShell。')
@@ -108,7 +110,7 @@ def open_terminal(path, directory):
                   + _ps_quote(subprocess.list2cmdline(helper[1:])) + ' -Wait -NoNewWindow')
         encoded = base64.b64encode(script.encode('utf-16-le')).decode('ascii')
         process.Popen([shell, '-NoLogo', '-NoProfile', '-NoExit', '-EncodedCommand', encoded],
-                      cwd=directory, creationflags=0x10)
+                      cwd=directory, creationflags=0x10, env=env)
     elif sys.platform == 'darwin':
         command = 'cd -- ' + shlex.quote(directory) + ' && ' + shlex.join(helper)
         script = 'on run argv\ntell application "Terminal"\nactivate\ndo script (item 1 of argv)\nend tell\nend run'
