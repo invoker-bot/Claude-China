@@ -1,4 +1,4 @@
-## Claude China 0.4.4
+## Claude China 0.4.5
 
 This release adds opt-in Windows network protection for desktop apps and local
 Playwright browsers while keeping WebRTC available.
@@ -19,6 +19,8 @@ Playwright browsers while keeping WebRTC available.
   This mode preserves WebRTC but connections requiring UDP will fail.
 - **One-click restore:** remove the selected target's protection even if its
   proxy, tunnel or application is unavailable. Rules persist until restored.
+- **Settings preservation:** uninstalling leaves existing settings untouched
+  when network protection is already disabled.
 
 Windows requests administrator authorization when applying or restoring
 protection. The tunnel source-address guard also affects other processes using
@@ -26,7 +28,7 @@ those addresses, and browser APIs may still expose local interface addresses.
 External launchers need to integrate the Playwright launch check; remote and
 WSL/container browsers are outside these Windows rules. Restart existing
 CLI/browser processes after changing or restoring modes. See the
-[network protection guide](https://github.com/invoker-bot/Claude-China/blob/v0.4.4/docs/desktop-safety.md)
+[network protection guide](https://github.com/invoker-bot/Claude-China/blob/v0.4.5/docs/desktop-safety.md)
 for setup and scope.
 
 ### Install and upgrade
