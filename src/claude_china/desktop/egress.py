@@ -236,10 +236,15 @@ def uninstall():
             _write({}, before)
         try:
             with cfg.CONFIG_LOCK:
-                data = cfg.load_desktop_config()
-                values = data.get("network_guard")
-                data["network_guard"] = {key: False for key in values} if isinstance(values, dict) else {}
-                cfg.save_desktop_config(data)
+                if cfg.DESKTOP_CONFIG_FILE.exists():
+                    data = cfg.load_desktop_config()
+                    values = data.get("network_guard")
+                    if isinstance(values, dict) and any(value is not False for value in values.values()):
+                        data["network_guard"] = {key: False for key in values}
+                        cfg.save_desktop_config(data)
+                    elif values and not isinstance(values, dict):
+                        data["network_guard"] = {}
+                        cfg.save_desktop_config(data)
         except Exception:
             if before:
                 _write(before, {})

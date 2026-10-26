@@ -220,6 +220,31 @@ def test_uninstall_clears_owned_guard_and_keeps_user_settings(setup):
     assert data["safety_check"] is False
 
 
+@pytest.mark.parametrize("guard", ["", "network_guard:\n  claude: false\n"])
+def test_uninstall_preserves_settings_bytes_when_guard_already_disabled(setup, guard):
+    settings = cfg.DESKTOP_CONFIG_FILE
+    settings.write_text("# Keep this comment and formatting\nsafety_check: false\n" + guard, encoding="utf-8")
+    original = settings.read_bytes()
+    assert egress.uninstall() == 0
+    assert settings.read_bytes() == original
+
+
+def test_uninstall_does_not_create_missing_settings(setup):
+    cfg.DESKTOP_CONFIG_FILE.unlink()
+    assert egress.uninstall() == 0
+    assert not cfg.DESKTOP_CONFIG_FILE.exists()
+
+
+def test_uninstall_settings_failure_restores_active_guard(setup, monkeypatch):
+    bridge, _, store, _ = setup
+    assert bridge.apply_network_guard("claude")["ok"]
+    previous = deepcopy(store.policies)
+    monkeypatch.setattr(cfg, "save_desktop_config", Mock(side_effect=OSError("disk full")))
+    with pytest.raises(egress.GuardError, match="中止卸载"):
+        egress.uninstall()
+    assert store.policies == previous
+
+
 def test_restore_settings_failure_reinstalls_previous_guard(setup, monkeypatch):
     bridge, _, store, _ = setup
     assert bridge.apply_network_guard("claude")["ok"]
