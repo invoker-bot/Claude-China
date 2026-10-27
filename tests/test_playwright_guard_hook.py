@@ -52,11 +52,14 @@ cp.spawnSync=function(file,args,options){
  return original(file,args,options);
 };
 require(process.argv[1]);
-cp.spawnSync('chrome.exe',['--remote-debugging-pipe'],{});
+cp.spawnSync('chrome.exe',['--proxy-server=http://local-proxy:9999','--remote-debugging-pipe','--','about:blank'],{});
 if(process.env.HTTP_PROXY!=='http://local-proxy:9999')process.exit(3);
 """
     result = subprocess.run([node, "-e", script, str(hook)], env=env, capture_output=True, text=True, timeout=10)
     assert result.returncode == 0, result.stderr
     call = json.loads(result.stdout)
     assert "--no-proxy-server" in call["args"]
+    assert "--proxy-server=direct://" in call["args"]
+    assert [arg for arg in call["args"] if arg.startswith("--proxy-server=")][-1] == "--proxy-server=direct://"
+    assert call["args"].index("--proxy-server=direct://") < call["args"].index("--")
     assert not any(key.lower() in ("http_proxy", "https_proxy", "all_proxy", "no_proxy") for key in call["env"])
