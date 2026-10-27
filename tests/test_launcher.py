@@ -10,6 +10,13 @@ from src.claude_china.launcher import (
 )
 
 
+@pytest.fixture(autouse=True)
+def isolate_desktop_config(monkeypatch, tmp_path):
+    from src.claude_china.desktop import config as desktop_config
+
+    monkeypatch.setattr(desktop_config, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+
+
 def test_prepare_env_api_mode():
     """Test environment preparation for API mode"""
     profile = ApiProfile(
