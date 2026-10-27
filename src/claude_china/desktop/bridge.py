@@ -4,7 +4,7 @@ import threading
 
 from .apps import APP_REGISTRY, get_app
 from . import config as cfg
-from . import egress, privacy, safety
+from . import egress, privacy, router, safety
 from .env import merge_env
 from .proxy import SystemProxyError
 
@@ -104,14 +104,21 @@ class LauncherBridge:
     def launch_app(self, app_id):
         self._notify_activity()
         data = cfg.load_desktop_config()
+        settings = cfg.get_safety_settings(data)
+        router_mode = settings.get("router_mode") is True
+        if router_mode:
+            try:
+                router.check_ready(app_id, data, self._backend)
+            except router.RouterError as exc:
+                return {"ok": False, "error": str(exc)}
         try:
             tun_mode = egress.tun_enabled(app_id, data)
         except egress.GuardError as exc:
             return {"ok": False, "error": str(exc)}
-        if not tun_mode and cfg.get_check_system_proxy(data) and not self._backend.proxy_enabled():
+        if not router_mode and not tun_mode and cfg.get_check_system_proxy(data) and not self._backend.proxy_enabled():
             return {"ok": False, "error": "系统代理未开启，已取消启动"}
         proxy_url = None
-        if not tun_mode and cfg.get_auto_proxy_env(data):
+        if not router_mode and not tun_mode and cfg.get_auto_proxy_env(data):
             try:
                 proxy_url = self._backend.system_http_proxy()
             except SystemProxyError as exc:
@@ -129,6 +136,8 @@ class LauncherBridge:
         env = merge_env(os.environ if self._base_env is None else self._base_env,
                         cfg.get_common_env(data),
                         cfg.get_app_env(data, app_id), proxy_url=proxy_url)
+        if router_mode:
+            env = router.direct_environment(env)
         try:
             guard = egress.ensure(app_id, self._backend, status, data=data)
             if guard["enabled"]:
@@ -142,15 +151,19 @@ class LauncherBridge:
             return {"ok": False, "error": str(exc) + " 已取消启动。"}
         except Exception:
             return {"ok": False, "error": "无法验证系统网络防护，已取消启动。"}
-        settings = cfg.get_safety_settings(data)
         report = None
-        if settings["enabled"]:
+        if settings["enabled"] or router_mode:
             report = self._check_safety(app_id, env, status, settings)
             if not report["allowed"]:
                 return {"ok": False, "error": "安全检查未通过：" + report.get("reason", "无法确认支持状态。") + " 已取消启动。",
                         "safety": report}
             if cfg.launch_settings_changed(data, cfg.load_desktop_config()):
                 return {"ok": False, "error": "检测期间启动设置发生变化，已取消启动，请重试。"}
+            if router_mode:
+                try:
+                    router.check_ready(app_id, data, self._backend)
+                except router.RouterError as exc:
+                    return {"ok": False, "error": str(exc)}
         try:
             self._backend.stop(status)
         except Exception as exc:
@@ -334,7 +347,13 @@ class LauncherBridge:
 
     def _check_safety(self, app_id, env, status, settings):
         try:
-            report = safety.inspect_environment(app_id, env, self._backend, status)
+            if settings.get("router_mode"):
+                router.check_ready(app_id, cfg.load_desktop_config(), self._backend)
+                report = router.inspect(app_id, self._backend)
+            else:
+                report = safety.inspect_environment(app_id, env, self._backend, status)
+        except router.RouterError as exc:
+            report = {"app_id": app_id, "status": "unsupported", "reason": str(exc)}
         except Exception:
             report = {"app_id": app_id, "status": "unknown", "reason": "环境检查失败，无法确认支持状态。"}
         report["allowed"] = safety.launch_allowed(report, settings)
@@ -346,7 +365,7 @@ class LauncherBridge:
         data = cfg.load_desktop_config()
         status = self._backend.detect(app, cfg.get_app_path(data, app_id))
         proxy_url = None
-        if cfg.get_auto_proxy_env(data):
+        if not cfg.get_safety_settings(data).get("router_mode") and cfg.get_auto_proxy_env(data):
             try:
                 proxy_url = self._backend.system_http_proxy()
             except Exception:

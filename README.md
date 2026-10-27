@@ -444,6 +444,14 @@ validation still runs before that activation.
 
 ### Environment check and WebRTC repair
 
+For a network routed by the router without a local proxy, choose **设置 → 安全检查
+→ 路由器模式（仅启动前检查）**, or run `claudec network-mode router`. First
+disable the system proxy and restore existing network guards for the target app
+and CLI / Playwright. Managed launches check service-specific HTTPS and UDP
+exits; DNS is an advisory single sample. Actual browser WebRTC and IP reputation
+remain unverified. This is a startup check and cannot block direct connections
+if the router later fails. See [router preflight mode](docs/desktop-safety.md#router-preflight-mode).
+
 **设置 → 安全检查 → 检查环境** runs both checks at once. It compares the HTTPS
 exit (through the configured HTTP proxy) with the machine's UDP exit measured by
 a STUN binding request, and checks the selected app's public-IP region against
@@ -494,7 +502,8 @@ Node preload into Playwright's driver, covering local Node/Python bindings.
 Unregistered/custom browser EXEs are rejected before spawning. The gate checks
 real WFP rules and tunnel identity without elevation. In TUN mode browser
 children discard inherited proxy variables and Chromium uses
-`--no-proxy-server`, while the CLI's own API proxy is preserved. External
+`--no-proxy-server`. When CLI protection is enabled, the CLI's own proxy
+variables are also removed. External
 launchers must integrate `desktop.playwright_guard.prepare_environment()` for
 this pre-spawn check; registered EXEs remain protected without it. Remote,
 WSL/container browsers and arbitrary native launchers are not automatically

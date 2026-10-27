@@ -76,6 +76,23 @@ def login_browser_command(
     typer.echo("Manual browser login enabled." if mode == "manual" else "Automatic browser login enabled.")
 
 
+@app.command(name="network-mode")
+def network_mode_command(mode: str = typer.Argument(..., help="router or default")):
+    """Select router preflight or the existing proxy/TUN settings."""
+    if mode not in ("router", "default"):
+        raise typer.BadParameter("Choose 'router' or 'default'.", param_hint="mode")
+    from .desktop import config as desktop_config
+    with desktop_config.CONFIG_LOCK:
+        data = desktop_config.load_desktop_config()
+        desktop_config.set_safety_settings(data, {"router_mode": mode == "router"})
+        desktop_config.save_desktop_config(data)
+    if mode == "router":
+        typer.echo("Router preflight enabled. Restore existing system network guards and disable the local system proxy before launch.")
+        typer.echo("The check cannot block direct connections after the router fails.")
+    else:
+        typer.echo("Router preflight disabled; existing proxy/TUN settings apply.")
+
+
 @app.command(name="roll-claude-buddy")
 def roll_claude_buddy_command(
     profile: str = typer.Argument(..., help="Profile name to roll buddy for"),

@@ -99,13 +99,16 @@ def get_common_env(data: dict) -> dict:
 def get_safety_settings(data: dict) -> dict:
     # Invalid handwritten values must not accidentally disable protection.
     return {"enabled": data.get("safety_check") is not False,
-            "block_unknown": data.get("safety_block_unknown") is not False}
+            "block_unknown": data.get("safety_block_unknown") is not False,
+            "router_mode": data.get("safety_router_mode") is True}
 
 
 def set_safety_settings(data: dict, payload: dict) -> None:
     for field, key in (("enabled", "safety_check"), ("block_unknown", "safety_block_unknown")):
         if field in payload:
             data[key] = payload[field] is not False
+    if "router_mode" in payload:
+        data["safety_router_mode"] = payload["router_mode"] is True
 
 
 def set_common_env(data: dict, env: dict) -> None:

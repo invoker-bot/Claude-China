@@ -33,7 +33,8 @@ function renderNetworkControls() {
 
 function safetyDraft() {
   return { enabled: document.getElementById("safety-enabled").checked,
-    block_unknown: document.getElementById("safety-strict").checked };
+    block_unknown: document.getElementById("safety-strict").checked,
+    router_mode: document.getElementById("safety-router").checked };
 }
 function renderLocalEnvironment(environment) {
   const values = [["系统时区", `${environment.timezone || "未知"} ${environment.utc_offset || ""}`.trim()],
@@ -44,6 +45,7 @@ function renderLocalEnvironment(environment) {
 function renderSafetySettings() {
   document.getElementById("safety-enabled").checked = SAFETY_SETTINGS.enabled;
   document.getElementById("safety-strict").checked = SAFETY_SETTINGS.block_unknown;
+  document.getElementById("safety-router").checked = SAFETY_SETTINGS.router_mode === true;
   document.getElementById("safety-blocked-regions").innerHTML =
     (SAFETY_SETTINGS.policy?.blocked_regions || []).map(region => `<span>${esc(region.name)}</span> (${esc(region.code)})`).join(", ") || "未读取到地区规则";
   renderLocalEnvironment(SAFETY_SETTINGS.environment || {});
@@ -111,8 +113,10 @@ const BROWSER_NAMES = { chrome: "Chrome", edge: "Edge" };
 // A blocked region always wins; anything unconfirmed keeps the summary honest.
 function environmentStatus(safety, privacy) {
   if (safety?.status === "unsupported") return "unsupported";
+  if (safety?.router?.dns?.status === "warning") return "warn";
   const guard = NETWORK_GUARDS[document.getElementById("safety-app").value];
   if (guard?.enabled && !guard.verified) return "warn";
+  if (safety?.router) return safety.status === "supported" ? "ok" : "unknown";
   if (privacy?.level === "warn" && !guard?.verified) return "warn";
   if (!safety || !privacy || safety.status === "unknown" || privacy.level === "unknown") return "unknown";
   return "ok";
@@ -142,13 +146,29 @@ function environmentRows(safety, privacy) {
   if (safety) {
     const network = safety.network || {};
     const region = REGION_LABELS[safety.status] || REGION_LABELS.unknown;
-    const effect = !SAFETY_SETTINGS.enabled ? "自动检查已关闭"
+    const effect = !SAFETY_SETTINGS.enabled && !SAFETY_SETTINGS.router_mode ? "自动检查已关闭"
       : (safety.status !== "supported" && (safety.status !== "unknown" || SAFETY_SETTINGS.block_unknown))
         ? "将阻止启动" : "地区检查允许启动";
     rows.push(["启动规则", `${I18n.text(region)} · ${I18n.text(effect)}`]);
     rows.push(["出口 IP", network.ip || "未获取", !network.ip]);
     rows.push(["出口地区", [network.country, network.country_code, network.region].filter(Boolean).join(" · ") || "未知", !network.country_code]);
     rows.push(["检测连接", safety.route || "尚未确认"]);
+    if (safety.router) {
+      const labels = {match: "一致", mismatch: "不一致", unavailable: "未检测到默认路由", unknown: "无法判断"};
+      for (const service of safety.router.services || [])
+        rows.push([`${service.host} (IPv${service.family})`, service.status === "ok"
+          ? `${service.ip} · ${service.country_code}` : I18n.text("无法判断"), true]);
+      for (const family of [4, 6]) {
+        const probe = safety.router[`udp${family}`] || {};
+        rows.push([`UDP IPv${family}`, `${I18n.text(labels[probe.status] || "无法判断")}${probe.ip ? ` · ${probe.ip}` : ""}`, true]);
+      }
+      const dns = safety.router.dns;
+      rows.push(["DNS 解析器（单次参考）", dns && typeof dns === "object"
+        ? `${dns.ip} · ${dns.country_code} · AS${dns.asn}${dns.status === "warning" ? ` · ${I18n.text("需要复核")}` : ""}`
+        : I18n.text("无法判断"), true]);
+      rows.push(["浏览器 WebRTC", I18n.text("未验证目标浏览器")]);
+      rows.push(["IP 信誉", I18n.text("未查询")]);
+    }
   }
   if (privacy) {
     const network = privacy.https || {};
@@ -291,10 +311,13 @@ async function checkEnvironment() {
   document.getElementById("safety-app").disabled = true;
   const box = document.getElementById("safety-result");
   box.dataset.status = "checking"; box.innerHTML = "<p>正在检查出口地区与 WebRTC 出口…</p>";
-  const [safetyResult, privacyResult] = await Promise.allSettled([api().check_safety(id), api().check_privacy()]);
+  const [safetyResult, privacyResult] = await Promise.allSettled([
+    api().check_safety(id), SAFETY_SETTINGS.router_mode ? Promise.resolve(null) : api().check_privacy()]);
   if (safetyResult.status === "fulfilled") SAFETY_REPORTS[id] = safetyResult.value;
   else SAFETY_REPORTS[id] = { status: "unknown", reason: "环境检查失败，请重试。", checked_at: new Date().toISOString() };
-  if (privacyResult.status === "fulfilled") {
+  if (SAFETY_SETTINGS.router_mode) {
+    PRIVACY_REPORT = null;
+  } else if (privacyResult.status === "fulfilled") {
     PRIVACY_REPORT = privacyResult.value.report || null;
     PRIVACY_REPAIRS = privacyResult.value.repairs || [];
     privacyRepairsLoaded = true;

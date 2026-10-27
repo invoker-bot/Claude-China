@@ -15,16 +15,24 @@ if (new URLSearchParams(location.search).has("preview")) {
     { id: "grok-bot", display: "Grok Bot", found: true, running: false },
   ];
   let settings = { check_system_proxy: true, auto_proxy_env: false, env_vars: { HTTPS_PROXY: "http://127.0.0.1:7890" } };
-  let safetySettings = { enabled: true, block_unknown: true,
+  let safetySettings = { enabled: true, block_unknown: true, router_mode: false,
     policy: { kind: "blocked_regions", updated_on: "2026-10-21", blocked_regions:
       [["CN", "中国大陆"], ["HK", "香港"], ["MO", "澳门"], ["RU", "俄罗斯"], ["IR", "伊朗"], ["KP", "朝鲜"]].map(([code, name]) => ({ code, name })) },
     environment: { timezone: "Asia/Shanghai", utc_offset: "+0800", language: "zh-CN", region: "CN" } };
   const safetyReport = id => {
     const status = modes.get("safety") || "supported";
-    return { app_id: id, status, environment: safetySettings.environment, checked_at: new Date().toISOString(),
+    const report = { app_id: id, status, environment: safetySettings.environment, checked_at: new Date().toISOString(),
       policy: safetySettings.policy, route: "系统 HTTP 代理（预览示例）",
       network: status === "unknown" ? {} : { ip: "203.0.113.24", country: status === "unsupported" ? "China" : "Singapore", country_code: status === "unsupported" ? "CN" : "SG" },
       reason: status === "unknown" ? "无法确认出口地区（预览示例）。" : status === "unsupported" ? "出口位于统一禁止地区：中国大陆，禁止启动。" : "出口地区已识别，未命中统一禁止名单，符合当前地区限制规则。" };
+    if (safetySettings.router_mode) {
+      report.route = "路由器直连（启动时检测）";
+      report.router = {services: [{host: "claude.ai", family: 4, status: "ok", ip: "203.0.113.24", country_code: "SG"},
+        {host: "api.anthropic.com", family: 4, status: "ok", ip: "203.0.113.24", country_code: "SG"}],
+        udp4: {status: "match", ip: "203.0.113.24"}, udp6: {status: "unavailable"},
+        dns: {status: "observed", ip: "203.0.113.53", country_code: "SG", asn: 12345}, browser_webrtc: "unknown"};
+    }
+    return report;
   };
   const privacyBrowsers = {
     chrome: { value: null, source: null, state: "unset", editable: true },

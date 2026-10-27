@@ -210,6 +210,28 @@ def launch(profile_dict, extra_args, use_default_args=True):
 
     # Prepare environment
     env = prepare_environment(profile)
+    from .desktop import config as desktop_config
+    data = desktop_config.load_desktop_config()
+    settings = desktop_config.get_safety_settings(data)
+    if settings.get("router_mode") is True:
+        from .desktop import router
+        from .desktop.platforms import get_backend
+        backend = get_backend()
+        try:
+            if backend is None:
+                raise router.RouterError("当前平台无法检查路由器模式。")
+            router.check_ready("playwright", data, backend)
+            env = router.direct_environment(env)
+            app_id = "grok-bot" if ptype == "grok" else ptype
+            report = router.inspect(app_id, backend)
+            if not router.allowed(report, settings):
+                raise router.RouterError(report.get("reason", "无法确认网络环境。"))
+            router.check_ready("playwright", data, backend)
+            if desktop_config.launch_settings_changed(data, desktop_config.load_desktop_config()):
+                raise router.RouterError("检测期间启动设置发生变化，请重试。")
+        except router.RouterError as exc:
+            print("安全检查未通过：" + str(exc), file=sys.stderr)
+            sys.exit(1)
     from .desktop.playwright_guard import prepare_environment as guard_environment
     env = guard_environment(env)
 
@@ -217,8 +239,7 @@ def launch(profile_dict, extra_args, use_default_args=True):
     full_cmd = [cmd_path] + final_args
 
     if sys.platform == "win32":
-        from .desktop import cli_guard, config as desktop_config
-        data = desktop_config.load_desktop_config()
+        from .desktop import cli_guard
         if cli_guard.enabled(data):
             from .desktop.terminal_host import resolve_cli_argv
             full_cmd, env = cli_guard.prepare(resolve_cli_argv(ptype) + final_args, env, data)

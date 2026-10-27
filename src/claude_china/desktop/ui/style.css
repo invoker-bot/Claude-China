@@ -182,7 +182,8 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 #network-guard-target, #network-guard-mode, #network-guard-tunnel, #network-guard-browser-paths { width: 100%; max-width: 100%; min-width: 0; margin-top: 8px; padding: 9px 11px; color: var(--text); background: var(--input); border: 1px solid var(--line); border-radius: 6px; font: inherit; font-size: 13px; }
 #network-guard-browser-paths { resize: vertical; font-family: var(--mono); font-size: 12px; }
 .safety-details { margin: 14px 0; display: grid; gap: 6px; }
-.safety-details > div { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; }
+.safety-details > div { display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 1fr); gap: 12px; }
+.safety-details dt { min-width: 0; overflow-wrap: anywhere; }
 .safety-details dd { margin: 0; overflow-wrap: anywhere; user-select: text; }
 .safety-source { font-size: 12px; padding: 14px 0 0; }
 .safety-limit { margin-top: 12px; }

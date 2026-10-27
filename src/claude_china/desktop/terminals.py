@@ -288,11 +288,16 @@ class TerminalService:
         argv = resolve_cli_argv(record['type']) + arguments
         data = config.load_desktop_config()
         from . import cli_guard, egress, playwright_guard
+        settings = config.get_safety_settings(data)
+        router_mode = settings.get('router_mode') is True
+        if router_mode:
+            from . import router
+            router.check_ready('playwright', data, self.backend)
         tun_mode = egress.tun_enabled("playwright", data)
-        if not tun_mode and config.get_check_system_proxy(data) and not self.backend.proxy_enabled():
+        if not router_mode and not tun_mode and config.get_check_system_proxy(data) and not self.backend.proxy_enabled():
             raise ValueError('系统代理未开启，已取消启动。')
         proxy = None
-        if not tun_mode and config.get_auto_proxy_env(data):
+        if not router_mode and not tun_mode and config.get_auto_proxy_env(data):
             try:
                 proxy = self.backend.system_http_proxy()
             except SystemProxyError as exc:
@@ -303,14 +308,17 @@ class TerminalService:
                                   base_env=merge_env(os.environ, config.get_common_env(data)))
         if proxy and not record.get('proxy'):
             env.update({key: proxy for key in PROXY_ENV_VARS})
+        if router_mode:
+            env = router.direct_environment(env)
         env = playwright_guard.prepare_environment(env, data=data)
         argv, env = cli_guard.prepare(argv, env, data=data)
-        settings = config.get_safety_settings(data)
-        if settings['enabled']:
+        if settings['enabled'] or router_mode:
             app_id = 'grok-bot' if record['type'] == 'grok' else record['type']
             try:
                 status = AppStatus(app_id, True, True, argv[0], argv[0])
-                if cli_guard.enabled(data):
+                if router_mode:
+                    report = router.inspect(app_id, self.backend)
+                elif cli_guard.enabled(data):
                     tunnel = (egress._store().read().get('playwright') or {}).get('tunnel')
                     if not tunnel:
                         raise egress.GuardError('无法验证 CLI 的 TUN 隧道。')
@@ -321,6 +329,8 @@ class TerminalService:
                 report = {'status': 'unknown', 'reason': '无法确认环境。'}
             if not safety.launch_allowed(report, settings):
                 raise ValueError('安全检查未通过：' + report.get('reason', '无法确认环境。'))
+            if router_mode:
+                router.check_ready('playwright', data, self.backend)
         if config.launch_settings_changed(data, config.load_desktop_config()) or _existing(_read(), name) != record:
             raise ValueError('检测期间配置发生变化，请重新启动。')
         return argv, env

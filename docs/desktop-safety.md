@@ -11,6 +11,37 @@ in `~/.claudec/desktop.yaml` as `safety_check` and `safety_block_unknown`.
 Existing environment variables and application paths are preserved. Manual
 **检查环境** uses saved settings; unsaved edits do not change launch behavior.
 
+## Router preflight mode
+
+Choose **路由器模式（仅启动前检查）** and save, or run
+`claudec network-mode router`. To return to the prior proxy/TUN behavior, turn
+the switch off or run `claudec network-mode default`. Reapply any restored
+network guard when returning to a protected TUN setup. The mode does not require
+a local proxy and does not change system settings. Disable the system proxy and
+restore any existing system network protection for the selected desktop app or
+the **CLI / Playwright 浏览器** target before using it. Proxy variables are
+removed from managed child environments, but existing saved values are retained.
+
+Each managed desktop, terminal-profile and `claudec` launch checks the relevant
+service domains directly using their Cloudflare trace endpoints, checks the
+configured region denylist, and compares same-family HTTPS and STUN UDP exits.
+IPv6 is tested when a default route exists. A mismatch or blocked region cancels
+the launch. Unavailable service, UDP or IPv6 evidence blocks when **无法确认时
+也阻止启动** is enabled; turning it off allows unknown results. Router checks
+still run when the ordinary region-check switch is off. Existing desktop-app
+takeovers also use this launch path. Custom API endpoints, external launchers,
+remote browsers and processes not started by these paths are not checked.
+
+A single Cloudflare DNS TXT query samples the system resolver and is advisory:
+caching, domain-based rules and browser DoH can produce different results. A
+resolver in a blocked region is highlighted for review. Actual browser WebRTC
+and IP reputation are not measured, and the auxiliary UDP probe is not proof
+of either. Cloudflare service and DNS servers and STUN providers see the IPs
+that reach them. Reports stay in memory and do not include profile credentials.
+The router is responsible for routing and fail-closed behavior after launch;
+this mode does not install a firewall or prevent direct traffic after a router
+failure. A passing startup check is not an account-safety guarantee.
+
 Manual **检查环境** sends an auxiliary STUN request from the launcher and reports
 the proxy mode, Chrome/Edge policy state and IPv6 default route. It does not run
 WebRTC inside the target app. On Windows, **启用网络防护** keeps WebRTC enabled

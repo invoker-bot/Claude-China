@@ -126,6 +126,7 @@
             <div class="editor-body">
               <label class="switch" for="safety-enabled"><span class="switch-text"><span class="field-label">启动前检查环境</span><span class="field-hint">每次启动或重启前查询出口地区。命中统一禁止名单时取消启动，三个应用使用相同规则。</span></span><input type="checkbox" id="safety-enabled" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
               <label class="switch" for="safety-strict"><span class="switch-text"><span class="field-label">无法确认时也阻止启动</span><span class="field-hint">包括查询失败、无法识别地区或代理出口不明确。推荐开启。</span></span><input type="checkbox" id="safety-strict" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
+              <label class="switch" for="safety-router"><span class="switch-text"><span class="field-label">路由器模式（仅启动前检查）</span><span class="field-hint">使用路由器分流，无需本机代理；启动前检查服务与 UDP 出口。路由器故障时无法自动阻止直连；已启用系统网络防护时请先还原。</span></span><input type="checkbox" id="safety-router" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
               <div class="field"><h3 class="field-label">统一禁止地区</h3><p id="safety-blocked-regions"></p><p class="field-hint">其他已识别地区按当前规则放行。此名单是本应用的启动规则。</p></div>
               <div class="field"><h3 class="field-label">本机环境</h3><dl class="safety-local" id="safety-local"></dl><p class="field-hint">时区与语言仅供核对，不单独作为拦截依据。</p></div>
               <div class="field">

@@ -198,6 +198,7 @@ async function saveEditor(id) {
   finally {
     SAVING.delete(id);
     controls.forEach(el => { el.disabled = false; });
+    if (id === "safety" && typeof syncRouterTunControls === "function") syncRouterTunControls();
     markDrafts();
     if (APPS.some(app => app.id === id)) await refreshTakeover(id);
   }

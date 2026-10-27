@@ -102,6 +102,22 @@ def test_guarded_terminal_checks_region_using_its_tunnel(service, tmp_path, monk
     assert inspect.call_args.kwargs['tunnel'] == tunnel
 
 
+def test_router_terminal_checks_and_clears_profile_proxy(service, tmp_path, monkeypatch):
+    from claude_china.desktop import router
+    service.save_profile(dict(api_profile(), proxy='http://127.0.0.1:9999'))
+    data = config.load_desktop_config()
+    data.update(safety_router_mode=True, safety_check=False, check_system_proxy=True, auto_proxy_env=True)
+    config.save_desktop_config(data)
+    monkeypatch.setattr(router, 'check_ready', Mock())
+    monkeypatch.setattr(router, 'inspect', Mock(return_value={'status': 'supported', 'reason': 'fixture'}))
+    argv, env = service.prepare('work', str(tmp_path))
+    assert argv[0] == 'fixture-claude'
+    assert not any(key.lower() in ('http_proxy', 'https_proxy', 'all_proxy') for key in env)
+    assert env['NO_PROXY'] == '*'
+    assert router.inspect.called
+    service.backend.system_http_proxy.assert_not_called()
+
+
 def test_copy_profile_localizes_only_generated_suffix(service):
     data = config.load_desktop_config()
     data['language'] = 'en'
