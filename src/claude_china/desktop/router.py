@@ -34,7 +34,7 @@ def direct_environment(env):
     return result
 
 
-def check_ready(target, data, backend):
+def check_ready(target, data, backend, allow_router_guard=False):
     # A system proxy may be used by Electron/Chromium despite cleared env vars.
     try:
         system = backend.safety_proxy()
@@ -49,6 +49,11 @@ def check_ready(target, data, backend):
     try:
         if egress._intent(target, data) or target in egress._store().read():
             raise RouterError("该对象仍有系统网络防护，请先在安全检查中还原网络防护。")
+        if target in ('claude', 'playwright'):
+            from . import router_guardian
+            state = router_guardian.status(target)
+            if state['enabled'] and (not allow_router_guard or state.get('state') != 'healthy'):
+                raise RouterError("该对象仍有路由器运行防护，请先在安全检查中还原。")
     except RouterError:
         raise
     except Exception:

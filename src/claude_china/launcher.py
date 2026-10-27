@@ -233,10 +233,34 @@ def launch(profile_dict, extra_args, use_default_args=True):
             print("安全检查未通过：" + str(exc), file=sys.stderr)
             sys.exit(1)
     from .desktop.playwright_guard import prepare_environment as guard_environment
-    env = guard_environment(env)
+    try:
+        env = guard_environment(env, ensure_router_clear=ptype == 'claude')
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        sys.exit(1)
 
     final_args = merge_launch_args(extra_args, profile.default_args, use_default_args)
     full_cmd = [cmd_path] + final_args
+
+    if settings.get('router_mode') is True and ptype == 'claude':
+        from .desktop import playwright_guard, router_guardian
+        from .desktop.terminal_host import resolve_cli_argv
+        guardian = None
+        try:
+            if sys.platform != 'win32':
+                raise router_guardian.GuardError('Claude 路由器运行防护目前仅支持 Windows。')
+            full_cmd, targets = router_guardian.cli_targets(resolve_cli_argv(ptype) + final_args, env, data)
+            guardian = router_guardian.start('playwright', targets, report, settings)
+            env = playwright_guard.prepare_router_environment(env)
+            result = subprocess.run(full_cmd, env=env)
+        except KeyboardInterrupt:
+            sys.exit(130)
+        except Exception:
+            if guardian:
+                router_guardian.stop_session(guardian)
+            print('无法启动 Claude 路由器运行防护，请检查管理员授权和程序路径。', file=sys.stderr)
+            sys.exit(1)
+        sys.exit(result.returncode)
 
     if sys.platform == "win32":
         from .desktop import cli_guard

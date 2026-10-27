@@ -164,11 +164,28 @@ def run_session(path):
         if job['profile'] is None:
             return 0
         options = {'session_id': job['session_id']} if 'session_id' in job else {}
-        argv, env = TerminalService(get_backend()).prepare(job['profile'], directory, **options)
+        service = TerminalService(get_backend())
+        argv, env = service.prepare(job['profile'], directory, **options)
+        guardian = None
+        context = service._router_context
+        if context:
+            from . import playwright_guard, router_guardian
+            argv, targets = router_guardian.cli_targets(argv, env, context['data'])
+            guardian = router_guardian.start('playwright', targets, context['baseline'], context['settings'])
+            try:
+                env = playwright_guard.prepare_router_environment(env)
+            except Exception:
+                router_guardian.stop_session(guardian)
+                raise
         print('Claude China · ' + job['profile'], flush=True)
         # Credentials exist only in the child's environment, never terminal
         # history, shell source or the temporary launch request.
-        return process.run(argv, cwd=directory, env=env).returncode
+        try:
+            return process.run(argv, cwd=directory, env=env).returncode
+        except OSError:
+            if guardian:
+                router_guardian.stop_session(guardian)
+            raise
     except KeyboardInterrupt:
         return 130
     except ValueError as exc:

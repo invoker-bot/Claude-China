@@ -72,6 +72,12 @@ class Display(C.Structure):
     _fields_ = [("name", C.c_wchar_p), ("description", C.c_wchar_p)]
 
 
+class Session(C.Structure):
+    _fields_ = [("key", GUID), ("display", Display), ("flags", U32),
+                ("timeout", U32), ("process_id", U32), ("sid", PTR),
+                ("username", C.c_wchar_p), ("kernel_mode", C.c_int)]
+
+
 class Provider(C.Structure):
     _fields_ = [("key", GUID), ("display", Display), ("flags", U32),
                 ("data", Blob), ("service", C.c_wchar_p)]
@@ -144,17 +150,16 @@ def _api():
     return dll
 
 
-def current_sid():
+def _process_token_sid(process):
     advapi = C.WinDLL("advapi32", use_last_error=True)
     kernel = C.WinDLL("kernel32", use_last_error=True)
-    kernel.GetCurrentProcess.restype = PTR
     kernel.CloseHandle.argtypes = [PTR]
     kernel.LocalFree.argtypes = [PTR]
     advapi.OpenProcessToken.argtypes = [PTR, U32, C.POINTER(PTR)]
     advapi.GetTokenInformation.argtypes = [PTR, U32, PTR, U32, C.POINTER(U32)]
     advapi.ConvertSidToStringSidW.argtypes = [PTR, C.POINTER(PTR)]
     token = PTR()
-    if not advapi.OpenProcessToken(kernel.GetCurrentProcess(), 8, C.byref(token)):
+    if not advapi.OpenProcessToken(process, 8, C.byref(token)):
         raise C.WinError()
     try:
         size = U32()
@@ -172,6 +177,26 @@ def current_sid():
             kernel.LocalFree(string)
     finally:
         kernel.CloseHandle(token)
+
+
+def current_sid():
+    kernel = C.WinDLL("kernel32", use_last_error=True)
+    kernel.GetCurrentProcess.restype = PTR
+    return _process_token_sid(kernel.GetCurrentProcess())
+
+
+def process_sid(pid):
+    kernel = C.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [U32, C.c_bool, U32]
+    kernel.OpenProcess.restype = PTR
+    kernel.CloseHandle.argtypes = [PTR]
+    handle = kernel.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+    if not handle:
+        raise C.WinError()
+    try:
+        return _process_token_sid(handle)
+    finally:
+        kernel.CloseHandle(handle)
 
 
 @contextmanager
@@ -199,7 +224,10 @@ def validate(policies):
         if not isinstance(policy, dict):
             raise ValueError("Invalid network guard policy")
         tun = policy.get("mode") == "tun"
-        if set(policy) != ({"executables", "mode", "tunnel"} if tun else {"executables", "proxy"}):
+        router = policy.get("mode") == "router"
+        expected = ({"executables", "mode", "tunnel"} if tun else
+                    {"executables", "mode"} if router else {"executables", "proxy"})
+        if set(policy) != expected:
             raise ValueError("Invalid network guard policy")
         paths = policy["executables"]
         if not isinstance(paths, list) or not 0 < len(paths) <= 128:
@@ -211,6 +239,8 @@ def validate(policies):
             if identity in seen:
                 raise ValueError("Applications cannot share protected executables")
             seen.add(identity)
+        if router:
+            continue
         if tun:
             tunnel = policy["tunnel"]
             if not isinstance(tunnel, dict) or set(tunnel) != {"guid", "luid", "index", "name", "addresses"}:
@@ -238,7 +268,7 @@ def validate(policies):
 
 
 class Engine:
-    def __init__(self, owner=None, scope="apps"):
+    def __init__(self, owner=None, scope="apps", dynamic=False):
         self.owner = owner or current_sid()
         if not re.fullmatch(r"S-1-(?:\d+-)+\d+", self.owner):
             raise ValueError("Invalid Windows user")
@@ -246,9 +276,14 @@ class Engine:
         self.sublayer = GUID(uuid.uuid5(uuid.UUID(str(self.key)), "sublayer"))
         self.api = _api()
         self.handle = PTR()
+        self.dynamic = bool(dynamic)
 
     def __enter__(self):
-        _check(self.api.FwpmEngineOpen0(None, 10, None, None, C.byref(self.handle)))
+        session = Session()
+        session.flags = 1 if self.dynamic else 0  # FWPM_SESSION_FLAG_DYNAMIC
+        _check(self.api.FwpmEngineOpen0(None, 10, None,
+                                       C.byref(session) if self.dynamic else None,
+                                       C.byref(self.handle)))
         return self
 
     def __exit__(self, *_):
@@ -335,7 +370,7 @@ class Engine:
         return (str(item.key), item.flags & ~0x40, str(item.layer), str(item.sublayer),
                 item.action.type, item.weight.type, self._value(item.weight), conditions)
 
-    def _build(self, policies, callback):
+    def _build(self, policies, callback, router_permits=False):
         """Higher-weight proxy permits precede default deny in our own sublayer.
 
         Permits are soft: another provider's block is never overridden.
@@ -360,6 +395,10 @@ class Engine:
                     _check(self.api.FwpmGetAppIdFromFileName0(canonical, C.byref(app_blob)))
                     try:
                         for version in (4, 6):
+                            if policy.get("mode") == "router":
+                                function = self._router_permits if router_permits else self._router_filters
+                                function(app_id, path, version, app_blob, sd, callback)
+                                continue
                             if policy.get("mode") == "tun":
                                 self._tun_filters(app_id, path, version, app_blob, sd, policy["tunnel"], callback)
                                 continue
@@ -414,17 +453,81 @@ class Engine:
             item.value.type, item.value.pointer = 11, C.cast(buffer, PTR)
         return item
 
-    def _emit(self, key, label, layer, conditions, action, weight, callback):
+    def _emit(self, key, label, layer, conditions, action, weight, callback, persistent=True):
         item = Filter()
         item.key = GUID(uuid.uuid5(uuid.UUID(str(self.key)), key))
         item.display = Display("Claude China: " + label, "Tunnel-only network guard")
-        item.flags, item.provider = PERSISTENT, C.pointer(self.key)
+        item.flags, item.provider = PERSISTENT if persistent else 0, C.pointer(self.key)
         item.layer, item.sublayer = GUID(layer), self.sublayer
         item.weight.type, item.weight.u64 = 4, C.pointer(U64(weight))
         values = (Condition * len(conditions))(*conditions)
         item.count, item.conditions = len(values), values
         item.action.type = action
         callback(item)
+
+    def _router_filters(self, app_id, path, version, app_blob, sd, callback):
+        app, user = Condition(), Condition()
+        app.field, app.value.type, app.value.blob = GUID(APP_ID), 12, app_blob
+        user.field, user.value.type, user.value.blob = GUID(USER_ID), 14, C.pointer(sd)
+        base = [app, user]
+        for incoming, layers in ((False, LAYERS), (True, RECEIVE_LAYERS)):
+            prefix = app_id + "|" + path.casefold() + "|" + str(version) + ("|router-in" if incoming else "|router-out")
+            self._emit(prefix + "|deny", app_id, layers[version], base, BLOCK, 1, callback)
+            loopback = ipaddress.ip_address("127.0.0.1" if version == 4 else "::1")
+            self._emit(prefix + "|local-control", app_id, layers[version],
+                       base + [self._number(PROTOCOL, 1, 6), self._ip_condition(REMOTE_IP, loopback)],
+                       PERMIT, 100, callback)
+
+    def _router_permits(self, app_id, path, version, app_blob, sd, callback):
+        app, user = Condition(), Condition()
+        app.field, app.value.type, app.value.blob = GUID(APP_ID), 12, app_blob
+        user.field, user.value.type, user.value.blob = GUID(USER_ID), 14, C.pointer(sd)
+        for incoming, layers in ((False, LAYERS), (True, RECEIVE_LAYERS)):
+            prefix = app_id + "|" + path.casefold() + "|" + str(version) + ("|router-in" if incoming else "|router-out")
+            self._emit(prefix + "|healthy", app_id, layers[version], [app, user],
+                       PERMIT, 200, callback, persistent=False)
+
+    def add_router_permits(self, policies):
+        if not self.dynamic or any(p.get("mode") != "router" for p in policies.values()):
+            raise ValueError("Router permits require a dynamic session")
+        validate(policies)
+        acl = "D:(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;" + self.owner + ")"
+        _check(self.api.FwpmTransactionBegin0(self.handle, 0))
+        try:
+            with security_descriptor(acl) as (descriptor, _):
+                self._build(policies, lambda item: _check(self.api.FwpmFilterAdd0(
+                    self.handle, C.byref(item), descriptor, None)), router_permits=True)
+            _check(self.api.FwpmTransactionCommit0(self.handle))
+        except BaseException:
+            self.api.FwpmTransactionAbort0(self.handle)
+            raise
+
+    def verify_router_permits(self, policies):
+        if any(p.get("mode") != "router" for p in policies.values()):
+            return False
+        expected = {}
+        self._build(policies, lambda item: expected.update({str(item.key): self._signature(item)}), router_permits=True)
+        return self._verify_signatures(expected)
+
+    def router_permits_present(self, policies):
+        """Check for any live permit without needing an EXE to still exist."""
+        validate(policies)
+        if any(policy.get('mode') != 'router' for policy in policies.values()):
+            raise ValueError('Invalid router policy')
+        for app_id, policy in policies.items():
+            for path in policy['executables']:
+                for version in (4, 6):
+                    for direction in ('router-in', 'router-out'):
+                        name = app_id + '|' + path.casefold() + '|' + str(version) + '|' + direction + '|healthy'
+                        key = GUID(uuid.uuid5(uuid.UUID(str(self.key)), name))
+                        pointer = C.POINTER(Filter)()
+                        code = self.api.FwpmFilterGetByKey0(self.handle, C.byref(key), C.byref(pointer))
+                        if code == 0x80320003:  # FWP_E_FILTER_NOT_FOUND
+                            continue
+                        _check(code)
+                        self._free(pointer)
+                        return True
+        return False
 
     def _tun_filters(self, app_id, path, version, app_blob, sd, tunnel, callback):
         app, user = Condition(), Condition()
@@ -486,6 +589,9 @@ class Engine:
             return False
         expected = {}
         self._build(policies, lambda item: expected.update({str(item.key): self._signature(item)}))
+        return self._verify_signatures(expected)
+
+    def _verify_signatures(self, expected):
         for value, signature in expected.items():
             key, pointer = GUID(value), C.POINTER(Filter)()
             code = self.api.FwpmFilterGetByKey0(self.handle, C.byref(key), C.byref(pointer))
@@ -553,7 +659,7 @@ class Store:
             return engine.verify(policies)
 
 
-def _elevate(arguments):
+def _open_elevated(arguments):
     from ctypes import wintypes as W
 
     class ExecuteInfo(C.Structure):
@@ -574,18 +680,23 @@ def _elevate(arguments):
     shell.ShellExecuteExW.argtypes = [C.POINTER(ExecuteInfo)]
     if not shell.ShellExecuteExW(C.byref(info)):
         raise OSError("管理员授权被取消，系统网络防护未更改。")
+    return info.process
+
+
+def _elevate(arguments):
+    handle = _open_elevated(arguments)
     kernel = C.WinDLL("kernel32", use_last_error=True)
     kernel.WaitForSingleObject.argtypes = [PTR, U32]
     kernel.GetExitCodeProcess.argtypes = [PTR, C.POINTER(U32)]
     kernel.CloseHandle.argtypes = [PTR]
     try:
-        if kernel.WaitForSingleObject(info.process, 120000) != 0:
+        if kernel.WaitForSingleObject(handle, 120000) != 0:
             raise OSError("系统网络防护操作仍未完成，请检查管理员授权窗口。")
         code = U32()
-        if not kernel.GetExitCodeProcess(info.process, C.byref(code)) or code.value:
+        if not kernel.GetExitCodeProcess(handle, C.byref(code)) or code.value:
             raise OSError("无法修改系统网络防护，请检查管理员授权与网络筛选服务。")
     finally:
-        kernel.CloseHandle(info.process)
+        kernel.CloseHandle(handle)
 
 
 def write_policies(policies, expected=None):

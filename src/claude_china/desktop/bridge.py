@@ -4,7 +4,7 @@ import threading
 
 from .apps import APP_REGISTRY, get_app
 from . import config as cfg
-from . import egress, privacy, router, safety
+from . import egress, privacy, router, router_guardian, safety
 from .env import merge_env
 from .proxy import SystemProxyError
 
@@ -164,13 +164,24 @@ class LauncherBridge:
                     router.check_ready(app_id, data, self._backend)
                 except router.RouterError as exc:
                     return {"ok": False, "error": str(exc)}
+        guardian = None
+        if router_mode and app_id == 'claude':
+            try:
+                targets = self._backend.network_guard_targets(status)
+                guardian = router_guardian.start(app_id, targets, report, settings)
+            except Exception:
+                return {"ok": False, "error": "无法启动 Claude 路由器运行防护，请检查管理员授权和程序路径。"}
         try:
             self._backend.stop(status)
         except Exception as exc:
+            if guardian:
+                router_guardian.stop_session(guardian)
             return {"ok": False, "error": f"中止失败: {exc}"}
         try:
             self._backend.launch(status, env)
         except Exception as exc:
+            if guardian:
+                router_guardian.stop_session(guardian)
             return {"ok": False, "error": f"启动失败: {exc}"}
         return {"ok": True, "safety": report} if report else {"ok": True}
 
@@ -345,10 +356,11 @@ class LauncherBridge:
             cfg.save_desktop_config(data)
         return {"ok": True}
 
-    def _check_safety(self, app_id, env, status, settings):
+    def _check_safety(self, app_id, env, status, settings, allow_router_guard=False):
         try:
             if settings.get("router_mode"):
-                router.check_ready(app_id, cfg.load_desktop_config(), self._backend)
+                router.check_ready(app_id, cfg.load_desktop_config(), self._backend,
+                                   allow_router_guard=allow_router_guard)
                 report = router.inspect(app_id, self._backend)
             else:
                 report = safety.inspect_environment(app_id, env, self._backend, status)
@@ -373,7 +385,7 @@ class LauncherBridge:
                         "environment": safety.local_environment(),
                         "reason": "无法解析系统 HTTP 代理，自动添加代理环境变量将阻止启动。"}
         env = merge_env(os.environ, cfg.get_common_env(data), cfg.get_app_env(data, app_id), proxy_url=proxy_url)
-        return self._check_safety(app_id, env, status, cfg.get_safety_settings(data))
+        return self._check_safety(app_id, env, status, cfg.get_safety_settings(data), allow_router_guard=True)
 
     # ---- browser WebRTC privacy ----
     def _guard_detect(self, app_id, data):
@@ -386,13 +398,26 @@ class LauncherBridge:
         try:
             data = cfg.load_desktop_config()
             detected = self._guard_detect(app_id, data)
-            return {"ok": True, "state": egress.status(app_id, self._backend, detected)}
+            state = egress.status(app_id, self._backend, detected)
+            if egress.supported() and app_id in router_guardian.TARGETS:
+                current = router_guardian.status(app_id)
+                if current['enabled']:
+                    messages = {'healthy': '路由器运行防护已启用；网络异常时将阻断连接并保留会话。',
+                                'blocked': 'Claude 网络已阻断；检查网络后可还原防护。',
+                                'unknown': '无法验证路由器运行防护，请检查或还原。'}
+                    state.update(enabled=True, verified=current['state'] in ('healthy', 'blocked'),
+                                 can_restore=True, can_apply=False, mode='router', router_state=current['state'],
+                                 executables=current.get('policy', {}).get('executables', []),
+                                 message=messages.get(current['state'], messages['unknown']))
+            return {"ok": True, "state": state}
         except Exception:
             return {"ok": False, "error": "无法读取系统网络防护状态。"}
 
     def apply_network_guard(self, app_id, options=None):
         self._notify_activity()
         try:
+            if egress.supported() and app_id in router_guardian.TARGETS and router_guardian.status(app_id)['enabled']:
+                raise egress.GuardError('该对象仍有路由器运行防护，请先在安全检查中还原。')
             data = cfg.load_desktop_config()
             detected = self._guard_detect(app_id, data)
             state = egress.apply(app_id, self._backend, detected, options)
@@ -405,8 +430,14 @@ class LauncherBridge:
     def restore_network_guard(self, app_id):
         self._notify_activity()
         try:
-            egress.restore(app_id)
+            current = router_guardian.status(app_id) if egress.supported() and app_id in router_guardian.TARGETS else {'enabled': False}
+            if current['enabled']:
+                router_guardian.restore(app_id)
+            else:
+                egress.restore(app_id)
             return self.get_network_guard(app_id)
+        except router_guardian.GuardError as exc:
+            return {"ok": False, "error": str(exc)}
         except egress.GuardError as exc:
             return {"ok": False, "error": str(exc)}
         except Exception:

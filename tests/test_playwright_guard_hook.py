@@ -51,7 +51,8 @@ def test_cli_children_are_denied_before_spawn_when_cli_guard_is_enabled(cli):
     assert result.returncode == 0, result.stderr
 
 
-def test_tun_browser_uses_tunnel_routing_without_changing_cli_proxy_environment():
+@pytest.mark.parametrize('mode', ['tun', 'router'])
+def test_protected_browser_uses_direct_routing_without_changing_cli_proxy_environment(mode):
     node = shutil.which("node")
     if not node:
         pytest.skip("Node is not installed")
@@ -59,7 +60,7 @@ def test_tun_browser_uses_tunnel_routing_without_changing_cli_proxy_environment(
     env = dict(os.environ)
     env.pop("NODE_OPTIONS", None)
     env["HTTP_PROXY"] = "http://local-proxy:9999"
-    env["CLAUDEC_BROWSER_GUARD_HELPER"] = json.dumps([sys.executable, "-c", "print('{\"mode\":\"tun\"}')"])
+    env["CLAUDEC_BROWSER_GUARD_HELPER"] = json.dumps([sys.executable, "-c", "print(" + repr(json.dumps({'mode': mode})) + ")"])
     script = """const cp=require('child_process'), original=cp.spawnSync;
 cp.spawnSync=function(file,args,options){
  if(file==='chrome.exe') {console.log(JSON.stringify({args,env:options.env}));return {status:0};}

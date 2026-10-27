@@ -61,6 +61,20 @@ def tunnel_live(tunnel):
 
 
 def check_browser(executable, store=None):
+    if os.environ.get('CLAUDEC_ROUTER_GUARD') == '1':
+        from . import router_guardian
+        state = router_guardian.status(TARGET)
+        if state.get('state') != 'healthy':
+            raise egress.GuardError('路由器运行防护已失效，已阻止浏览器启动。')
+        try:
+            target = os.path.normcase(str(Path(executable).resolve(strict=True)))
+        except OSError:
+            raise egress.GuardError('Playwright 浏览器路径无效，已阻止启动。') from None
+        policy = state['policy']
+        registered = {os.path.normcase(str(Path(path).resolve())) for path in policy['executables']}
+        if target not in registered:
+            raise egress.GuardError('此 Playwright 浏览器尚未登记防护；请重新启动受管 CLI。')
+        return policy
     store = egress._store() if store is None else store
     policies = store.read()
     policy = policies.get(TARGET)
@@ -82,12 +96,17 @@ def check_browser(executable, store=None):
     return policy
 
 
-def prepare_environment(env, data=None):
+def prepare_environment(env, data=None, ensure_router_clear=False):
+    if ensure_router_clear and egress.supported():
+        from . import router_guardian
+        if router_guardian.status(TARGET)['enabled']:
+            raise egress.GuardError('CLI 仍有路由器运行防护，请先在安全检查中还原。')
     result = dict(env)
     # Remove only our own preload, preserving unrelated Node options.
     own_option = "--require=" + json.dumps(HOOK.resolve().as_posix())
     previous = result.get("NODE_OPTIONS", "").replace(own_option, "").strip()
     result.pop(HELPER, None)
+    result.pop('CLAUDEC_ROUTER_GUARD', None)
     if previous:
         result["NODE_OPTIONS"] = previous
     else:
@@ -102,6 +121,10 @@ def prepare_environment(env, data=None):
         raise egress.GuardError("无法验证 Playwright 防护规则，已阻止 CLI 启动。")
     if policy.get("mode") == "tun" and not tunnel_live(policy["tunnel"]):
         raise egress.GuardError("指定 TUN 隧道已断开或身份变化，已阻止 CLI 启动。")
+    return _inject(result, previous)
+
+
+def _inject(result, previous):
     command = [sys.executable]
     if not getattr(sys, "frozen", False):
         command += ["-m", "claude_china.desktop.entry"]
@@ -109,3 +132,15 @@ def prepare_environment(env, data=None):
     result[HELPER] = json.dumps(command)
     result["NODE_OPTIONS"] = (previous + " --require=" + json.dumps(HOOK.resolve().as_posix())).strip()
     return result
+
+
+def prepare_router_environment(env):
+    from . import router_guardian
+    if router_guardian.status(TARGET).get('state') != 'healthy':
+        raise egress.GuardError('无法验证路由器运行防护，已阻止 CLI 启动。')
+    result = dict(env)
+    own = '--require=' + json.dumps(HOOK.resolve().as_posix())
+    previous = result.get('NODE_OPTIONS', '').replace(own, '').strip()
+    result['CLAUDEC_ROUTER_GUARD'] = '1'
+    result['CLAUDEC_CLI_GUARD'] = '1'
+    return _inject(result, previous)

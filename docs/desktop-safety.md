@@ -13,11 +13,11 @@ Existing environment variables and application paths are preserved. Manual
 
 ## Router preflight mode
 
-Choose **路由器模式（仅启动前检查）** and save, or run
+Choose **路由器模式** and save, or run
 `claudec network-mode router`. To return to the prior proxy/TUN behavior, turn
 the switch off or run `claudec network-mode default`. Reapply any restored
 network guard when returning to a protected TUN setup. The mode does not require
-a local proxy and does not change system settings. Disable the system proxy and
+a local proxy. Disable the system proxy and
 restore any existing system network protection for the selected desktop app or
 the **CLI / Playwright 浏览器** target before using it. Proxy variables are
 removed from managed child environments, but existing saved values are retained.
@@ -38,9 +38,38 @@ resolver in a blocked region is highlighted for review. Actual browser WebRTC
 and IP reputation are not measured, and the auxiliary UDP probe is not proof
 of either. Cloudflare service and DNS servers and STUN providers see the IPs
 that reach them. Reports stay in memory and do not include profile credentials.
-The router is responsible for routing and fail-closed behavior after launch;
-this mode does not install a firewall or prevent direct traffic after a router
-failure. A passing startup check is not an account-safety guarantee.
+A passing startup check is not an account-safety guarantee.
+
+On Windows, a managed Claude desktop or Claude CLI launch additionally requests
+administrator authorization and installs user-scoped WFP rules for the registered
+Claude installation or managed CLI and discovered local Playwright browser EXEs.
+The elevation must use the same Windows account as the requesting session;
+cross-account administrator credentials are rejected for runtime monitoring.
+The guard checks the same service and UDP measurements every 10 seconds; a
+probe may take up to 12 seconds before it is treated as unknown. A blocked
+region, mismatched or changed exit, newly detected IPv6 route, or an unknown
+result in strict mode removes the temporary network permits. A crash of the
+monitor also removes those permits. The persistent deny remains in place for
+registered programs, including already-established connections, and a warning
+is displayed; the program and its session are not terminated. Normal session
+exit removes the guard, and **安全检查 → 还原网络防护** removes it after a
+failure. Administrator authorization is needed again when restoring a failed
+guard. The uninstaller restores both router targets before it removes the app.
+
+Checks are periodic, not an instantaneous router kill switch: traffic can leave
+before a failure is detected, and actual timing can vary with system load. If
+unknown results are allowed, an unobservable failure alone does not trigger a
+block. The check uses launcher-side probes, not traffic inspection inside Claude
+or the browser; it cannot guarantee provider availability or detect every split
+route. The guard is tied to registered executable paths and the Windows user,
+not a full process tree: other invocations of a registered browser EXE are also
+affected, while new versions, arbitrary shell tools, external launchers, remote
+or container browsers, and system DNS are not covered. TCP loopback remains
+available for local control; a separate local relay could therefore carry
+traffic onward. Restart a managed session after updating its browser or CLI so
+its paths are registered again. Codex and Grok retain startup checks only.
+Claude runtime protection is currently Windows-only; its managed router-mode
+launches on other platforms are rejected instead of claiming this protection.
 
 Manual **检查环境** sends an auxiliary STUN request from the launcher and reports
 the proxy mode, Chrome/Edge policy state and IPv6 default route. It does not run

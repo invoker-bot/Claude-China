@@ -445,12 +445,17 @@ validation still runs before that activation.
 ### Environment check and WebRTC repair
 
 For a network routed by the router without a local proxy, choose **设置 → 安全检查
-→ 路由器模式（仅启动前检查）**, or run `claudec network-mode router`. First
+→ 路由器模式**, or run `claudec network-mode router`. First
 disable the system proxy and restore existing network guards for the target app
 and CLI / Playwright. Managed launches check service-specific HTTPS and UDP
 exits; DNS is an advisory single sample. Actual browser WebRTC and IP reputation
-remain unverified. This is a startup check and cannot block direct connections
-if the router later fails. See [router preflight mode](docs/desktop-safety.md#router-preflight-mode).
+remain unverified. On Windows, managed Claude desktop and Claude CLI launches
+also request administrator authorization for a running network guard. It
+checks the route periodically and blocks registered Claude and Playwright EXEs
+when the check fails or the monitor exits, while keeping the session open.
+Detection is not instantaneous; traffic may escape before the next check. Codex
+and Grok receive startup checks only. See [router mode](docs/desktop-safety.md#router-preflight-mode)
+for the recovery steps and coverage limits.
 
 **设置 → 安全检查 → 检查环境** runs both checks at once. It compares the HTTPS
 exit (through the configured HTTP proxy) with the machine's UDP exit measured by

@@ -31,6 +31,8 @@ class MemoryStore:
 
 @pytest.fixture
 def setup(tmp_path, monkeypatch):
+    from src.claude_china.desktop import router_guardian
+    monkeypatch.setattr(router_guardian, 'status', lambda target: {'enabled': False, 'state': 'none'})
     monkeypatch.setattr(cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
     app_dir = tmp_path / "Claude"
     app_dir.mkdir()
@@ -120,6 +122,24 @@ def test_guard_is_checked_before_stopping_or_starting_even_when_region_check_is_
     assert result["ok"] is False
     backend.launch.assert_not_called()
     backend.stop.assert_not_called()
+
+
+def test_default_mode_cannot_bypass_existing_router_guard(setup, monkeypatch):
+    from src.claude_china.desktop import router_guardian
+    bridge, backend, _, _ = setup
+    monkeypatch.setattr(router_guardian, 'status', lambda target: {'enabled': True, 'state': 'blocked'})
+    result = bridge.launch_app('claude')
+    assert not result['ok']
+    backend.launch.assert_not_called()
+    backend.stop.assert_not_called()
+
+
+def test_uninstall_restores_both_router_targets(setup, monkeypatch):
+    from src.claude_china.desktop import router_guardian
+    restore = Mock()
+    monkeypatch.setattr(router_guardian, 'restore', restore)
+    assert egress.uninstall() == 0
+    assert [call.args[0] for call in restore.call_args_list] == ['claude', 'playwright']
 
 
 @pytest.mark.parametrize("change", ["proxy", "target", "filters"])

@@ -11,6 +11,8 @@ from claude_china.desktop import config, safety, terminals
 
 @pytest.fixture
 def service(tmp_path, monkeypatch):
+    from claude_china.desktop import router_guardian
+    monkeypatch.setattr(router_guardian, 'status', lambda target: {'enabled': False, 'state': 'none'})
     monkeypatch.setattr(cli_config, 'CONFIG_FILE', tmp_path / 'config.yaml')
     monkeypatch.setattr(config, 'DESKTOP_CONFIG_FILE', tmp_path / 'desktop.yaml')
     cli_config.save_config({'profiles': {}, 'other': {'keep': True}})
@@ -95,7 +97,7 @@ def test_guarded_terminal_checks_region_using_its_tunnel(service, tmp_path, monk
     monkeypatch.setattr(cli_guard, 'prepare', lambda argv, env, data: (argv, env))
     monkeypatch.setattr(egress, 'tun_enabled', lambda *args: True)
     monkeypatch.setattr(egress, '_store', lambda: type('Store', (), {'read': lambda self: {'playwright': {'tunnel': tunnel}}})())
-    monkeypatch.setattr(playwright_guard, 'prepare_environment', lambda env, data: env)
+    monkeypatch.setattr(playwright_guard, 'prepare_environment', lambda env, data, **kwargs: env)
     inspect = Mock(return_value={'status': 'supported', 'reason': 'fixture'})
     monkeypatch.setattr(safety, 'inspect_environment', inspect)
     service.prepare('work', str(tmp_path))

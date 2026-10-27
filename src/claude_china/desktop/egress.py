@@ -227,6 +227,10 @@ def restore(app_id):
 
 def ensure(app_id, backend, detected, data=None):
     """Launch-time verification remains mandatory even if region checks are off."""
+    if app_id == 'claude' and supported():
+        from . import router_guardian
+        if router_guardian.status(app_id)['enabled']:
+            raise GuardError('该对象仍有路由器运行防护，请先在安全检查中还原。')
     if not _intent(app_id, data):
         return {"enabled": False, "verified": False}
     state = status(app_id, backend, detected, data=data, for_launch=True)
@@ -248,6 +252,9 @@ def uninstall():
     """Remove only this user's owned provider before deleting the launcher."""
     if not supported():
         return 0
+    from . import router_guardian
+    for target in router_guardian.TARGETS:
+        router_guardian.restore(target)
     with _LOCK:
         before = _store().read()
         if before:

@@ -18,6 +18,7 @@ function renderNetworkControls() {
   const id = networkGuardTarget(), state = NETWORK_GUARDS[id];
   if (!state) return;
   const draft = NETWORK_DRAFTS[id] ||= {mode: state.mode || "proxy", guid: state.tunnel?.guid || "", paths: (state.browser_paths || []).join("\n"), includeCli: state.include_cli === true};
+  if (state.router_state) draft.mode = "router";
   document.getElementById("network-guard-mode").value = draft.mode;
   const tunnels = document.getElementById("network-guard-tunnel");
   const records = state.tunnels || [];
@@ -115,6 +116,7 @@ function environmentStatus(safety, privacy) {
   if (safety?.status === "unsupported") return "unsupported";
   if (safety?.router?.dns?.status === "warning") return "warn";
   const guard = NETWORK_GUARDS[document.getElementById("safety-app").value];
+  if (guard?.router_state === "blocked" || guard?.router_state === "unknown") return "warn";
   if (guard?.enabled && !guard.verified) return "warn";
   if (safety?.router) return safety.status === "supported" ? "ok" : "unknown";
   if (privacy?.level === "warn" && !guard?.verified) return "warn";
@@ -181,6 +183,11 @@ function environmentRows(safety, privacy) {
     rows.push(["浏览器策略", ["chrome", "edge"].map(privacyPolicyLabel).join(" · ")]);
     rows.push(["IPv6", privacyIpv6Label(privacy.ipv6)]);
   }
+  const guard = NETWORK_GUARDS[document.getElementById("safety-app").value];
+  if (guard?.router_state) {
+    const states = {healthy: "运行防护正常", blocked: "网络已阻断", unknown: "无法验证"};
+    rows.push(["路由器运行防护", I18n.text(states[guard.router_state] || "无法验证")]);
+  }
   return rows;
 }
 function renderEnvironmentActions(privacy) {
@@ -202,7 +209,7 @@ function renderEnvironmentActions(privacy) {
       const selected = (guard.tunnels || []).find(item => item.guid === draft?.guid);
       const canApply = draft?.mode === "tun" ? guard.found && selected?.up && selected.addresses?.length &&
         (id !== "playwright" || guard.browser_count || draft.paths.trim()) : guard.can_apply;
-      enable.disabled = !canApply || networkGuardBusy || environmentChecking;
+      enable.disabled = !!guard.router_state || !canApply || networkGuardBusy || environmentChecking;
       enable.onclick = () => changeNetworkGuard(true);
       actions.appendChild(enable);
     }
@@ -262,6 +269,7 @@ async function changeNetworkGuard(enabled) {
     if (!result.ok) toast(result.error || "系统网络防护操作失败，请重试。");
     else {
       NETWORK_GUARDS[id] = result.state;
+      if (!enabled) delete NETWORK_DRAFTS[id];
       toast(enabled ? (result.state.verified ? "网络防护已启用，WebRTC 保持启用。" : result.state.message) : "网络防护已还原。");
     }
   } catch (_) { toast("系统网络防护操作失败，请重试。"); }

@@ -146,3 +146,38 @@ def test_resume_worker_passes_only_session_id_to_fresh_preparation(jobs, tmp_pat
     path = terminal_host.create_job('work', str(tmp_path), session_id=session_id)
     assert terminal_host.run_session(path) == 0
     prepare.assert_called_once_with('work', str(tmp_path), session_id=session_id)
+
+
+def test_router_terminal_installs_guard_before_spawning_cli(jobs, tmp_path, monkeypatch):
+    from claude_china.desktop import playwright_guard, router_guardian, terminals
+    context = {'baseline': {'status': 'supported'}, 'settings': {'block_unknown': True}, 'data': {}}
+    def prepare(self, *args, **kwargs):
+        self._router_context = context
+        return ['claude.exe'], {'SAFE': 'value'}
+    monkeypatch.setattr(terminals.TerminalService, 'prepare', prepare)
+    collect = Mock(return_value=(['guarded.exe'], ['guarded.exe', 'browser.exe']))
+    start = Mock(return_value={'target': 'playwright'})
+    monkeypatch.setattr(router_guardian, 'cli_targets', collect)
+    monkeypatch.setattr(router_guardian, 'start', start)
+    monkeypatch.setattr(playwright_guard, 'prepare_router_environment', lambda env: {**env, 'GUARDED': '1'})
+    execute = Mock(return_value=Mock(returncode=0))
+    monkeypatch.setattr(terminal_host.process, 'run', execute)
+    job = terminal_host.create_job('work', str(tmp_path))
+    assert terminal_host.run_session(job) == 0
+    start.assert_called_once()
+    assert execute.call_args.args[0] == ['guarded.exe']
+    assert execute.call_args.kwargs['env']['GUARDED'] == '1'
+
+
+def test_terminal_never_launches_when_router_guardian_cannot_start(jobs, tmp_path, monkeypatch):
+    from claude_china.desktop import router_guardian, terminals
+    def prepare(self, *args, **kwargs):
+        self._router_context = {'baseline': {}, 'settings': {}, 'data': {}}
+        return ['claude.exe'], {}
+    monkeypatch.setattr(terminals.TerminalService, 'prepare', prepare)
+    monkeypatch.setattr(router_guardian, 'cli_targets', lambda *args: (['claude.exe'], ['claude.exe']))
+    monkeypatch.setattr(router_guardian, 'start', Mock(side_effect=router_guardian.GuardError('blocked')))
+    execute = Mock()
+    monkeypatch.setattr(terminal_host.process, 'run', execute)
+    assert terminal_host.run_session(terminal_host.create_job('work', str(tmp_path))) == 1
+    execute.assert_not_called()

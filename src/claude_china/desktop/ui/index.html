@@ -126,7 +126,8 @@
             <div class="editor-body">
               <label class="switch" for="safety-enabled"><span class="switch-text"><span class="field-label">启动前检查环境</span><span class="field-hint">每次启动或重启前查询出口地区。命中统一禁止名单时取消启动，三个应用使用相同规则。</span></span><input type="checkbox" id="safety-enabled" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
               <label class="switch" for="safety-strict"><span class="switch-text"><span class="field-label">无法确认时也阻止启动</span><span class="field-hint">包括查询失败、无法识别地区或代理出口不明确。推荐开启。</span></span><input type="checkbox" id="safety-strict" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
-              <label class="switch" for="safety-router"><span class="switch-text"><span class="field-label">路由器模式（仅启动前检查）</span><span class="field-hint">使用路由器分流，无需本机代理；启动前检查服务与 UDP 出口。路由器故障时无法自动阻止直连；已启用系统网络防护时请先还原。</span></span><input type="checkbox" id="safety-router" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
+              <label class="switch" for="safety-router"><span class="switch-text"><span class="field-label">路由器模式</span><span class="field-hint">无需本机代理。Claude 在 Windows 上持续检查网络；发现异常或监控退出时阻断连接并保留会话，需要管理员授权。Codex 和 Grok 仅在启动前检查；已有网络防护请先还原。</span></span><input type="checkbox" id="safety-router" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
+              <p class="field-hint">路由器检查间隔约 10 秒，单次最多 12 秒；检测前仍可能有流量。未知结果按上方设置处理。</p>
               <div class="field"><h3 class="field-label">统一禁止地区</h3><p id="safety-blocked-regions"></p><p class="field-hint">其他已识别地区按当前规则放行。此名单是本应用的启动规则。</p></div>
               <div class="field"><h3 class="field-label">本机环境</h3><dl class="safety-local" id="safety-local"></dl><p class="field-hint">时区与语言仅供核对，不单独作为拦截依据。</p></div>
               <div class="field">
@@ -136,13 +137,13 @@
                 <button class="text-button safety-source" id="safety-source" type="button">查看应用官方说明<span data-icon="external"></span></button>
                 <h3 class="field-label">系统网络防护</h3>
                 <div class="field"><label class="field-label" for="network-guard-target">保护对象</label><select id="network-guard-target" aria-label="保护对象"></select></div>
-                <div class="field"><label class="field-label" for="network-guard-mode">防护模式</label><select id="network-guard-mode"><option value="proxy">固定 HTTP 代理</option><option value="tun">指定 TUN 隧道（支持 WebRTC UDP）</option></select></div>
+                <div class="field"><label class="field-label" for="network-guard-mode">防护模式</label><select id="network-guard-mode"><option value="proxy">固定 HTTP 代理</option><option value="tun">指定 TUN 隧道（支持 WebRTC UDP）</option><option value="router" disabled>路由器运行防护</option></select></div>
                 <div class="field" id="network-guard-tunnel-field" hidden><label class="field-label" for="network-guard-tunnel">指定隧道</label><select id="network-guard-tunnel" aria-label="指定隧道"></select><p class="field-hint">仅允许通过此隧道联网；断开或路由转向其他网卡时阻断 TCP/UDP，不自动切换到其他隧道。</p></div>
                 <div class="field" id="network-guard-browser-field" hidden><label class="field-label" for="network-guard-browser-paths">额外的 Playwright 浏览器路径</label><textarea id="network-guard-browser-paths" rows="3" spellcheck="false" placeholder="每行一个浏览器 EXE 的完整路径；标准 Playwright 缓存会自动发现。"></textarea><p class="field-hint">包括已有浏览器及其辅助程序。新版本或自定义路径在登记前会被受管 CLI 阻止启动。同一浏览器 EXE 的其他使用者也受此规则保护。</p></div>
                 <div class="field" id="network-guard-cli-field" hidden><label class="switch" for="network-guard-cli"><span class="switch-text"><span class="field-label">同时保护 CLI 自身网络</span><span class="field-hint">仅支持 TUN；受管 CLI 跳过本地代理，Node 使用独立副本。CLI 更新后需重新应用防护。</span></span><input type="checkbox" id="network-guard-cli" role="switch"><span class="switch-ui" aria-hidden="true"></span></label></div>
                 <div class="safety-actions" id="safety-actions"></div>
                 <p class="field-hint">网络防护保留 WebRTC。HTTP 模式仅允许指定代理；TUN 模式允许 TCP/UDP 通过指定隧道。断开后禁止直连。Windows 会请求管理员授权，设置即时生效，可一键还原。</p>
-                <p class="field-hint safety-limit">目前支持 Windows。规则持续生效，退出启动器不会移除。Playwright 启动前检查覆盖 claudec 和本启动器打开的 CLI/终端；外部启动器需自行接入。新浏览器版本、隧道身份或地址变化后需重新应用防护。TUN 模式也阻止该隧道源地址从其他网卡出站；它不隐藏网页可读取的本机网卡地址。地区检查通过仅表示本次查询符合地区清单。</p>
+                <p class="field-hint safety-limit">目前支持 Windows。HTTP 和 TUN 规则持续生效；路由器运行防护在正常会话结束时还原，异常阻断后需手动还原。Playwright 启动前检查覆盖 claudec 和本启动器打开的 CLI/终端；外部启动器需自行接入。新浏览器版本、隧道身份或地址变化后需重新应用防护。TUN 模式也阻止该隧道源地址从其他网卡出站；它不隐藏网页可读取的本机网卡地址。地区检查通过仅表示本次查询符合地区清单。</p>
               </div>
               <p class="form-error" id="error-safety" role="alert" hidden></p>
             </div>

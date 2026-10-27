@@ -109,6 +109,19 @@ def test_router_rejects_enabled_system_proxy_or_existing_wfp(backend, monkeypatc
         router.check_ready("claude", {}, backend)
 
 
+def test_router_rejects_existing_runtime_guard_until_restored(backend, monkeypatch):
+    from claude_china.desktop import router_guardian
+    monkeypatch.setattr(egress, 'supported', lambda: True)
+    monkeypatch.setattr(egress, '_store', lambda: Mock(read=lambda: {}))
+    monkeypatch.setattr(router_guardian, 'status', lambda target: {'enabled': True, 'state': 'blocked'})
+    with pytest.raises(router.RouterError, match='还原'):
+        router.check_ready('claude', {}, backend)
+    with pytest.raises(router.RouterError, match='还原'):
+        router.check_ready('claude', {}, backend, allow_router_guard=True)
+    monkeypatch.setattr(router_guardian, 'status', lambda target: {'enabled': True, 'state': 'healthy'})
+    router.check_ready('claude', {}, backend, allow_router_guard=True)
+
+
 def test_router_drops_all_proxy_variables_without_changing_input():
     original = {"Http_Proxy": "one", "HTTPS_PROXY": "two", "ALL_PROXY": "three", "no_proxy": "localhost", "KEEP": "x"}
     result = router.direct_environment(original)

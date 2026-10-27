@@ -17,6 +17,8 @@ def disable_unrelated_network_guard(monkeypatch):
     # guard's real defaults and fail-closed ordering have their own test module.
     monkeypatch.setattr("src.claude_china.desktop.config.get_safety_settings",
                         lambda data: {"enabled": False, "block_unknown": True})
+    monkeypatch.setattr("src.claude_china.desktop.router_guardian.status",
+                        lambda target: {'enabled': False, 'state': 'none'})
 
 
 @contextmanager

@@ -115,6 +115,7 @@ def _public(name, record, detail=False):
 class TerminalService:
     def __init__(self, backend):
         self.backend = backend
+        self._router_context = None
 
     def list_profiles(self):
         with _STORE_LOCK:
@@ -273,6 +274,7 @@ class TerminalService:
         self.launch(name, session['directory'], session_id=session_id)
 
     def prepare(self, name, directory, session_id=None):
+        self._router_context = None
         directory = directory_path(directory)
         record = deepcopy(_existing(_read(), name))
         if not _public(name, record)['supported']:
@@ -310,7 +312,7 @@ class TerminalService:
             env.update({key: proxy for key in PROXY_ENV_VARS})
         if router_mode:
             env = router.direct_environment(env)
-        env = playwright_guard.prepare_environment(env, data=data)
+        env = playwright_guard.prepare_environment(env, data=data, ensure_router_clear=record['type'] == 'claude')
         argv, env = cli_guard.prepare(argv, env, data=data)
         if settings['enabled'] or router_mode:
             app_id = 'grok-bot' if record['type'] == 'grok' else record['type']
@@ -331,6 +333,8 @@ class TerminalService:
                 raise ValueError('安全检查未通过：' + report.get('reason', '无法确认环境。'))
             if router_mode:
                 router.check_ready('playwright', data, self.backend)
+                if record['type'] == 'claude':
+                    self._router_context = {'baseline': report, 'settings': settings, 'data': data}
         if config.launch_settings_changed(data, config.load_desktop_config()) or _existing(_read(), name) != record:
             raise ValueError('检测期间配置发生变化，请重新启动。')
         return argv, env

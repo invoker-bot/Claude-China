@@ -28,6 +28,8 @@ class Store:
 
 @pytest.fixture
 def guard(tmp_path, monkeypatch):
+    from src.claude_china.desktop import router_guardian
+    monkeypatch.setattr(router_guardian, 'status', lambda target: {'enabled': False, 'state': 'none'})
     monkeypatch.setattr(cfg, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
     cfg.save_desktop_config({"safety_check": False, "check_system_proxy": True})
     exe = tmp_path / "App.exe"

@@ -35,11 +35,11 @@ if (!cp[marker] && process.env.CLAUDEC_BROWSER_GUARD_HELPER) {
     const original = cp[method];
     cp[method] = function(file, args, ...rest) {
       const guard = authorize(file, args);
-      if (guard?.mode === 'tun' && Array.isArray(args)) {
+      if ((guard?.mode === 'tun' || guard?.mode === 'router') && Array.isArray(args)) {
         args = [...args];
         if (/chrome|chromium|msedge/i.test(path.win32.basename(file)) || args.some(value => /^--remote-debugging-/.test(value))) {
           // Headless shell can still use the Windows system proxy with only
-          // --no-proxy-server. Force direct routing into the protected TUN.
+          // --no-proxy-server. Force direct routing through the protected path.
           const switches = ['--no-proxy-server', '--proxy-server=direct://'];
           const separator = args.indexOf('--');
           if (separator < 0) args.push(...switches);

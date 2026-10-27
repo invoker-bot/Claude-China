@@ -56,8 +56,43 @@ def main(argv=None):
     parser.add_argument("--network-guard-request", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--network-guard-digest", help=argparse.SUPPRESS)
     parser.add_argument("--network-guard-check-browser", help=argparse.SUPPRESS)
+    parser.add_argument("--router-runtime-probe", help=argparse.SUPPRESS)
+    parser.add_argument("--router-runtime-target", help=argparse.SUPPRESS)
+    parser.add_argument("--router-guardian-request", type=Path, help=argparse.SUPPRESS)
+    parser.add_argument("--router-guardian-digest", help=argparse.SUPPRESS)
+    parser.add_argument("--router-guardian-restore", help=argparse.SUPPRESS)
+    parser.add_argument("--router-guardian-owner", help=argparse.SUPPRESS)
+    parser.add_argument("--router-guardian-parent", type=int, help=argparse.SUPPRESS)
+    parser.add_argument("--router-guardian-parent-created", type=float, help=argparse.SUPPRESS)
     parser.add_argument("target_args", nargs=argparse.REMAINDER, help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    if args.router_guardian_request:
+        from .router_guardian import run_request
+        return run_request(args.router_guardian_request, args.router_guardian_digest)
+    if args.router_guardian_restore:
+        from .router_guardian import restore_elevated
+        return restore_elevated(args.router_guardian_restore, args.router_guardian_owner,
+                                args.router_guardian_parent, args.router_guardian_parent_created)
+    if args.router_runtime_probe:
+        from . import config, router
+        from .platforms import get_backend
+        try:
+            backend = get_backend()
+            if backend is None or args.router_runtime_probe not in router.HOSTS:
+                raise ValueError()
+            target = args.router_runtime_target or args.router_runtime_probe
+            if target not in (*router.HOSTS, 'playwright'):
+                raise ValueError()
+            data = config.load_desktop_config()
+            router.check_ready(target, data, backend, allow_router_guard=True)
+            report = router.inspect(args.router_runtime_probe, backend)
+            router.check_ready(target, data, backend, allow_router_guard=True)
+        except router.RouterError:
+            report = {'status': 'unsupported'}
+        except Exception:
+            report = {'status': 'unknown'}
+        _guard_output(json.dumps(report, ensure_ascii=True), sys.stdout)
+        return 0
     if args.network_guard_check_browser:
         from .playwright_guard import check_browser
         from .egress import GuardError
