@@ -46,9 +46,10 @@ if (new URLSearchParams(location.search).has("preview")) {
   const networkGuardState = id => ({
     supported: modes.get('guard') !== 'unsupported', enabled: Boolean(networkGuardEnabled[id]),
     verified: Boolean(networkGuardEnabled[id]) && modes.get('guard') !== 'changed',
-    can_restore: Boolean(networkGuardEnabled[id]), can_apply: apps.some(app => app.id === id && app.found),
+    can_restore: Boolean(networkGuardEnabled[id]), can_apply: id === 'playwright' || apps.some(app => app.id === id && app.found),
     found: id === 'playwright' || apps.some(app => app.id === id && app.found),
     browser_count: id === 'playwright' ? 2 : 0, browser_paths: [],
+    include_cli: Boolean(networkGuardOptions[id]?.include_cli),
     mode: networkGuardOptions[id]?.mode || (id === 'playwright' ? 'tun' : 'proxy'),
     tunnel: networkGuardOptions[id]?.mode === 'tun' && networkGuardEnabled[id] ? clone(demoTunnel) : null,
     tunnels: modes.get('tun') === 'none' ? [] : [{...demoTunnel,up:modes.get('tun') !== 'down'}],

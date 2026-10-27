@@ -196,6 +196,18 @@ def launch(profile_dict, extra_args, use_default_args=True):
     full_cmd = [cmd_path] + final_args
 
     if sys.platform == "win32":
+        from .desktop import cli_guard, config as desktop_config
+        data = desktop_config.load_desktop_config()
+        if cli_guard.enabled(data):
+            from .desktop.terminal_host import resolve_cli_argv
+            full_cmd, env = cli_guard.prepare(resolve_cli_argv(ptype) + final_args, env, data)
+            try:
+                result = subprocess.run(full_cmd, env=env)
+                sys.exit(result.returncode)
+            except KeyboardInterrupt:
+                sys.exit(130)
+            return
+        _, env = cli_guard.prepare(full_cmd, env, data)
         # On Windows, ensure UTF-8 console encoding (fixes mojibake/encoding issues
         # in PowerShell when launching AI editors like claude, codex, grok).
         # PowerShell defaults to UTF-16LE; we wrap the launch in PowerShell

@@ -37,6 +37,20 @@ def test_non_browser_tools_are_not_blocked_by_the_preload():
     assert result.returncode == 0, result.stderr
 
 
+@pytest.mark.parametrize("cli", ["claude.exe", "codex.exe", "grok.exe"])
+def test_cli_children_are_denied_before_spawn_when_cli_guard_is_enabled(cli):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is not installed")
+    hook = Path(__file__).parents[1] / "src/claude_china/desktop/ui/playwright-guard.cjs"
+    env = dict(os.environ, NODE_OPTIONS="--require=" + json.dumps(hook.as_posix()),
+               CLAUDEC_CLI_GUARD="1",
+               CLAUDEC_BROWSER_GUARD_HELPER=json.dumps([sys.executable, "-c", "import sys;sys.stderr.write('guard denied');sys.exit(1)"]))
+    script = "try { require('child_process').spawnSync(process.argv[1], []); process.exit(2); } catch(error) { if (!error.message.includes('guard denied')) throw error; }"
+    result = subprocess.run([node, "-e", script, cli], env=env, capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0, result.stderr
+
+
 def test_tun_browser_uses_tunnel_routing_without_changing_cli_proxy_environment():
     node = shutil.which("node")
     if not node:

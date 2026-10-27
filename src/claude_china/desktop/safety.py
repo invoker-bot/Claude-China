@@ -105,7 +105,7 @@ def select_route(env, backend, status):
             "label": "系统 HTTP 代理" if system_proxy else "环境变量 HTTP 代理" if proxy else "当前网络直连"}
 
 
-def lookup_ip(proxy):
+def lookup_ip(proxy, source_address=None):
     """Bounded HTTPS request; no implicit env proxy, redirect or direct fallback."""
     connection = None
     try:
@@ -114,16 +114,19 @@ def lookup_ip(proxy):
         # Supplement (rather than replace) the OS trust store with bundled roots.
         import certifi
         context.load_verify_locations(cafile=certifi.where())
+        options = {"timeout": 8, "context": context}
+        if source_address:
+            options["source_address"] = source_address
         if proxy:
             parsed = urlsplit(http_proxy_url(proxy))
-            connection = http.client.HTTPSConnection(parsed.hostname, parsed.port, timeout=8, context=context)
+            connection = http.client.HTTPSConnection(parsed.hostname, parsed.port, **options)
             headers = {}
             if parsed.username is not None:
                 credentials = unquote(parsed.username) + ":" + unquote(parsed.password or "")
                 headers["Proxy-Authorization"] = "Basic " + base64.b64encode(credentials.encode("utf-8")).decode("ascii")
             connection.set_tunnel(IP_HOST, 443, headers=headers)
         else:
-            connection = http.client.HTTPSConnection(IP_HOST, 443, timeout=8, context=context)
+            connection = http.client.HTTPSConnection(IP_HOST, 443, **options)
         connection.request("GET", IP_PATH, headers={"Accept": "application/json", "User-Agent": "Claude-China-Environment-Check"})
         response = connection.getresponse()
         if response.status != 200:
@@ -146,11 +149,25 @@ def lookup_ip(proxy):
             connection.close()
 
 
-def inspect_environment(app_id, env, backend, status):
+def inspect_environment(app_id, env, backend, status, tunnel=None):
     report = {"app_id": app_id, "environment": local_environment(), "network": {},
               "route": "尚未确认", "checked_at": datetime.now(timezone.utc).isoformat(),
               **assess_region(app_id, "")}
     try:
+        if tunnel is not None:
+            from .playwright_guard import tunnel_live
+            if not tunnel_live(tunnel):
+                raise SafetyCheckError("指定 TUN 隧道已断开，无法检查出口地区。")
+            addresses = [ipaddress.ip_address(value) for value in tunnel.get("addresses", [])]
+            if not addresses:
+                raise SafetyCheckError("指定 TUN 隧道没有可用地址。")
+            source = next((address for address in addresses if address.version == 4), addresses[0])
+            report["route"] = "指定 TUN 隧道"
+            report["network"] = lookup_ip(None, source_address=(str(source), 0))
+            if not tunnel_live(tunnel):
+                raise SafetyCheckError("检查期间指定 TUN 隧道已断开。")
+            report.update(assess_region(app_id, report["network"]["country_code"]))
+            return report
         route = select_route(env, backend, status)
         report["route"] = route["label"]
         report["network"] = lookup_ip(route["proxy"])

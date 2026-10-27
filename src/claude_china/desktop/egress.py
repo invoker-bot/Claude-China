@@ -63,21 +63,32 @@ def _intent(app_id, data=None):
     return app_id in values and values[app_id] is not False
 
 
-def _set_intent(app_id, enabled):
+def _set_intent(app_id, enabled, updates=None):
     with cfg.CONFIG_LOCK:
         data = cfg.load_desktop_config()
         values = data.get("network_guard")
         if not isinstance(values, dict):
             values = {}
         data["network_guard"] = {**values, app_id: bool(enabled)}
+        if updates:
+            data.update(updates)
         cfg.save_desktop_config(data)
 
 
-def _policy(backend, status, mode="proxy", tunnel_guid=None, custom_paths=None):
+def _policy(backend, status, mode="proxy", tunnel_guid=None, custom_paths=None,
+            include_cli=None, create_cli=False):
     if status.app_id == "playwright":
         from .playwright_guard import discover, discovery_environment
-        paths = cfg.load_desktop_config().get("network_guard_browser_paths", []) if custom_paths is None else custom_paths
+        data = cfg.load_desktop_config()
+        paths = data.get("network_guard_browser_paths", []) if custom_paths is None else custom_paths
         targets = discover(discovery_environment(), extra=paths)
+        if include_cli is None:
+            include_cli = data.get("network_guard_include_cli") is True
+        if include_cli:
+            if mode != "tun":
+                raise GuardError("CLI 网络防护需要指定 TUN 隧道。")
+            from . import cli_guard
+            targets += cli_guard.discover(create=create_cli)
     else:
         targets = backend.network_guard_targets(status)
     if not isinstance(targets, list) or not targets or len(targets) > 128:
@@ -113,7 +124,9 @@ def status(app_id, backend=None, detected=None, data=None, for_launch=False):
     state["found"] = bool(detected and detected.found)
     if app_id == "playwright":
         from .playwright_guard import discover, discovery_environment
-        state["browser_paths"] = cfg.load_desktop_config().get("network_guard_browser_paths", [])
+        data = cfg.load_desktop_config()
+        state["browser_paths"] = data.get("network_guard_browser_paths", [])
+        state["include_cli"] = data.get("network_guard_include_cli") is True
         try:
             state["browser_count"] = len(discover(discovery_environment(), extra=state["browser_paths"]))
         except (OSError, GuardError, ValueError):
@@ -162,16 +175,21 @@ def apply(app_id, backend, detected, options=None):
             saved = before.get(app_id, {})
             mode = options.get("mode", saved.get("mode", "tun" if app_id == "playwright" else "proxy"))
             guid = options.get("tunnel_guid", saved.get("tunnel", {}).get("guid"))
-            policy = _policy(backend, detected, mode, guid, options.get("browser_paths"))
+            include_cli = options.get("include_cli")
+            if include_cli is not None and not isinstance(include_cli, bool):
+                raise GuardError("CLI 网络防护设置无效。")
+            policy = _policy(backend, detected, mode, guid, options.get("browser_paths"),
+                             include_cli, create_cli=True)
             policies = {**before, app_id: policy}
             _write(policies, before)
             try:
-                _set_intent(app_id, True)
-                if app_id == "playwright" and "browser_paths" in options:
-                    with cfg.CONFIG_LOCK:
-                        data = cfg.load_desktop_config()
-                        data["network_guard_browser_paths"] = list(options["browser_paths"])
-                        cfg.save_desktop_config(data)
+                updates = {}
+                if app_id == "playwright":
+                    if "browser_paths" in options:
+                        updates["network_guard_browser_paths"] = list(options["browser_paths"])
+                    if include_cli is not None:
+                        updates["network_guard_include_cli"] = include_cli
+                _set_intent(app_id, True, updates)
             except Exception:
                 _write(before, policies)
                 raise GuardError("无法保存防护设置，已撤销本次修改。") from None

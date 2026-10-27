@@ -9,9 +9,14 @@ if (!cp[marker] && process.env.CLAUDEC_BROWSER_GUARD_HELPER) {
   cp[marker] = true;
   const names = new Set(['chrome.exe', 'msedge.exe', 'chromium.exe', 'firefox.exe',
     'headless_shell.exe', 'chrome-headless-shell.exe', 'playwright.exe', 'minibrowser.exe']);
+  const cliNames = new Set(['claude.exe', 'codex.exe', 'grok.exe']);
+  function cli(file) {
+    return process.env.CLAUDEC_CLI_GUARD === '1' &&
+      cliNames.has(path.win32.basename(file).toLowerCase());
+  }
   function authorize(file, args) {
     if (typeof file !== 'string') return;
-    const browser = names.has(path.win32.basename(file).toLowerCase()) ||
+    const browser = cli(file) || names.has(path.win32.basename(file).toLowerCase()) ||
       (Array.isArray(args) && args.some(value => /^-{1,2}(remote-debugging-(pipe|port)|juggler-pipe|inspector-pipe)(=|$)/.test(value)));
     if (!browser) return;
     let command;
@@ -44,6 +49,7 @@ if (!cp[marker] && process.env.CLAUDEC_BROWSER_GUARD_HELPER) {
         const env = {...(supplied.env || process.env)};
         for (const key of Object.keys(env))
           if (['http_proxy','https_proxy','all_proxy','no_proxy'].includes(key.toLowerCase())) delete env[key];
+        if (cli(file)) { env.NO_PROXY = '*'; env.no_proxy = '*'; }
         rest.unshift({...supplied, env});
       }
       return original.call(this, file, args, ...rest);

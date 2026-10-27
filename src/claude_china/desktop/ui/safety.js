@@ -17,7 +17,7 @@ function networkGuardTarget() {
 function renderNetworkControls() {
   const id = networkGuardTarget(), state = NETWORK_GUARDS[id];
   if (!state) return;
-  const draft = NETWORK_DRAFTS[id] ||= {mode: state.mode || "proxy", guid: state.tunnel?.guid || "", paths: (state.browser_paths || []).join("\n")};
+  const draft = NETWORK_DRAFTS[id] ||= {mode: state.mode || "proxy", guid: state.tunnel?.guid || "", paths: (state.browser_paths || []).join("\n"), includeCli: state.include_cli === true};
   document.getElementById("network-guard-mode").value = draft.mode;
   const tunnels = document.getElementById("network-guard-tunnel");
   const records = state.tunnels || [];
@@ -27,6 +27,8 @@ function renderNetworkControls() {
   document.getElementById("network-guard-tunnel-field").hidden = draft.mode !== "tun";
   document.getElementById("network-guard-browser-field").hidden = id !== "playwright";
   document.getElementById("network-guard-browser-paths").value = draft.paths;
+  document.getElementById("network-guard-cli-field").hidden = id !== "playwright";
+  document.getElementById("network-guard-cli").checked = draft.includeCli;
 }
 
 function safetyDraft() {
@@ -225,14 +227,17 @@ async function changeNetworkGuard(enabled) {
   networkGuardBusy = true;
   networkGuardRevision += 1;
   select.disabled = true;
-  for (const element of ["safety-app", "network-guard-mode", "network-guard-tunnel", "network-guard-browser-paths"])
+  for (const element of ["safety-app", "network-guard-mode", "network-guard-tunnel", "network-guard-browser-paths", "network-guard-cli"])
     document.getElementById(element).disabled = true;
   document.getElementById("safety-check").disabled = true;
   renderEnvironmentActions(PRIVACY_REPORT);
   try {
     const draft = NETWORK_DRAFTS[id];
     const options = {mode: draft.mode, tunnel_guid: draft.guid};
-    if (id === "playwright") options.browser_paths = draft.paths.split("\n").map(value => value.trim()).filter(Boolean);
+    if (id === "playwright") {
+      options.browser_paths = draft.paths.split("\n").map(value => value.trim()).filter(Boolean);
+      options.include_cli = draft.includeCli;
+    }
     const result = await (enabled ? api().apply_network_guard(id, options) : api().restore_network_guard(id));
     if (!result.ok) toast(result.error || "系统网络防护操作失败，请重试。");
     else {
@@ -243,7 +248,7 @@ async function changeNetworkGuard(enabled) {
   finally {
     networkGuardBusy = false;
     select.disabled = false;
-    for (const element of ["safety-app", "network-guard-mode", "network-guard-tunnel", "network-guard-browser-paths"])
+    for (const element of ["safety-app", "network-guard-mode", "network-guard-tunnel", "network-guard-browser-paths", "network-guard-cli"])
       document.getElementById(element).disabled = false;
     document.getElementById("safety-check").disabled = false;
     await loadNetworkGuard();
@@ -344,6 +349,10 @@ document.addEventListener("DOMContentLoaded", () => {
       renderNetworkControls(); renderEnvironmentReport();
     };
   }
+  document.getElementById("network-guard-cli").onchange = event => {
+    const draft = NETWORK_DRAFTS[networkGuardTarget()];
+    if (draft) draft.includeCli = event.target.checked;
+  };
   document.getElementById("safety-check").onclick = checkEnvironment;
   document.getElementById("save-safety").onclick = () => saveEditor("safety");
   document.getElementById("cancel-safety").onclick = () => cancelSettings("safety");

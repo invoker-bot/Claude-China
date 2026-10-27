@@ -279,7 +279,7 @@ class TerminalService:
             arguments = terminal_history.new_session_args(record['type'], arguments)
         argv = resolve_cli_argv(record['type']) + arguments
         data = config.load_desktop_config()
-        from . import egress, playwright_guard
+        from . import cli_guard, egress, playwright_guard
         tun_mode = egress.tun_enabled("playwright", data)
         if not tun_mode and config.get_check_system_proxy(data) and not self.backend.proxy_enabled():
             raise ValueError('系统代理未开启，已取消启动。')
@@ -296,12 +296,19 @@ class TerminalService:
         if proxy and not record.get('proxy'):
             env.update({key: proxy for key in PROXY_ENV_VARS})
         env = playwright_guard.prepare_environment(env, data=data)
+        argv, env = cli_guard.prepare(argv, env, data=data)
         settings = config.get_safety_settings(data)
         if settings['enabled']:
             app_id = 'grok-bot' if record['type'] == 'grok' else record['type']
             try:
-                report = safety.inspect_environment(app_id, env, self.backend,
-                                                    AppStatus(app_id, True, True, argv[0], argv[0]))
+                status = AppStatus(app_id, True, True, argv[0], argv[0])
+                if cli_guard.enabled(data):
+                    tunnel = (egress._store().read().get('playwright') or {}).get('tunnel')
+                    if not tunnel:
+                        raise egress.GuardError('无法验证 CLI 的 TUN 隧道。')
+                    report = safety.inspect_environment(app_id, env, self.backend, status, tunnel=tunnel)
+                else:
+                    report = safety.inspect_environment(app_id, env, self.backend, status)
             except Exception:
                 report = {'status': 'unknown', 'reason': '无法确认环境。'}
             if not safety.launch_allowed(report, settings):

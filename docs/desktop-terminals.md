@@ -95,7 +95,9 @@ protected persistently by WFP; a new browser version/custom executable is
 blocked before creation until registered. TUN mode requires the selected
 tunnel, allows its WebRTC UDP, and rejects direct fallback when disconnected.
 Browser children bypass ambient HTTP proxies in this mode while the CLI's API
-proxy remains unchanged. Restore removes the owned filters and disables the
+proxy remains unchanged unless **同时保护 CLI 自身网络** is enabled. With that
+option the managed CLI itself uses the TUN and bypasses proxy environment
+variables. Restore removes the owned filters and disables the
 launch check; restart existing CLI/browser processes to refresh options, and
 close managed terminals before uninstalling. See the
 [network protection guide](desktop-safety.md) for scope and limitations.

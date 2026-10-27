@@ -72,6 +72,58 @@ def test_playwright_is_an_independent_protected_target(guard):
     assert cfg.load_desktop_config()["network_guard"]["playwright"] is True
 
 
+def test_cli_executables_can_be_added_to_the_playwright_tunnel_and_restored(guard, monkeypatch):
+    from src.claude_china.desktop import cli_guard
+
+    bridge, _, store, exe, browser = guard
+    monkeypatch.setattr(cli_guard, "discover", lambda create=False: [str(exe)])
+    result = bridge.apply_network_guard("playwright", {**options(), "include_cli": True})
+    assert result["ok"] and result["state"]["verified"]
+    assert set(store.policies["playwright"]["executables"]) == {str(exe), str(browser)}
+    assert cfg.load_desktop_config()["network_guard_include_cli"] is True
+    assert bridge.restore_network_guard("playwright")["ok"]
+    assert not store.policies
+
+
+def test_cli_guard_requires_tun_and_keeps_existing_rules_on_rejection(guard, monkeypatch):
+    from src.claude_china.desktop import cli_guard
+
+    bridge, _, store, exe, _ = guard
+    monkeypatch.setattr(cli_guard, "discover", lambda create=False: [str(exe)])
+    assert bridge.apply_network_guard("playwright", options())["ok"]
+    before = deepcopy(store.policies)
+    result = bridge.apply_network_guard("playwright", {"mode": "proxy", "include_cli": True})
+    assert not result["ok"]
+    assert store.policies == before
+    assert not cfg.load_desktop_config().get("network_guard_include_cli")
+
+
+def test_cli_guard_rolls_back_rules_if_settings_cannot_be_saved(guard, monkeypatch):
+    from src.claude_china.desktop import cli_guard
+
+    bridge, _, store, exe, _ = guard
+    monkeypatch.setattr(cli_guard, "discover", lambda create=False: [str(exe)])
+    assert bridge.apply_network_guard("playwright", options())["ok"]
+    before, settings = deepcopy(store.policies), cfg.load_desktop_config()
+    monkeypatch.setattr(cfg, "save_desktop_config", Mock(side_effect=OSError("read only")))
+    assert not bridge.apply_network_guard("playwright", {**options(), "include_cli": True})["ok"]
+    assert store.policies == before
+    assert cfg.load_desktop_config() == settings
+
+
+def test_cli_tun_region_check_uses_the_tunnel_source_and_rechecks_state(guard, monkeypatch):
+    from src.claude_china.desktop import safety
+
+    lookups = Mock(return_value={"ip": "203.0.113.1", "country_code": "US", "country": "US", "region": ""})
+    monkeypatch.setattr(safety, "lookup_ip", lookups)
+    result = safety.inspect_environment("claude", {"NO_PROXY": "*"}, guard[1], guard[1].detect(), tunnel=TUNNEL)
+    assert result["status"] == "supported"
+    lookups.assert_called_once_with(None, source_address=("198.18.44.1", 0))
+    monkeypatch.setattr(playwright_guard, "tunnel_live", lambda tunnel: False)
+    result = safety.inspect_environment("claude", {}, guard[1], guard[1].detect(), tunnel=TUNNEL)
+    assert result["status"] == "unknown"
+
+
 @pytest.mark.parametrize("change", ["down", "luid", "address", "missing"])
 def test_tunnel_change_does_not_remove_guard_or_allow_launch(guard, change):
     bridge, backend, store, _, _ = guard
@@ -200,6 +252,26 @@ def test_cli_entry_passes_browser_guard_to_the_cli_child(guard, monkeypatch):
     env = run.call_args.kwargs["env"]
     assert "playwright-guard.cjs" in env["NODE_OPTIONS"]
     assert "CLAUDEC_BROWSER_GUARD_HELPER" in env
+
+
+def test_cli_entry_uses_registered_executable_and_avoids_local_proxy(guard, monkeypatch):
+    from src.claude_china import launcher
+    from src.claude_china.desktop import cli_guard, terminal_host
+    from types import SimpleNamespace
+
+    bridge, _, _, exe, _ = guard
+    monkeypatch.setattr(cli_guard, "discover", lambda create=False: [str(exe)])
+    assert bridge.apply_network_guard("playwright", {**options(), "include_cli": True})["ok"]
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    monkeypatch.setattr(launcher, "find_command", lambda *_: "claude.cmd")
+    monkeypatch.setattr(terminal_host, "resolve_cli_argv", lambda *_: [str(exe)])
+    run = Mock(return_value=SimpleNamespace(returncode=0))
+    monkeypatch.setattr(launcher.subprocess, "run", run)
+    with pytest.raises(SystemExit):
+        launcher.launch({"type": "claude", "mode": "api", "name": "test", "proxy": "http://127.0.0.1:9"}, ["--version"])
+    assert run.call_args.args[0] == [str(exe), "--version"]
+    assert "HTTP_PROXY" not in run.call_args.kwargs["env"]
+    assert run.call_args.kwargs["env"]["CLAUDEC_CLI_GUARD"] == "1"
 
 
 def test_administratively_disabled_interface_is_never_live(monkeypatch):

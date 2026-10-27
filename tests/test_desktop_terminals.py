@@ -76,6 +76,32 @@ def test_language_change_during_check_does_not_cancel_terminal_launch(service, t
     assert env['ANTHROPIC_AUTH_TOKEN'] == 'private-test-token'
 
 
+def test_managed_terminal_passes_argv_and_environment_through_cli_guard(service, tmp_path, monkeypatch):
+    from claude_china.desktop import cli_guard
+
+    service.save_profile(api_profile())
+    guarded = Mock(side_effect=lambda argv, env, data: (['protected-cli'] + argv[1:], {**env, 'GUARDED': 'yes'}))
+    monkeypatch.setattr(cli_guard, 'prepare', guarded)
+    argv, env = service.prepare('work', str(tmp_path))
+    assert guarded.called and argv[0] == 'protected-cli' and env['GUARDED'] == 'yes'
+
+
+def test_guarded_terminal_checks_region_using_its_tunnel(service, tmp_path, monkeypatch):
+    from claude_china.desktop import cli_guard, egress, playwright_guard
+
+    service.save_profile(api_profile())
+    tunnel = {'name': 'fixture', 'addresses': ['198.18.1.1']}
+    monkeypatch.setattr(cli_guard, 'enabled', lambda data: True)
+    monkeypatch.setattr(cli_guard, 'prepare', lambda argv, env, data: (argv, env))
+    monkeypatch.setattr(egress, 'tun_enabled', lambda *args: True)
+    monkeypatch.setattr(egress, '_store', lambda: type('Store', (), {'read': lambda self: {'playwright': {'tunnel': tunnel}}})())
+    monkeypatch.setattr(playwright_guard, 'prepare_environment', lambda env, data: env)
+    inspect = Mock(return_value={'status': 'supported', 'reason': 'fixture'})
+    monkeypatch.setattr(safety, 'inspect_environment', inspect)
+    service.prepare('work', str(tmp_path))
+    assert inspect.call_args.kwargs['tunnel'] == tunnel
+
+
 def test_copy_profile_localizes_only_generated_suffix(service):
     data = config.load_desktop_config()
     data['language'] = 'en'

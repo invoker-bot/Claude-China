@@ -38,6 +38,17 @@ launchers require the same environment integration; remote and WSL/container
 browsers are outside these Windows rules. Restart existing CLI/browser
 processes after switching/restoring modes to refresh their launch options.
 
+In TUN mode, **同时保护 CLI 自身网络** also registers installed CLI binaries
+and uses a private copy of Node for managed CLI wrappers, so unrelated Node
+programs are not restricted. Managed launches reject unregistered CLI binaries
+before execution and bypass HTTP proxy environment variables; local proxy or
+localhost API endpoints may therefore stop working in this mode. Reapply after
+installing or changing a CLI, its Node runtime or Grok profile home. The WFP
+rule also affects other invocations of the same registered native CLI EXE for
+this user. Shell tools, system DNS services, external launchers and remote,
+WSL or container processes are not protected as a process tree. Restoring the
+CLI / Playwright target removes both browser and CLI rules.
+
 Rules and restore metadata are committed atomically in WFP and persist after
 the launcher exits. Restore works with the proxy off or the app removed, and
 does not touch another app's rules. Windows uninstallation restores owned
