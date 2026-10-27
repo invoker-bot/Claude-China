@@ -236,6 +236,16 @@ def test_guardian_start_waits_for_verified_ready_before_returning(tmp_path, monk
     Path(session['directory']).rmdir()
 
 
+def test_guardian_signal_is_created_with_requesting_user_read_access(tmp_path, monkeypatch):
+    import json
+    import tempfile
+    create = Mock(side_effect=lambda directory, owner: tempfile.mkstemp(prefix='.signal-', dir=directory))
+    monkeypatch.setattr(router_guardian, '_create_signal_file', create, raising=False)
+    router_guardian._signal(tmp_path, 'ready.json', {'ok': True}, 'S-1-5-21-123')
+    create.assert_called_once_with(tmp_path, 'S-1-5-21-123')
+    assert json.loads((tmp_path / 'ready.json').read_text(encoding='utf-8')) == {'ok': True}
+
+
 def test_missing_target_after_startup_grace_keeps_network_blocked(tmp_path, monkeypatch):
     import psutil
     ticks = iter([0, 46])

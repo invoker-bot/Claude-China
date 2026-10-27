@@ -11,6 +11,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 
 from ..config_paths import config_dir
 from . import router_runtime
@@ -91,10 +92,40 @@ def _atomic_json(path, value):
             temporary.unlink(missing_ok=True)
 
 
-def _signal(directory, name, payload):
+def _create_signal_file(directory, owner):
+    """Create a new signal with an explicit read grant for the requesting SID."""
+    import msvcrt
+    from ctypes import wintypes
+    from .platforms.windows_wfp import security_descriptor
+    if not re.fullmatch(r'S-1-(?:\d+-)+\d+', owner or ''):
+        raise GuardError('无效的路由器防护请求。')
+    class SecurityAttributes(ctypes.Structure):
+        _fields_ = [('length', wintypes.DWORD), ('descriptor', ctypes.c_void_p),
+                    ('inherit', wintypes.BOOL)]
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                   ctypes.POINTER(SecurityAttributes), wintypes.DWORD,
+                                   wintypes.DWORD, wintypes.HANDLE]
+    kernel.CreateFileW.restype = wintypes.HANDLE
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    temporary = str(directory / ('.signal-' + uuid.uuid4().hex))
+    acl = 'D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GR;;;' + owner + ')'
+    with security_descriptor(acl) as (descriptor, _):
+        attributes = SecurityAttributes(ctypes.sizeof(SecurityAttributes), descriptor, False)
+        handle = kernel.CreateFileW(temporary, 0x40000000, 1, ctypes.byref(attributes), 1, 0x80, None)
+    if handle == ctypes.c_void_p(-1).value:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        return msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY), temporary
+    except BaseException:
+        kernel.CloseHandle(handle)
+        raise
+
+
+def _signal(directory, name, payload, owner):
     # Publish atomically without following or overwriting a user-created file.
     path = directory / name
-    descriptor, temporary = tempfile.mkstemp(prefix='.signal-', dir=directory)
+    descriptor, temporary = _create_signal_file(directory, owner)
     try:
         with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
             json.dump(payload, stream, ensure_ascii=True)
@@ -337,7 +368,6 @@ def run_request(path, digest):
     if sys.platform != 'win32' or not ctypes.windll.shell32.IsUserAnAdmin():
         return 1
     directory = None
-    signalled = False
     try:
         directory = _request_directory(path)
         with open(path, 'rb') as stream:
@@ -372,9 +402,7 @@ def run_request(path, digest):
             raise GuardError('启动期间 Claude 网络发生变化。')
         stop, lost = threading.Event(), threading.Event()
         def ready():
-            nonlocal signalled
-            _signal(directory, 'ready.json', {'ok': True})
-            signalled = True
+            _signal(directory, 'ready.json', {'ok': True}, owner)
             threading.Thread(target=_lifecycle, args=(stop, lost, directory, data['paths'], data['parent_pid'],
                                                      data['parent_created']), daemon=True).start()
         def watch(persistent, dynamic):
@@ -388,11 +416,6 @@ def run_request(path, digest):
                       watch, ready, _alert)
         return 0
     except Exception:
-        if directory is not None and not signalled:
-            try:
-                _signal(directory, 'ready.json', {'ok': False})
-            except OSError:
-                pass
         return 1
 
 
