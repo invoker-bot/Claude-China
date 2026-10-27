@@ -41,6 +41,11 @@ queries a provider, creates a credentials directory, or imports transcripts into
 `~/.claudec`. Only IDs, short titles, project directories and activity times are
 returned to the UI. A first prompt/summary can supply a missing title.
 
+Claude Code login profiles can opt into **手动打开登录链接** in the profile
+editor. The CLI displays a login URL for the user to copy to a browser instead
+of opening one automatically. This setting is shared with `claudec` and also
+affects other browser-opening requests made by that Claude Code process.
+
 Local format adapters read Claude's project JSONL/index files, Codex's session
 metadata and name index, and Grok's session summaries and working-directory
 mapping. Codex background/subagent records and Claude sidechain records are

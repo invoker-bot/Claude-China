@@ -114,6 +114,8 @@ def show_profile(config, name):
         if mode == "login":
             credentials_path = profile_dict.get("credentials_path", "N/A")
             print(f"Credentials Path: {credentials_path}")
+            if profile.type == "claude":
+                print(f"Login browser: {'manual' if profile.manual_browser_login else 'auto'}")
         else:  # api mode
             base_url = profile_dict.get("base_url", "N/A")
             if profile.type == "claude":

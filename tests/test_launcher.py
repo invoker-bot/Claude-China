@@ -164,6 +164,54 @@ def test_prepare_env_grok_login_mode():
     assert env["GROK_HOME"] == os.path.expanduser("~/.grok-profiles/account-a")
 
 
+def test_manual_claude_login_suppresses_browser_only_for_the_selected_profile(monkeypatch, tmp_path):
+    from src.claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, "platform", "win32")
+    manual = LoginProfile(name="manual", type="claude", credentials_path=str(tmp_path / "manual"),
+                          manual_browser_login=True)
+    automatic = LoginProfile(name="automatic", type="claude", credentials_path=str(tmp_path / "auto"))
+    original = {"BROWSER": "user-browser", "OTHER": "keep"}
+    enabled = launcher.prepare_environment(manual, base_env=original)
+    assert enabled["BROWSER"] == r"\\.\NUL"
+    assert enabled["OTHER"] == "keep" and original["BROWSER"] == "user-browser"
+    assert launcher.prepare_environment(automatic, base_env=original)["BROWSER"] == "user-browser"
+
+
+@pytest.mark.parametrize('browser', [None, 'my-browser'])
+def test_nested_auto_profile_restores_browser_after_manual_profile(monkeypatch, tmp_path, browser):
+    from src.claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, 'platform', 'win32')
+    manual = LoginProfile(name='manual', type='claude', credentials_path=str(tmp_path / 'manual'), manual_browser_login=True)
+    automatic = LoginProfile(name='auto', type='claude', credentials_path=str(tmp_path / 'auto'))
+    original = {'BROWSER': browser} if browser is not None else {}
+    first = launcher.prepare_environment(manual, base_env=original)
+    second = launcher.prepare_environment(automatic, base_env=first)
+    assert second.get('BROWSER') == browser
+    assert 'CLAUDEC_MANUAL_BROWSER_LOGIN' not in second
+    assert 'CLAUDEC_PREVIOUS_BROWSER' not in second
+
+
+def test_nested_auto_profile_keeps_a_browser_changed_by_the_child(monkeypatch, tmp_path):
+    from src.claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, 'platform', 'win32')
+    manual = LoginProfile(name='manual', type='claude', credentials_path=str(tmp_path / 'manual'), manual_browser_login=True)
+    automatic = LoginProfile(name='auto', type='claude', credentials_path=str(tmp_path / 'auto'))
+    first = launcher.prepare_environment(manual, base_env={'BROWSER': 'original'})
+    first['BROWSER'] = 'changed-by-child'
+    assert launcher.prepare_environment(automatic, base_env=first)['BROWSER'] == 'changed-by-child'
+
+
+def test_manual_claude_login_uses_unix_null_device(monkeypatch, tmp_path):
+    from src.claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, 'platform', 'linux')
+    profile = LoginProfile(name='manual', type='claude', credentials_path=str(tmp_path / 'account'), manual_browser_login=True)
+    assert launcher.prepare_environment(profile, base_env={})['BROWSER'] == '/dev/null'
+
+
 def test_prepare_env_login_clears_api_vars():
     """Test that login mode clears API environment variables"""
     # Set up environment with existing API variables
@@ -316,11 +364,11 @@ def test_launch_on_windows_uses_powershell_wrapper():
                 assert kwargs["shell"] is True
 
 
-def test_launch_on_non_windows_uses_execvp():
-    """Unix path (execvp) is unchanged — no wrapper."""
+def test_launch_on_non_windows_uses_execvpe():
+    """Unix launches the target with the prepared environment."""
     with patch("src.claude_china.launcher.sys.platform", "linux"):
         with patch("src.claude_china.launcher.shutil.which", return_value="claude"):
-            with patch("src.claude_china.launcher.os.execvp") as mock_exec:
+            with patch("src.claude_china.launcher.os.execvpe") as mock_exec:
                 from src.claude_china.launcher import launch
                 with patch("sys.exit"):
                     launch(
@@ -329,6 +377,19 @@ def test_launch_on_non_windows_uses_execvp():
                         use_default_args=True,
                     )
                 mock_exec.assert_called_once()
+
+
+def test_unix_launch_passes_clean_environment_without_leaking_parent_values(monkeypatch):
+    from src.claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, 'platform', 'linux')
+    monkeypatch.setattr(launcher, 'find_command', lambda _: '/usr/bin/claude')
+    monkeypatch.setenv('ANTHROPIC_AUTH_TOKEN', 'stale-parent-token')
+    with patch.object(launcher.os, 'execvp') as old_exec, patch.object(launcher.os, 'execvpe') as new_exec:
+        launcher.launch({'name': 'test', 'type': 'claude', 'mode': 'api'}, [])
+    old_exec.assert_not_called()
+    env = new_exec.call_args.args[2]
+    assert 'ANTHROPIC_AUTH_TOKEN' not in env
 
 
 def test_launch_windows_passes_env_correctly():
@@ -358,11 +419,10 @@ def test_launch_grok_uses_updated_npm_entry_instead_of_shadowing_path(monkeypatc
     monkeypatch.setattr(launcher.sys, "platform", platform)
     monkeypatch.setattr(launcher.shutil, "which", lambda name: "/old-install/grok")
     monkeypatch.setattr(launcher, "find_npm_installation", lambda: SimpleNamespace(command=npm_command, version="1.0.46"))
-    with patch.object(launcher.os, "execvp") as execute:
-        with patch.dict(os.environ):
-            launcher.launch({"type": "grok", "mode": "login", "name": "grok-account", "credentials_path": profile_home}, ["--version"])
-            assert os.environ["GROK_HOME"] == profile_home
-    execute.assert_called_once_with(npm_command, [npm_command, "--version"])
+    with patch.object(launcher.os, "execvpe") as execute:
+        launcher.launch({"type": "grok", "mode": "login", "name": "grok-account", "credentials_path": profile_home}, ["--version"])
+    assert execute.call_args.args[:2] == (npm_command, [npm_command, "--version"])
+    assert execute.call_args.args[2]["GROK_HOME"] == profile_home
 
 
 def test_launch_grok_without_npm_preserves_native_install(monkeypatch, tmp_path):
@@ -371,7 +431,6 @@ def test_launch_grok_without_npm_preserves_native_install(monkeypatch, tmp_path)
     monkeypatch.setattr(launcher.sys, "platform", "darwin")
     monkeypatch.setattr(launcher.shutil, "which", lambda name: "/native/bin/grok")
     monkeypatch.setattr(launcher, "find_npm_installation", lambda: None)
-    with patch.object(launcher.os, "execvp") as execute:
-        with patch.dict(os.environ):
-            launcher.launch({"type": "grok", "mode": "login", "credentials_path": str(tmp_path / "native-account")}, ["--version"])
-    execute.assert_called_once_with("/native/bin/grok", ["/native/bin/grok", "--version"])
+    with patch.object(launcher.os, "execvpe") as execute:
+        launcher.launch({"type": "grok", "mode": "login", "credentials_path": str(tmp_path / "native-account")}, ["--version"])
+    assert execute.call_args.args[:2] == ("/native/bin/grok", ["/native/bin/grok", "--version"])

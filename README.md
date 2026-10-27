@@ -331,6 +331,25 @@ authentication variables for the selected provider.
 
 Keep tokens and personal configuration out of source control.
 
+### Open Claude Code's login link manually
+
+For a Claude Code login profile, select **手动打开登录链接** in its desktop
+profile editor, or run:
+
+```sh
+claudec login-browser PROFILE manual
+claudec run PROFILE
+```
+
+Copy the link shown in the terminal (or press `c` when Claude Code offers it)
+and open it in your chosen browser. If Claude Code asks for an authorization
+code, paste that code back into the terminal. `claudec login-browser PROFILE
+auto` restores automatic opening. This profile setting also suppresses other
+browser-opening requests initiated by that Claude Code process; it does not
+change the system's default browser. It relies on Claude Code honoring its
+`BROWSER` environment variable; the Windows flow has been checked with Claude
+Code 2.1.308. Existing profiles default to automatic.
+
 ### Default launch arguments
 
 `default_args` can be a YAML list or a single string:

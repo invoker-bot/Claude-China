@@ -304,6 +304,8 @@ h1 { font-size: 26px; font-weight: 650; letter-spacing: -.5px; }
 .cli-field textarea { resize: vertical; min-height: 74px; font-family: var(--mono); font-size: 12px; }
 .cli-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
 .cli-clear-secret { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; margin-top: 12px; }
+#cli-manual-browser-row { align-items: flex-start; }
+#cli-manual-browser-row .field-hint { display: block; }
 .cli-form-error { padding: 0 26px 15px; flex: none; }
 .cli-dialog .editor-actions { flex: none; padding: 16px 26px; }
 .btn--danger { background: #a73e50; border-color: #c95a6d; color: white; }

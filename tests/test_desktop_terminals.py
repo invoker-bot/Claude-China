@@ -142,6 +142,22 @@ def test_clear_secret_and_switch_login_remove_old_credentials_without_touching_d
     assert marker.read_text() == 'keep'
 
 
+def test_login_profile_can_save_disable_and_launch_with_manual_browser(service, tmp_path, monkeypatch):
+    from claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, 'platform', 'win32')
+    profile = {'name': 'login', 'type': 'claude', 'mode': 'login',
+               'credentials_path': str(tmp_path / 'account'), 'manual_browser_login': True}
+    detail = service.save_profile(profile)
+    assert detail['manual_browser_login'] is True
+    assert cli_config.load_config()['profiles']['login']['manual_browser_login'] is True
+    _, env = service.prepare('login', str(tmp_path))
+    assert env['BROWSER'] == r'\\.\NUL'
+    changed = service.save_profile({**detail, 'manual_browser_login': False}, 'login', detail['revision'])
+    assert changed['manual_browser_login'] is False
+    assert 'manual_browser_login' not in cli_config.load_config()['profiles']['login']
+
+
 def test_launch_preparation_uses_profile_and_default_args_without_cross_profile_leaks(service, monkeypatch, tmp_path):
     monkeypatch.setenv('OPENAI_API_KEY', 'must-not-leak')
     service.save_profile(api_profile())

@@ -1,3 +1,4 @@
+import json
 import os
 import shlex
 import sys
@@ -39,15 +40,27 @@ PROXY_ENV_VARS = (
     "https_proxy",
 )
 
+MANUAL_BROWSER_MARKER = "CLAUDEC_MANUAL_BROWSER_LOGIN"
+PREVIOUS_BROWSER = "CLAUDEC_PREVIOUS_BROWSER"
+
 MANAGED_ENV_VARS = frozenset(
     env_var
     for spec in ENV_MAP.values()
     for env_var in spec["env"]
-) | frozenset(CONFIG_DIR_ENV_VARS.values()) | frozenset(PROXY_ENV_VARS)
+) | frozenset(CONFIG_DIR_ENV_VARS.values()) | frozenset(PROXY_ENV_VARS) | frozenset((MANUAL_BROWSER_MARKER, PREVIOUS_BROWSER))
 
 
 def clear_managed_environment(env):
     """Remove environment variables managed by this tool."""
+    if env.get(MANUAL_BROWSER_MARKER) == "1" and env.get("BROWSER") in (r"\\.\NUL", "/dev/null"):
+        try:
+            previous = json.loads(env.get(PREVIOUS_BROWSER, "null"))
+        except (TypeError, ValueError):
+            previous = None
+        if isinstance(previous, str):
+            env["BROWSER"] = previous
+        else:
+            env.pop("BROWSER", None)
     for env_var in MANAGED_ENV_VARS:
         env.pop(env_var, None)
 
@@ -65,6 +78,8 @@ def prepare_environment(profile, base_env=None):
 
     # Handle authentication based on profile type
     if isinstance(profile, LoginProfile):
+        if profile.manual_browser_login and ptype != "claude":
+            raise ValueError("Manual browser login currently supports Claude Code only")
         # Expand ~ to home directory
         credentials_path = os.path.expanduser(profile.credentials_path)
         # Set the appropriate config dir env var based on profile type
@@ -82,6 +97,12 @@ def prepare_environment(profile, base_env=None):
                     with open(config_toml, "w", encoding="utf-8") as f:
                         f.write('model_provider = "openai"\n')
             env[config_dir_var] = credentials_path
+        if ptype == "claude" and profile.manual_browser_login:
+            # Claude Code prints a manual sign-in URL when its browser opener
+            # fails. Use the OS null device, not a command in the user's PATH.
+            env[PREVIOUS_BROWSER] = json.dumps(env.get("BROWSER"))
+            env[MANUAL_BROWSER_MARKER] = "1"
+            env["BROWSER"] = r"\\.\NUL" if sys.platform == "win32" else "/dev/null"
     elif isinstance(profile, ApiProfile):
         # API mode: set API environment variables.
         # Grok's public API is already the CLI default for API-key auth.
@@ -223,6 +244,6 @@ def launch(profile_dict, extra_args, use_default_args=True):
         except KeyboardInterrupt:
             sys.exit(130)
     else:
-        # On Unix, update os.environ and use execvp
-        os.environ.update(env)
-        os.execvp(cmd_path, full_cmd)
+        # Pass the complete environment so removed profile variables do not
+        # leak back in from the launcher process.
+        os.execvpe(cmd_path, full_cmd, env)

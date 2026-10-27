@@ -55,6 +55,27 @@ def remove_command(name: str = typer.Argument(..., help="Profile name to remove"
     save_config(config)
 
 
+@app.command(name="login-browser")
+def login_browser_command(
+    profile: str = typer.Argument(..., help="Claude Code login profile"),
+    mode: str = typer.Argument(..., help="manual or auto"),
+):
+    """Choose whether Claude Code opens its login browser automatically."""
+    if mode not in ("manual", "auto"):
+        raise typer.BadParameter("Choose 'manual' or 'auto'.", param_hint="mode")
+    config = load_config()
+    record = config.get("profiles", {}).get(profile)
+    if not isinstance(record, dict) or record.get("type") != "claude" or record.get("mode") != "login":
+        typer.echo("Choose an existing Claude Code login profile.", err=True)
+        raise typer.Exit(1)
+    if mode == "manual":
+        record["manual_browser_login"] = True
+    else:
+        record.pop("manual_browser_login", None)
+    save_config(config)
+    typer.echo("Manual browser login enabled." if mode == "manual" else "Automatic browser login enabled.")
+
+
 @app.command(name="roll-claude-buddy")
 def roll_claude_buddy_command(
     profile: str = typer.Argument(..., help="Profile name to roll buddy for"),

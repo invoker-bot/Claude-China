@@ -70,6 +70,22 @@ def test_profile_from_dict_login_mode():
     assert profile.proxy == "http://127.0.0.1:7890"
 
 
+def test_manual_browser_login_round_trips_without_changing_legacy_defaults():
+    legacy = {"name": "login", "type": "claude", "mode": "login", "credentials_path": "~/account"}
+    assert not profile_from_dict(legacy).manual_browser_login
+    assert "manual_browser_login" not in profile_to_dict(profile_from_dict(legacy))
+    manual = {**legacy, "manual_browser_login": True}
+    assert profile_to_dict(profile_from_dict(manual))["manual_browser_login"] is True
+
+
+def test_manual_browser_login_rejects_invalid_or_unsupported_settings():
+    base = {"name": "login", "type": "claude", "mode": "login", "credentials_path": "~/account"}
+    with pytest.raises(ValueError):
+        profile_from_dict({**base, "manual_browser_login": "true"})
+    with pytest.raises(ValueError):
+        profile_from_dict({**base, "type": "codex", "manual_browser_login": True})
+
+
 def test_profile_from_dict_grok_login_mode():
     """Grok login profiles isolate browser credentials with GROK_HOME."""
     data = {

@@ -197,8 +197,10 @@ async function terminalAction(name, button, directory = document.getElementById(
 
 function renderCliMode() {
   const login = document.getElementById('cli-mode').value === 'login';
+  const manualBrowser = login && document.getElementById('cli-type').value === 'claude';
   document.getElementById('cli-api-fields').hidden = login;
   document.getElementById('cli-login-fields').hidden = !login;
+  document.getElementById('cli-manual-browser-row').hidden = !manualBrowser;
   document.getElementById('cli-credentials-path').required = login;
   // Hidden URL inputs must not prevent submitting a login configuration.
   document.getElementById('cli-base-url').disabled = login;
@@ -236,6 +238,7 @@ async function openCliEditor(profile = null, remove = false) {
     document.getElementById('cli-base-url').value = detail?.base_url || '';
     document.getElementById('cli-base-url').placeholder = CLI_BASE_URLS[document.getElementById('cli-type').value];
     document.getElementById('cli-credentials-path').value = detail?.credentials_path || '';
+    document.getElementById('cli-manual-browser').checked = detail?.manual_browser_login === true;
     document.getElementById('cli-proxy').value = detail?.proxy || '';
     document.getElementById('cli-default-args').value = detail?.default_args?.length ? JSON.stringify(detail.default_args, null, 2) : '';
     document.getElementById('cli-secret').placeholder = detail?.has_secret ? '留空保留已保存的密钥' : '可选：输入 API 密钥或 Token';
@@ -268,6 +271,7 @@ async function submitCliProfile(event) {
         mode: document.getElementById('cli-mode').value, base_url: document.getElementById('cli-base-url').value,
         secret: document.getElementById('cli-secret').value, clear_secret: document.getElementById('cli-clear-secret').checked,
         credentials_path: document.getElementById('cli-credentials-path').value,
+        manual_browser_login: !document.getElementById('cli-manual-browser-row').hidden && document.getElementById('cli-manual-browser').checked,
         proxy: document.getElementById('cli-proxy').value, default_args: args};
     } catch (_) { cliFormError('默认参数需填写 JSON 字符串数组，例如 ["--model", "sonnet"]。'); return; }
   }
@@ -349,7 +353,7 @@ document.addEventListener('DOMContentLoaded', () => {
   for (const id of ['cli-dialog-close', 'cli-cancel']) document.getElementById(id).onclick = closeCliEditor;
   document.getElementById('cli-profile-dialog').addEventListener('cancel', event => { event.preventDefault(); closeCliEditor(); });
   document.getElementById('cli-mode').onchange = renderCliMode;
-  document.getElementById('cli-type').onchange = () => { document.getElementById('cli-base-url').placeholder = CLI_BASE_URLS[document.getElementById('cli-type').value]; };
+  document.getElementById('cli-type').onchange = () => { document.getElementById('cli-base-url').placeholder = CLI_BASE_URLS[document.getElementById('cli-type').value]; renderCliMode(); };
 });
 
 async function openTerminalFolder(directory) {

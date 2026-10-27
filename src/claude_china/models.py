@@ -48,6 +48,7 @@ class ApiProfile(BaseProfile):
 class LoginProfile(BaseProfile):
     """Login mode: authenticate via an isolated credentials directory."""
     credentials_path: str = ""       # Path to existing OAuth credentials
+    manual_browser_login: bool = False
 
 
 def profile_from_dict(data: dict) -> BaseProfile:
@@ -59,10 +60,16 @@ def profile_from_dict(data: dict) -> BaseProfile:
     default_args = data.get("default_args")
 
     if ptype in VALID_TYPES and mode == "login":
+        manual_browser_login = data.get("manual_browser_login", False)
+        if not isinstance(manual_browser_login, bool):
+            raise ValueError("manual_browser_login must be true or false")
+        if manual_browser_login and ptype != "claude":
+            raise ValueError("manual_browser_login currently supports Claude Code only")
         return LoginProfile(
             name=name,
             type=ptype,
             credentials_path=data.get("credentials_path", ""),
+            manual_browser_login=manual_browser_login,
             proxy=proxy,
             default_args=default_args,
         )
@@ -86,6 +93,8 @@ def profile_to_dict(profile: BaseProfile) -> dict:
     # Add mode field
     if isinstance(profile, LoginProfile):
         data["mode"] = "login"
+        if not data["manual_browser_login"]:
+            data.pop("manual_browser_login")
     else:
         data["mode"] = "api"
 

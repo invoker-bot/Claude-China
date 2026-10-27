@@ -100,6 +100,7 @@ def _public(name, record, detail=False):
     if detail:
         result.update(base_url=record.get('base_url', ''), proxy=record.get('proxy', ''),
                       credentials_path=record.get('credentials_path', ''),
+                      manual_browser_login=record.get('manual_browser_login') is True,
                       default_args=resolve_default_args(record.get('default_args')))
     else:
         try:
@@ -148,6 +149,11 @@ class TerminalService:
                 if not Path(credentials).expanduser().is_absolute():
                     raise ValueError('登录配置目录必须使用绝对路径或 ~ 开头的路径。')
                 value['credentials_path'] = credentials
+                unchanged = old.get('type') == kind and old.get('mode', 'api') == mode
+                manual = payload.get('manual_browser_login', old.get('manual_browser_login', False) if unchanged else False)
+                if not isinstance(manual, bool) or (manual and kind != 'claude'):
+                    raise ValueError('手动浏览器登录目前仅支持 Claude Code。')
+                value['manual_browser_login'] = manual
             else:
                 value['base_url'] = _url(payload.get('base_url') or OFFICIAL_BASE_URLS[kind], 'API 地址')
                 key = 'token' if kind == 'claude' else 'api_key'
@@ -158,7 +164,8 @@ class TerminalService:
                 value[key] = None if payload.get('clear_secret') else secret or (old.get(key) if unchanged else None)
             record = profile_to_dict(profile_from_dict(value))
             # Keep extension fields written by CLI versions this UI does not know.
-            fields = {'name', 'type', 'mode', 'proxy', 'default_args', 'base_url', 'token', 'api_key', 'credentials_path'}
+            fields = {'name', 'type', 'mode', 'proxy', 'default_args', 'base_url', 'token', 'api_key', 'credentials_path',
+                      'manual_browser_login'}
             record = {**{k: v for k, v in old.items() if k not in fields}, **record}
             if original_name is not None:
                 del data['profiles'][original_name]
