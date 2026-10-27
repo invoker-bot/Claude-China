@@ -71,7 +71,7 @@ def login_browser_command(
     if mode == "manual":
         record["manual_browser_login"] = True
     else:
-        record.pop("manual_browser_login", None)
+        record["manual_browser_login"] = False
     save_config(config)
     typer.echo("Manual browser login enabled." if mode == "manual" else "Automatic browser login enabled.")
 

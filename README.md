@@ -333,8 +333,9 @@ Keep tokens and personal configuration out of source control.
 
 ### Open Claude Code's login link manually
 
-For a Claude Code login profile, select **手动打开登录链接** in its desktop
-profile editor, or run:
+Claude Code login profiles use manual browser login by default, including
+existing profiles that have no `manual_browser_login` setting. You can check
+or change **手动打开登录链接** in the desktop profile editor, or run:
 
 ```sh
 claudec login-browser PROFILE manual
@@ -348,7 +349,7 @@ auto` restores automatic opening. This profile setting also suppresses other
 browser-opening requests initiated by that Claude Code process; it does not
 change the system's default browser. It relies on Claude Code honoring its
 `BROWSER` environment variable; the Windows flow has been checked with Claude
-Code 2.1.308. Existing profiles default to automatic.
+Code 2.1.308. The setting does not affect Codex, Grok, or API profiles.
 
 ### Default launch arguments
 

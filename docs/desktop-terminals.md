@@ -41,8 +41,8 @@ queries a provider, creates a credentials directory, or imports transcripts into
 `~/.claudec`. Only IDs, short titles, project directories and activity times are
 returned to the UI. A first prompt/summary can supply a missing title.
 
-Claude Code login profiles can opt into **手动打开登录链接** in the profile
-editor. The CLI displays a login URL for the user to copy to a browser instead
+Claude Code login profiles default to **手动打开登录链接** in the profile
+editor, including profiles without this setting. The CLI displays a login URL for the user to copy to a browser instead
 of opening one automatically. This setting is shared with `claudec` and also
 affects other browser-opening requests made by that Claude Code process.
 

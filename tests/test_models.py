@@ -70,12 +70,14 @@ def test_profile_from_dict_login_mode():
     assert profile.proxy == "http://127.0.0.1:7890"
 
 
-def test_manual_browser_login_round_trips_without_changing_legacy_defaults():
+def test_manual_browser_login_round_trips_default_and_explicit_choices():
     legacy = {"name": "login", "type": "claude", "mode": "login", "credentials_path": "~/account"}
-    assert not profile_from_dict(legacy).manual_browser_login
+    assert profile_from_dict(legacy).manual_browser_login is None
     assert "manual_browser_login" not in profile_to_dict(profile_from_dict(legacy))
     manual = {**legacy, "manual_browser_login": True}
     assert profile_to_dict(profile_from_dict(manual))["manual_browser_login"] is True
+    automatic = {**legacy, "manual_browser_login": False}
+    assert profile_to_dict(profile_from_dict(automatic))["manual_browser_login"] is False
 
 
 def test_manual_browser_login_rejects_invalid_or_unsupported_settings():

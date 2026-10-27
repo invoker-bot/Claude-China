@@ -155,7 +155,27 @@ def test_login_profile_can_save_disable_and_launch_with_manual_browser(service, 
     assert env['BROWSER'] == r'\\.\NUL'
     changed = service.save_profile({**detail, 'manual_browser_login': False}, 'login', detail['revision'])
     assert changed['manual_browser_login'] is False
-    assert 'manual_browser_login' not in cli_config.load_config()['profiles']['login']
+    assert cli_config.load_config()['profiles']['login']['manual_browser_login'] is False
+
+
+def test_login_profile_defaults_to_manual_without_writing_the_option(service, tmp_path, monkeypatch):
+    from claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, 'platform', 'win32')
+    profile = {'name': 'default', 'type': 'claude', 'mode': 'login',
+               'credentials_path': str(tmp_path / 'account')}
+    detail = service.save_profile(profile)
+    assert detail['manual_browser_login'] is True
+    assert 'manual_browser_login' not in cli_config.load_config()['profiles']['default']
+    _, env = service.prepare('default', str(tmp_path))
+    assert env['BROWSER'] == r'\\.\NUL'
+
+
+def test_other_login_profiles_do_not_store_the_claude_only_setting(service, tmp_path):
+    detail = service.save_profile({'name': 'grok', 'type': 'grok', 'mode': 'login',
+                                   'credentials_path': str(tmp_path / 'account'), 'manual_browser_login': False})
+    assert detail['manual_browser_login'] is False
+    assert 'manual_browser_login' not in cli_config.load_config()['profiles']['grok']
 
 
 def test_launch_preparation_uses_profile_and_default_args_without_cross_profile_leaks(service, monkeypatch, tmp_path):

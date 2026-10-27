@@ -170,7 +170,8 @@ def test_manual_claude_login_suppresses_browser_only_for_the_selected_profile(mo
     monkeypatch.setattr(launcher.sys, "platform", "win32")
     manual = LoginProfile(name="manual", type="claude", credentials_path=str(tmp_path / "manual"),
                           manual_browser_login=True)
-    automatic = LoginProfile(name="automatic", type="claude", credentials_path=str(tmp_path / "auto"))
+    automatic = LoginProfile(name="automatic", type="claude", credentials_path=str(tmp_path / "auto"),
+                             manual_browser_login=False)
     original = {"BROWSER": "user-browser", "OTHER": "keep"}
     enabled = launcher.prepare_environment(manual, base_env=original)
     assert enabled["BROWSER"] == r"\\.\NUL"
@@ -184,7 +185,7 @@ def test_nested_auto_profile_restores_browser_after_manual_profile(monkeypatch, 
 
     monkeypatch.setattr(launcher.sys, 'platform', 'win32')
     manual = LoginProfile(name='manual', type='claude', credentials_path=str(tmp_path / 'manual'), manual_browser_login=True)
-    automatic = LoginProfile(name='auto', type='claude', credentials_path=str(tmp_path / 'auto'))
+    automatic = LoginProfile(name='auto', type='claude', credentials_path=str(tmp_path / 'auto'), manual_browser_login=False)
     original = {'BROWSER': browser} if browser is not None else {}
     first = launcher.prepare_environment(manual, base_env=original)
     second = launcher.prepare_environment(automatic, base_env=first)
@@ -198,7 +199,7 @@ def test_nested_auto_profile_keeps_a_browser_changed_by_the_child(monkeypatch, t
 
     monkeypatch.setattr(launcher.sys, 'platform', 'win32')
     manual = LoginProfile(name='manual', type='claude', credentials_path=str(tmp_path / 'manual'), manual_browser_login=True)
-    automatic = LoginProfile(name='auto', type='claude', credentials_path=str(tmp_path / 'auto'))
+    automatic = LoginProfile(name='auto', type='claude', credentials_path=str(tmp_path / 'auto'), manual_browser_login=False)
     first = launcher.prepare_environment(manual, base_env={'BROWSER': 'original'})
     first['BROWSER'] = 'changed-by-child'
     assert launcher.prepare_environment(automatic, base_env=first)['BROWSER'] == 'changed-by-child'
@@ -210,6 +211,17 @@ def test_manual_claude_login_uses_unix_null_device(monkeypatch, tmp_path):
     monkeypatch.setattr(launcher.sys, 'platform', 'linux')
     profile = LoginProfile(name='manual', type='claude', credentials_path=str(tmp_path / 'account'), manual_browser_login=True)
     assert launcher.prepare_environment(profile, base_env={})['BROWSER'] == '/dev/null'
+
+
+def test_claude_login_defaults_to_manual_but_other_profiles_do_not(monkeypatch, tmp_path):
+    from src.claude_china import launcher
+
+    monkeypatch.setattr(launcher.sys, 'platform', 'win32')
+    original = {'BROWSER': 'my-browser'}
+    claude = LoginProfile(name='claude', type='claude', credentials_path=str(tmp_path / 'claude'))
+    grok = LoginProfile(name='grok', type='grok', credentials_path=str(tmp_path / 'grok'))
+    assert launcher.prepare_environment(claude, base_env=original)['BROWSER'] == r'\\.\NUL'
+    assert launcher.prepare_environment(grok, base_env=original)['BROWSER'] == 'my-browser'
 
 
 def test_prepare_env_login_clears_api_vars():

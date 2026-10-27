@@ -97,7 +97,7 @@ def prepare_environment(profile, base_env=None):
                     with open(config_toml, "w", encoding="utf-8") as f:
                         f.write('model_provider = "openai"\n')
             env[config_dir_var] = credentials_path
-        if ptype == "claude" and profile.manual_browser_login:
+        if profile.uses_manual_browser_login:
             # Claude Code prints a manual sign-in URL when its browser opener
             # fails. Use the OS null device, not a command in the user's PATH.
             env[PREVIOUS_BROWSER] = json.dumps(env.get("BROWSER"))

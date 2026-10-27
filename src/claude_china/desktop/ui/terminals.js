@@ -238,7 +238,8 @@ async function openCliEditor(profile = null, remove = false) {
     document.getElementById('cli-base-url').value = detail?.base_url || '';
     document.getElementById('cli-base-url').placeholder = CLI_BASE_URLS[document.getElementById('cli-type').value];
     document.getElementById('cli-credentials-path').value = detail?.credentials_path || '';
-    document.getElementById('cli-manual-browser').checked = detail?.manual_browser_login === true;
+    document.getElementById('cli-manual-browser').checked = detail?.type === 'claude' && detail?.mode === 'login'
+      ? detail.manual_browser_login !== false : true;
     document.getElementById('cli-proxy').value = detail?.proxy || '';
     document.getElementById('cli-default-args').value = detail?.default_args?.length ? JSON.stringify(detail.default_args, null, 2) : '';
     document.getElementById('cli-secret').placeholder = detail?.has_secret ? '留空保留已保存的密钥' : '可选：输入 API 密钥或 Token';

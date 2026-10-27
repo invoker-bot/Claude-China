@@ -100,7 +100,8 @@ def _public(name, record, detail=False):
     if detail:
         result.update(base_url=record.get('base_url', ''), proxy=record.get('proxy', ''),
                       credentials_path=record.get('credentials_path', ''),
-                      manual_browser_login=record.get('manual_browser_login') is True,
+                      manual_browser_login=(kind == 'claude' and mode == 'login'
+                                            and record.get('manual_browser_login') is not False),
                       default_args=resolve_default_args(record.get('default_args')))
     else:
         try:
@@ -150,10 +151,10 @@ class TerminalService:
                     raise ValueError('登录配置目录必须使用绝对路径或 ~ 开头的路径。')
                 value['credentials_path'] = credentials
                 unchanged = old.get('type') == kind and old.get('mode', 'api') == mode
-                manual = payload.get('manual_browser_login', old.get('manual_browser_login', False) if unchanged else False)
-                if not isinstance(manual, bool) or (manual and kind != 'claude'):
+                manual = payload.get('manual_browser_login', old.get('manual_browser_login') if unchanged else None)
+                if (manual is not None and not isinstance(manual, bool)) or (manual and kind != 'claude'):
                     raise ValueError('手动浏览器登录目前仅支持 Claude Code。')
-                value['manual_browser_login'] = manual
+                value['manual_browser_login'] = manual if kind == 'claude' else None
             else:
                 value['base_url'] = _url(payload.get('base_url') or OFFICIAL_BASE_URLS[kind], 'API 地址')
                 key = 'token' if kind == 'claude' else 'api_key'

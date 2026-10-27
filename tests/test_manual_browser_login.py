@@ -15,7 +15,9 @@ def test_login_browser_command_changes_only_the_selected_profile(tmp_path, monke
     assert profiles['one']['manual_browser_login'] is True
     assert 'manual_browser_login' not in profiles['two']
     assert runner.invoke(cli.app, ['login-browser', 'one', 'auto']).exit_code == 0
-    assert 'manual_browser_login' not in config.load_config()['profiles']['one']
+    assert config.load_config()['profiles']['one']['manual_browser_login'] is False
+    assert 'Login browser: auto' in runner.invoke(cli.app, ['show', 'one']).stdout
+    assert 'Login browser: manual' in runner.invoke(cli.app, ['show', 'two']).stdout
 
 
 def test_login_browser_command_rejects_unknown_modes_and_unsupported_profiles(tmp_path, monkeypatch):
