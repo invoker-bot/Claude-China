@@ -80,24 +80,27 @@ def test_router_runtime_does_not_block_same_country_ip_changes():
     assert router_runtime.failure(report('8.8.8.8'), report('1.1.1.1'), {'block_unknown': True}) is None
 
 
-@pytest.mark.parametrize('status,strict,should_run', [
-    ('supported', True, True), ('unsupported', True, False),
-    ('unknown', True, False), ('unknown', False, True),
+@pytest.mark.parametrize('status,strict,has_tunnel,changed,should_run', [
+    ('supported', True, True, False, True), ('unsupported', True, True, False, False),
+    ('unknown', True, True, False, False), ('unknown', False, True, False, True),
+    ('supported', False, False, False, False), ('supported', True, True, True, False),
 ])
-def test_standalone_tun_cli_checks_country_before_launch(monkeypatch, status, strict, should_run):
+def test_standalone_tun_cli_checks_country_before_launch(monkeypatch, status, strict, has_tunnel, changed, should_run):
     from claude_china import launcher
     from claude_china.desktop import cli_guard, config, platforms, playwright_guard, terminal_host
 
     data = {'safety_router_mode': False, 'safety_check': True, 'safety_block_unknown': strict}
     tunnel = {'guid': 'test', 'addresses': ['198.18.44.1']}
-    monkeypatch.setattr(config, 'load_desktop_config', lambda: data)
+    config_values = iter([data, {**data, 'safety_check': False}]) if changed else None
+    monkeypatch.setattr(config, 'load_desktop_config', lambda: next(config_values) if changed else data)
     monkeypatch.setattr(launcher, 'find_command', lambda _: 'claude.exe')
     monkeypatch.setattr(launcher.sys, 'platform', 'win32')
     monkeypatch.setattr(playwright_guard, 'prepare_environment', lambda env, **kwargs: env)
     monkeypatch.setattr(cli_guard, 'enabled', lambda data: True)
     monkeypatch.setattr(cli_guard, 'prepare', lambda argv, env, *args, **kwargs: (argv, env))
     monkeypatch.setattr(terminal_host, 'resolve_cli_argv', lambda _: ['claude.exe'])
-    monkeypatch.setattr(egress, '_store', lambda: Mock(read=lambda: {'playwright': {'tunnel': tunnel}}))
+    policies = {'playwright': {'tunnel': tunnel}} if has_tunnel else {}
+    monkeypatch.setattr(egress, '_store', lambda: Mock(read=lambda: policies))
     monkeypatch.setattr(platforms, 'get_backend', lambda: Mock())
     check = Mock(return_value={'status': status, 'reason': 'fixture'})
     monkeypatch.setattr(safety, 'inspect_environment', check)
@@ -106,8 +109,9 @@ def test_standalone_tun_cli_checks_country_before_launch(monkeypatch, status, st
     with pytest.raises(SystemExit):
         launcher.launch({'name': 'fixture', 'type': 'claude', 'mode': 'login',
                          'credentials_path': '~/.fixture'}, [])
-    assert check.call_count == 1
-    assert check.call_args.kwargs['tunnel'] == tunnel
+    assert check.call_count == int(has_tunnel)
+    if has_tunnel:
+        assert check.call_args.kwargs['tunnel'] == tunnel
     assert execute.called is should_run
 
 
