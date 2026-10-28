@@ -4,7 +4,6 @@ import base64
 from datetime import datetime, timezone
 import http.client
 import ipaddress
-import json
 import re
 import ssl
 from urllib.parse import unquote, urlsplit
@@ -13,8 +12,8 @@ from .proxy import http_proxy_url
 from .regions import BLOCKED_REGIONS, ISO_COUNTRIES, POLICY_UPDATED_ON, SOURCES
 from .safety_local import local_environment
 
-IP_HOST = "ipwho.is"
-IP_PATH = "/?fields=success,ip,country,country_code,region"
+IP_HOST = "www.cloudflare.com"
+IP_PATH = "/cdn-cgi/trace"
 MAX_RESPONSE = 16384
 SERVICE_DOMAINS = {
     "claude": ("claude.ai", "claude.com", "anthropic.com"),
@@ -127,21 +126,19 @@ def lookup_ip(proxy, source_address=None):
             connection.set_tunnel(IP_HOST, 443, headers=headers)
         else:
             connection = http.client.HTTPSConnection(IP_HOST, 443, **options)
-        connection.request("GET", IP_PATH, headers={"Accept": "application/json", "User-Agent": "Claude-China-Environment-Check"})
+        connection.request("GET", IP_PATH, headers={"User-Agent": "Claude-China-Environment-Check"})
         response = connection.getresponse()
         if response.status != 200:
             raise ValueError
         raw = response.read(MAX_RESPONSE + 1)
         if len(raw) > MAX_RESPONSE:
             raise ValueError
-        body = json.loads(raw)
-        ip = ipaddress.ip_address(body.get("ip", ""))
-        country = body.get("country_code")
-        if body.get("success") is not True or not ip.is_global or country not in ISO_COUNTRIES:
+        fields = dict(line.split("=", 1) for line in raw.decode("utf-8").splitlines() if "=" in line)
+        ip = ipaddress.ip_address(fields.get("ip", ""))
+        country = fields.get("loc")
+        if not ip.is_global or country not in ISO_COUNTRIES:
             raise ValueError
-        return {"ip": str(ip), "country_code": country,
-                "country": str(body.get("country", country))[:120],
-                "region": str(body.get("region", ""))[:120]}
+        return {"ip": str(ip), "country_code": country}
     except Exception:
         raise SafetyCheckError("IP 地区查询失败或结果无效，请检查网络后重试。") from None
     finally:

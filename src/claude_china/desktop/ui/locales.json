@@ -1,5 +1,12 @@
 {
   "en": {
+    "无需本机代理。Claude 在 Windows 上持续检查出口地区；命中禁止地区、严格模式下无法确认或监控退出时阻断连接并保留会话，需要管理员授权。Codex 和 Grok 仅在启动前检查；已有网络防护请先还原。": "No local proxy is required. On Windows, Claude exit regions are checked continuously; a blocked region, an unknown result in strict mode, or monitor exit blocks connections while preserving sessions. Administrator authorization is required. Codex and Grok receive startup checks only; restore existing network protection first.",
+    "路由器运行防护已启用；地区检查异常时将阻断连接并保留会话。": "Router protection is enabled; failed region checks block connections while preserving the session.",
+    "运行期间出口地区检查未通过。": "The exit region check failed while running.",
+    "仅向 Cloudflare 查询出口国家或地区；不测试浏览器 WebRTC、UDP 或 DNS 出口。": "Only the exit country or region is queried from Cloudflare; browser WebRTC, UDP and DNS exits are not tested.",
+    "仅检查本机设置，未验证浏览器 WebRTC、UDP 或 DNS 出口。": "Only local settings were checked; browser WebRTC, UDP and DNS exits were not verified.",
+    "正在检查出口地区…": "Checking the exit region…",
+    "无法确认出口国家或地区。": "Unable to determine the exit country or region.",
     "路由器模式": "Router mode",
     "无需本机代理。Claude 在 Windows 上持续检查网络；发现异常或监控退出时阻断连接并保留会话，需要管理员授权。Codex 和 Grok 仅在启动前检查；已有网络防护请先还原。": "No local proxy is required. On Windows, Claude is monitored continuously; connections are blocked on failure or monitor exit while sessions stay open. Administrator authorization is required. Codex and Grok receive startup checks only; restore existing network protection first.",
     "路由器检查间隔约 10 秒，单次最多 12 秒；检测前仍可能有流量。未知结果按上方设置处理。": "Router checks are roughly 10 seconds apart and each can take up to 12 seconds; traffic may escape before detection. Unknown results follow the setting above.",
@@ -776,6 +783,13 @@
     "未找到可保护的程序；请先安装 Playwright 浏览器或配置应用路径。": "No protectable programs found. Install Playwright browsers or configure the app path first."
   },
   "zh-TW": {
+    "无需本机代理。Claude 在 Windows 上持续检查出口地区；命中禁止地区、严格模式下无法确认或监控退出时阻断连接并保留会话，需要管理员授权。Codex 和 Grok 仅在启动前检查；已有网络防护请先还原。": "無需本機代理。Claude 在 Windows 上持續檢查出口地區；命中禁止地區、嚴格模式下無法確認或監控結束時封鎖連線並保留工作階段，需要管理員授權。Codex 和 Grok 僅在啟動前檢查；已有網路防護請先還原。",
+    "路由器运行防护已启用；地区检查异常时将阻断连接并保留会话。": "路由器執行防護已啟用；地區檢查異常時將封鎖連線並保留工作階段。",
+    "运行期间出口地区检查未通过。": "執行期間出口地區檢查未通過。",
+    "仅向 Cloudflare 查询出口国家或地区；不测试浏览器 WebRTC、UDP 或 DNS 出口。": "僅向 Cloudflare 查詢出口國家或地區；不測試瀏覽器 WebRTC、UDP 或 DNS 出口。",
+    "仅检查本机设置，未验证浏览器 WebRTC、UDP 或 DNS 出口。": "僅檢查本機設定，未驗證瀏覽器 WebRTC、UDP 或 DNS 出口。",
+    "正在检查出口地区…": "正在檢查出口地區…",
+    "无法确认出口国家或地区。": "無法確認出口國家或地區。",
     "路由器模式": "路由器模式",
     "无需本机代理。Claude 在 Windows 上持续检查网络；发现异常或监控退出时阻断连接并保留会话，需要管理员授权。Codex 和 Grok 仅在启动前检查；已有网络防护请先还原。": "無需本機代理。Claude 在 Windows 上持續檢查網路；發現異常或監控退出時阻斷連線並保留工作階段，需要管理員授權。Codex 和 Grok 僅在啟動前檢查；已有網路防護請先還原。",
     "路由器检查间隔约 10 秒，单次最多 12 秒；检测前仍可能有流量。未知结果按上方设置处理。": "路由器檢查間隔約 10 秒，單次最多 12 秒；偵測前仍可能有流量。未知結果依照上方設定處理。",

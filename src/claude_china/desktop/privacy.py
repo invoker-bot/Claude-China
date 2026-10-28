@@ -1,19 +1,12 @@
-"""Read-only WebRTC exit diagnostics and a narrowly scoped, reversible fix.
-
-This module deliberately does not configure VPNs, firewalls or IPv6. It
-compares the HTTPS exit with the UDP exit, reports browser policy state, and
-can set one per-user browser policy value on Windows. Every write gets a
-restore record, and a failed record write rolls the policy back when possible.
-"""
+"""Read-only local privacy settings and a narrowly scoped, reversible fix."""
 
 from datetime import datetime, timezone
-import ipaddress
 import json
 import os
 import tempfile
 
 from ..config_paths import config_dir
-from . import config, safety, stun
+from . import config
 from .proxy import http_proxy_url
 
 POLICY_NAME = "WebRtcIPHandlingPolicy"
@@ -113,108 +106,33 @@ def _normalize_policies(raw):
     return browsers
 
 
-def inspect(backend, env=None, https_lookup=None, udp_lookup=None):
-    """Build a diagnostic report. Network probes are injectable for tests."""
+def inspect(backend, env=None):
+    """Report local settings only; never probe HTTPS, DNS, UDP or WebRTC."""
     environment = dict(os.environ if env is None else env)
     snapshot = _snapshot(backend)
-    env_proxy = _env_proxy(environment)
-    mode = _proxy_mode(backend, snapshot, env_proxy)
-    reasons = []
-
-    https = {"ok": False}
-    proxy_url = None
-    if mode == "system_proxy":
-        try:
-            proxy_url = backend.system_http_proxy()
-        except Exception:
-            reasons.append("无法解析系统 HTTP 代理，未查询 HTTPS 出口。")
-    elif mode == "env_proxy":
-        if env_proxy["valid"]:
-            proxy_url = env_proxy["url"]
-        else:
-            reasons.append("环境变量代理格式无效或存在多个入口，未查询 HTTPS 出口。")
-    elif mode not in ("tun", "direct"):
-        reasons.append("无法确认代理模式，未查询 HTTPS 出口。")
-
-    if proxy_url or mode in ("tun", "direct"):
-        try:
-            result = (https_lookup or safety.lookup_ip)(proxy_url)
-            https = {"ok": True, "ip": result["ip"],
-                     "country_code": result.get("country_code"),
-                     "country": result.get("country")}
-        except Exception:
-            reasons.append("HTTPS 出口查询失败。")
-
-    udp = {"ok": False}
-    try:
-        result = (udp_lookup or stun.query_any)()
-        udp = {"ok": True, "ip": result["ip"], "server": result.get("server")}
-    except Exception:
-        reasons.append("UDP 出口查询失败；可能是 STUN 被阻断。")
-
-    consistent = None
-    if https["ok"] and udp["ok"]:
-        try:
-            consistent = ipaddress.ip_address(https["ip"]) == ipaddress.ip_address(udp["ip"])
-        except ValueError:
-            consistent = None
-
-    level, assessment = _assess(mode, consistent)
-    reasons = assessment + reasons
-
+    mode = _proxy_mode(backend, snapshot, _env_proxy(environment))
+    level = "unknown"
+    reasons = ["仅检查本机设置，未验证浏览器 WebRTC、UDP 或 DNS 出口。"]
+    if mode == "env_proxy":
+        level = "warn"
+        reasons.append("代理只配置在环境变量中，Windows 浏览器不会使用它；浏览器实际仍为直连。")
     policies = {"supported": snapshot["supported"],
                 "browsers": _normalize_policies(snapshot["policies"])}
     if not policies["supported"]:
         reasons.append("当前平台暂不支持读取浏览器 WebRTC 策略。")
     else:
-        if mode == "system_proxy" and consistent is not True:
-            disabled = [browser for browser, item in policies["browsers"].items()
-                        if item["state"] == "disabled"]
-            if disabled:
-                reasons.append("已限制浏览器 WebRTC：" + "、".join(disabled) + "。")
-            else:
-                reasons.append("浏览器未设置 WebRTC 限制策略；可使用按应用的系统网络防护保留 WebRTC。")
         machine = [browser for browser, item in policies["browsers"].items()
                    if item["source"] == "machine"]
         if machine:
             reasons.append("浏览器策略由组织管理：" + "、".join(machine) + "。")
-
     ipv6 = snapshot["ipv6"]
     if (ipv6["default"] is True and ipv6["tunnel"] is False
             and mode in ("system_proxy", "tun", "unknown")):
         reasons.append("检测到非隧道 IPv6 默认路由；WebRTC 可能通过 IPv6 绕过代理。")
-        if level == "ok":
-            level = "warn"
-
-    return {
-        "checked_at": _now(),
-        "level": level,
-        "mode": mode,
-        "https": https,
-        "udp": udp,
-        "consistent": consistent,
-        "policies": policies,
-        "ipv6": ipv6,
-        "reasons": reasons,
-    }
-
-
-def _assess(mode, consistent):
-    if mode == "tun":
-        if consistent is False:
-            return "warn", ["HTTPS 与 UDP 出口不一致；请检查 TUN 路由和 IPv6。"]
-        return "ok", ["检测到 TUN/虚拟网卡默认路由，WebRTC 应随隧道出口。"]
-    if mode == "system_proxy":
-        if consistent is False:
-            return "warn", ["HTTPS 走系统代理，但 UDP 出口不同；浏览器 WebRTC 可能绕过代理。"]
-        if consistent is True:
-            return "ok", ["HTTPS 与 UDP 出口一致，未发现 WebRTC 绕过系统代理。"]
-        return "unknown", ["无法同时取得 HTTPS 与 UDP 出口，不能确认 WebRTC 是否绕过代理。"]
-    if mode == "env_proxy":
-        return "warn", ["代理只配置在环境变量中，Windows 浏览器不会使用它；浏览器实际仍为直连。"]
-    if mode == "direct":
-        return "ok", ["当前为直连，没有可绕过的代理出口。"]
-    return "unknown", ["无法确认代理模式。"]
+        level = "warn"
+    return {"checked_at": _now(), "level": level, "mode": mode,
+            "https": {"ok": False}, "udp": {"ok": False}, "consistent": None,
+            "policies": policies, "ipv6": ipv6, "reasons": reasons}
 
 
 def unknown_report(reason="检查失败，请重试。"):

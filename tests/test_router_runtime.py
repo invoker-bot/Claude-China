@@ -7,27 +7,16 @@ from claude_china.desktop import router_runtime
 
 
 def report(status='supported', ip='8.8.8.8', reason='fixture'):
-    return {'status': status, 'reason': reason, 'router': {
-        'services': [{'host': 'claude.ai', 'family': 4, 'status': 'ok', 'ip': ip},
-                     {'host': 'api.anthropic.com', 'family': 4, 'status': 'ok', 'ip': ip}],
-        'udp4': {'status': 'match', 'ip': ip}, 'udp6': {'status': 'unavailable'}}}
+    return {'status': status, 'reason': reason, 'network': {'ip': ip, 'country_code': 'US'},
+            'router': {'browser_webrtc': 'unknown'}}
 
 
-def test_running_check_accepts_unchanged_service_and_udp_exits():
+def test_running_check_accepts_an_allowed_country():
     assert router_runtime.failure(report(), report(), {'block_unknown': True}) is None
 
 
-def test_running_check_rejects_a_changed_exit_even_in_an_allowed_region():
-    assert router_runtime.failure(report(), report(ip='1.1.1.1'), {'block_unknown': True})
-
-
-def test_running_check_rejects_a_new_network_family():
-    current = report()
-    current['router']['services'].extend([
-        {'host': 'claude.ai', 'family': 6, 'status': 'ok', 'ip': '2606:4700:4700::1111'},
-        {'host': 'api.anthropic.com', 'family': 6, 'status': 'ok', 'ip': '2606:4700:4700::1111'}])
-    current['router']['udp6'] = {'status': 'match', 'ip': '2606:4700:4700::1111'}
-    assert router_runtime.failure(report(), current, {'block_unknown': True})
+def test_running_check_accepts_ip_changes_when_country_still_passes():
+    assert router_runtime.failure(report(), report(ip='1.1.1.1'), {'block_unknown': True}) is None
 
 
 @pytest.mark.parametrize('status', ['unknown', 'unsupported'])

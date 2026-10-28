@@ -24,23 +24,17 @@ removed from managed child environments, but existing saved values are retained.
 For step-by-step setup, testing and recovery, see the
 [路由器模式配置与测试教程](router-mode.md).
 
-Each managed desktop, terminal-profile and `claudec` launch checks the relevant
-service domains directly using their Cloudflare trace endpoints, checks the
-configured region denylist, and compares same-family HTTPS and STUN UDP exits.
-IPv6 is tested when a default route exists. A mismatch or blocked region cancels
-the launch. Unavailable service, UDP or IPv6 evidence blocks when **无法确认时
-也阻止启动** is enabled; turning it off allows unknown results. Router checks
-still run when the ordinary region-check switch is off. Existing desktop-app
-takeovers also use this launch path. Custom API endpoints, external launchers,
-remote browsers and processes not started by these paths are not checked.
+Each managed desktop, terminal-profile and `claudec` launch makes one HTTPS
+request to Cloudflare and compares its observed country with the configured
+region denylist. A blocked region cancels launch; a failed or invalid lookup
+blocks in strict mode. Router checks still run when the ordinary region-check
+switch is off. Existing desktop-app takeovers also use this launch path.
 
-A single Cloudflare DNS TXT query samples the system resolver and is advisory:
-caching, domain-based rules and browser DoH can produce different results. A
-resolver in a blocked region is highlighted for review. Actual browser WebRTC
-and IP reputation are not measured, and the auxiliary UDP probe is not proof
-of either. Cloudflare service and DNS servers and STUN providers see the IPs
-that reach them. Reports stay in memory and do not include profile credentials.
-A passing startup check is not an account-safety guarantee.
+The check does not request Claude or Anthropic endpoints, send chat messages,
+or perform STUN, UDP or separate DNS leak probes. Ordinary DNS resolution is
+still required to connect to Cloudflare. Cloudflare sees the connecting IP;
+reports stay in memory and do not include profile credentials. The lookup
+does not validate Claude-specific routes, browser WebRTC or IP reputation.
 
 On Windows, a managed Claude desktop or Claude CLI launch additionally requests
 administrator authorization and installs user-scoped WFP rules for the registered
@@ -49,8 +43,8 @@ The elevation must use the same Windows account as the requesting session;
 cross-account administrator credentials are rejected for runtime monitoring.
 The guard waits about 10 seconds after each completed check before starting the
 next; a probe may take up to 12 seconds before it is treated as unknown. A blocked
-region, mismatched or changed exit, newly detected IPv6 route, or an unknown
-result in strict mode removes the temporary network permits. A crash of the
+region or an unknown country result in strict mode removes the temporary
+network permits. An IP change within an allowed region does not trigger it. A crash of the
 monitor also removes those permits. The persistent deny remains in place for
 registered programs, including already-established connections, and a warning
 is displayed; the program and its session are not terminated. Normal session
@@ -73,9 +67,9 @@ its paths are registered again. Codex and Grok retain startup checks only.
 Claude runtime protection is currently Windows-only; its managed router-mode
 launches on other platforms are rejected instead of claiming this protection.
 
-Manual **检查环境** sends an auxiliary STUN request from the launcher and reports
-the proxy mode, Chrome/Edge policy state and IPv6 default route. It does not run
-WebRTC inside the target app. On Windows, **启用网络防护** keeps WebRTC enabled
+Manual **检查环境** queries the country service and reports local proxy mode,
+Chrome/Edge policy state and IPv6 default route. It does not probe UDP, STUN or
+DNS leaks and does not run WebRTC inside the target app. On Windows, **启用网络防护** keeps WebRTC enabled
 and installs a per-user WFP allowlist for the selected installation's EXEs:
 only TCP to the pinned HTTP proxy IP/port is permitted; direct TCP, UDP and
 IPv6 bypasses are blocked. A disconnected proxy never permits direct fallback.
@@ -130,8 +124,8 @@ The earlier system-proxy and automatic-proxy-variable checks still apply.
 
 ## What is checked
 
-The check makes a TLS-verified HTTPS request to [ipwho.is](https://ipwhois.io/documentation)
-for the connection's public IP and coarse geographic region. It does not send
+The check makes a TLS-verified HTTPS request to
+[Cloudflare trace](https://www.cloudflare.com/cdn-cgi/trace) for the connection's public IP and country code. It does not send
 credentials, local environment details or the entire launch environment.
 Proxy authentication is used only for the HTTP CONNECT hop. Results are kept
 in the current UI session and are not written to config or logs. No request
@@ -145,7 +139,11 @@ unrelated domain exclusions are allowed. Equivalent local host spellings such
 as `localhost` and `127.0.0.1` are each probed and must report the same IP/region.
 Windows/macOS brokered launches cannot rely on custom environment variables
 without a corresponding system proxy. Failed proxy requests never fall back
-to a direct connection. Each network operation has an 8-second socket timeout;
+to a direct connection. In TUN mode, managed CLI and protected desktop checks bind the query to the
+selected tunnel address and check the adapter before and after the request.
+TUN firewall rules continue independently of the country check; unlike Claude
+router mode, TUN mode does not continuously monitor the country. Each network
+operation has an 8-second socket timeout;
 responses are capped at 16 KiB and redirects are refused.
 
 This checks the configured region policy, **not official provider eligibility or account safety**. A

@@ -51,107 +51,40 @@ def isolated_repairs(tmp_path, monkeypatch):
     monkeypatch.setattr(privacy, "REPAIRS_FILE", tmp_path / ".claudec" / "privacy-repairs.json")
 
 
-def _https(ip="1.1.1.1"):
-    return lambda proxy: {"ip": ip, "country_code": "SG", "country": "Singapore"}
-
-
-def _udp(ip="1.1.1.1"):
-    return lambda: {"ip": ip, "server": "stun.example.test:3478"}
-
-
-def test_system_proxy_with_matching_https_and_udp_is_reported_as_consistent():
-    report = privacy.inspect(FakeBackend(), env={}, https_lookup=_https(), udp_lookup=_udp())
-    assert report["mode"] == "system_proxy"
-    assert report["consistent"] is True
-    assert report["level"] == "ok"
-    assert report["https"]["ip"] == "1.1.1.1"
-    assert report["udp"]["ip"] == "1.1.1.1"
-
-
-def test_system_proxy_with_different_udp_exit_warns_about_webrtc_bypass():
-    report = privacy.inspect(FakeBackend(), env={}, https_lookup=_https("1.1.1.1"), udp_lookup=_udp("8.8.8.8"))
-    assert report["consistent"] is False
-    assert report["level"] == "warn"
-    assert any("WebRTC" in reason and "绕过" in reason for reason in report["reasons"])
-
-
-def test_tun_mode_needs_no_browser_policy_and_is_ok():
-    report = privacy.inspect(FakeBackend(proxy=False, tun=True), env={},
-                             https_lookup=_https("1.1.1.1"), udp_lookup=_udp("1.1.1.1"))
-    assert report["mode"] == "tun"
-    assert report["level"] == "ok"
-    assert any("TUN" in reason for reason in report["reasons"])
-
-
-def test_env_only_proxy_warns_that_windows_browsers_ignore_it():
-    report = privacy.inspect(FakeBackend(proxy=False, tun=False), env={"HTTPS_PROXY": "http://127.0.0.1:7890"},
-                             https_lookup=_https("1.1.1.1"), udp_lookup=_udp("8.8.8.8"))
-    assert report["mode"] == "env_proxy"
-    assert report["level"] == "warn"
-    assert any("浏览器" in reason and "直连" in reason for reason in report["reasons"])
-
-
-def test_direct_connection_is_not_a_proxy_bypass():
-    report = privacy.inspect(FakeBackend(proxy=False, tun=False), env={},
-                             https_lookup=_https("1.1.1.1"), udp_lookup=_udp("1.1.1.1"))
-    assert report["mode"] == "direct"
-    assert report["level"] == "ok"
-
-
-def test_missing_udp_probe_is_unknown_not_a_false_ok():
-    def fail():
-        raise OSError("offline")
-    report = privacy.inspect(FakeBackend(), env={}, https_lookup=_https(), udp_lookup=fail)
+@pytest.mark.parametrize("proxy,tun,env,expected", [
+    (True, False, {}, "system_proxy"),
+    (False, True, {}, "tun"),
+    (False, False, {"HTTPS_PROXY": "http://127.0.0.1:7890"}, "env_proxy"),
+    (False, False, {}, "direct"),
+])
+def test_local_report_identifies_mode_without_claiming_webrtc_verification(proxy, tun, env, expected):
+    report = privacy.inspect(FakeBackend(proxy=proxy, tun=tun), env=env)
+    assert report["mode"] == expected
     assert report["consistent"] is None
-    assert report["level"] == "unknown"
-    assert any("UDP" in reason for reason in report["reasons"])
+    assert report["level"] == ("warn" if expected == "env_proxy" else "unknown")
+    assert any("未验证" in reason for reason in report["reasons"])
 
 
-def test_policy_state_is_reported_for_both_browsers():
+def test_policy_state_and_machine_management_are_reported():
     report = privacy.inspect(FakeBackend(policies={
         "chrome": {"value": "disable_non_proxied_udp", "source": "user", "state": "disabled", "editable": True},
-        "edge": {"value": None, "source": None, "state": "unset", "editable": True},
-    }), env={}, https_lookup=_https(), udp_lookup=_udp())
-    assert report["policies"]["browsers"]["chrome"]["state"] == "disabled"
-    assert report["policies"]["browsers"]["edge"]["state"] == "unset"
-
-
-def test_machine_policy_is_reported_as_managed():
-    report = privacy.inspect(FakeBackend(policies={
         "edge": {"value": "default", "source": "machine", "state": "default", "editable": False},
-    }), env={}, https_lookup=_https(), udp_lookup=_udp())
+    }), env={})
+    assert report["policies"]["browsers"]["chrome"]["state"] == "disabled"
     assert report["policies"]["browsers"]["edge"]["source"] == "machine"
     assert any("组织管理" in reason for reason in report["reasons"])
+    assert "secret" not in json.dumps(report)
 
 
-def test_non_tunnel_ipv6_route_raises_a_warning():
+def test_non_tunnel_ipv6_route_warns_without_making_a_network_probe():
     backend = FakeBackend()
     backend.privacy_snapshot = lambda: {
         "supported": True, "tun": False,
-        "ipv6": {"default": True, "tunnel": False},
-        "policies": {},
+        "ipv6": {"default": True, "tunnel": False}, "policies": {},
     }
-    report = privacy.inspect(backend, env={}, https_lookup=_https(), udp_lookup=_udp())
+    report = privacy.inspect(backend, env={})
     assert report["level"] == "warn"
     assert any("IPv6" in reason for reason in report["reasons"])
-
-
-def test_direct_mode_does_not_warn_about_ipv6_proxy_bypass():
-    backend = FakeBackend(proxy=False)
-    backend.privacy_snapshot = lambda: {
-        "supported": True, "tun": False,
-        "ipv6": {"default": True, "tunnel": False},
-        "policies": {},
-    }
-    report = privacy.inspect(backend, env={}, https_lookup=_https(), udp_lookup=_udp())
-    assert report["mode"] == "direct"
-    assert report["level"] == "ok"
-    assert not any("IPv6" in reason for reason in report["reasons"])
-
-
-def test_proxy_credentials_never_appear_in_the_report():
-    report = privacy.inspect(FakeBackend(), env={}, https_lookup=_https(), udp_lookup=_udp())
-    assert "secret" not in json.dumps(report)
 
 
 def test_apply_refuses_tun_mode():

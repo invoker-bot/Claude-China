@@ -27,10 +27,7 @@ if (new URLSearchParams(location.search).has("preview")) {
       reason: status === "unknown" ? "无法确认出口地区（预览示例）。" : status === "unsupported" ? "出口位于统一禁止地区：中国大陆，禁止启动。" : "出口地区已识别，未命中统一禁止名单，符合当前地区限制规则。" };
     if (safetySettings.router_mode) {
       report.route = "路由器直连（启动时检测）";
-      report.router = {services: [{host: "claude.ai", family: 4, status: "ok", ip: "203.0.113.24", country_code: "SG"},
-        {host: "api.anthropic.com", family: 4, status: "ok", ip: "203.0.113.24", country_code: "SG"}],
-        udp4: {status: "match", ip: "203.0.113.24"}, udp6: {status: "unavailable"},
-        dns: {status: "observed", ip: "203.0.113.53", country_code: "SG", asn: 12345}, browser_webrtc: "unknown"};
+      report.router = {browser_webrtc: "unknown"};
     }
     return report;
   };
@@ -39,13 +36,11 @@ if (new URLSearchParams(location.search).has("preview")) {
     edge: { value: null, source: null, state: "unset", editable: true },
   };
   const privacyReport = () => ({
-    checked_at: new Date().toISOString(), level: "warn", mode: "system_proxy",
-    https: { ok: true, ip: "203.0.113.24", country: "Singapore", country_code: "SG" },
-    udp: { ok: true, ip: "198.51.100.9", server: "stun.example.test:3478" },
-    consistent: false,
+    checked_at: new Date().toISOString(), level: "unknown", mode: "system_proxy",
+    https: { ok: false }, udp: { ok: false }, consistent: null,
     policies: { supported: true, browsers: clone(privacyBrowsers) },
     ipv6: { default: false, tunnel: null },
-    reasons: ["HTTPS 走系统代理，但 UDP 出口不同；浏览器 WebRTC 可能绕过代理。（预览示例）"],
+    reasons: ["仅检查本机设置，未验证浏览器 WebRTC、UDP 或 DNS 出口。"],
   });
   let privacyRepairs = [];
   const networkGuardEnabled = {};

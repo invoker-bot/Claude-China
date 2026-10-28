@@ -153,7 +153,7 @@ class LauncherBridge:
             return {"ok": False, "error": "无法验证系统网络防护，已取消启动。"}
         report = None
         if settings["enabled"] or router_mode:
-            report = self._check_safety(app_id, env, status, settings)
+            report = self._check_safety(app_id, env, status, settings, False, data)
             if not report["allowed"]:
                 return {"ok": False, "error": "安全检查未通过：" + report.get("reason", "无法确认支持状态。") + " 已取消启动。",
                         "safety": report}
@@ -356,14 +356,21 @@ class LauncherBridge:
             cfg.save_desktop_config(data)
         return {"ok": True}
 
-    def _check_safety(self, app_id, env, status, settings, allow_router_guard=False):
+    def _check_safety(self, app_id, env, status, settings, allow_router_guard=False, data=None):
         try:
+            data = cfg.load_desktop_config() if data is None else data
             if settings.get("router_mode"):
-                router.check_ready(app_id, cfg.load_desktop_config(), self._backend,
+                router.check_ready(app_id, data, self._backend,
                                    allow_router_guard=allow_router_guard)
                 report = router.inspect(app_id, self._backend)
             else:
-                report = safety.inspect_environment(app_id, env, self._backend, status)
+                if egress.tun_enabled(app_id, data):
+                    tunnel = (egress._store().read().get(app_id) or {}).get("tunnel")
+                    if not tunnel:
+                        raise egress.GuardError("无法验证指定 TUN 隧道。")
+                    report = safety.inspect_environment(app_id, env, self._backend, status, tunnel=tunnel)
+                else:
+                    report = safety.inspect_environment(app_id, env, self._backend, status)
         except router.RouterError as exc:
             report = {"app_id": app_id, "status": "unsupported", "reason": str(exc)}
         except Exception:
@@ -377,7 +384,13 @@ class LauncherBridge:
         data = cfg.load_desktop_config()
         status = self._backend.detect(app, cfg.get_app_path(data, app_id))
         proxy_url = None
-        if not cfg.get_safety_settings(data).get("router_mode") and cfg.get_auto_proxy_env(data):
+        try:
+            tun_mode = egress.tun_enabled(app_id, data)
+        except egress.GuardError:
+            return {"app_id": app_id, "status": "unknown", "allowed": False,
+                    "reason": "无法验证指定 TUN 隧道。"}
+        if (not cfg.get_safety_settings(data).get("router_mode")
+                and not tun_mode and cfg.get_auto_proxy_env(data)):
             try:
                 proxy_url = self._backend.system_http_proxy()
             except Exception:
@@ -385,7 +398,7 @@ class LauncherBridge:
                         "environment": safety.local_environment(),
                         "reason": "无法解析系统 HTTP 代理，自动添加代理环境变量将阻止启动。"}
         env = merge_env(os.environ, cfg.get_common_env(data), cfg.get_app_env(data, app_id), proxy_url=proxy_url)
-        return self._check_safety(app_id, env, status, cfg.get_safety_settings(data), allow_router_guard=True)
+        return self._check_safety(app_id, env, status, cfg.get_safety_settings(data), True, data)
 
     # ---- browser WebRTC privacy ----
     def _guard_detect(self, app_id, data):
@@ -402,7 +415,7 @@ class LauncherBridge:
             if egress.supported() and app_id in router_guardian.TARGETS:
                 current = router_guardian.status(app_id)
                 if current['enabled']:
-                    messages = {'healthy': '路由器运行防护已启用；网络异常时将阻断连接并保留会话。',
+                    messages = {'healthy': '路由器运行防护已启用；地区检查异常时将阻断连接并保留会话。',
                                 'blocked': 'Claude 网络已阻断；检查网络后可还原防护。',
                                 'unknown': '无法验证路由器运行防护，请检查或还原。'}
                     state.update(enabled=True, verified=current['state'] in ('healthy', 'blocked'),

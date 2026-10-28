@@ -31,7 +31,7 @@ per-app environment settings, and check for launcher updates from the header.
 - Search local CLI session history and resume a specific conversation
 - Pin favorite project folders and start new sessions with the selected profile
 - Inspect local token usage, tool calls, models, estimated API costs and daily trends
-- Check the exit region and UDP route, and enable reversible Windows network protection while keeping WebRTC enabled
+- Check the exit region and enable reversible Windows network protection while keeping WebRTC enabled
 
 ## Desktop tour
 
@@ -153,8 +153,7 @@ Settings → **安全检查** shows local timezone/language/region and checks th
 current public-IP region before each app launch or restart. Unsupported regions
 and, by default, unknown/failed checks block launching without stopping an
 already running app. The settings include automatic-check and strict-mode
-switches. **检查环境** runs the region check and an auxiliary STUN probe
-together. On Windows, **启用网络防护** restricts the selected app to the pinned
+switches. **检查环境** queries the exit country and reads local settings. On Windows, **启用网络防护** restricts the selected app to the pinned
 HTTP proxy endpoint; **还原网络防护** removes its protection in one click.
 Region eligibility does not guarantee account safety. See the
 [environment check guide](docs/desktop-safety.md) for supported rules, network
@@ -447,9 +446,9 @@ validation still runs before that activation.
 For a network routed by the router without a local proxy, choose **设置 → 安全检查
 → 路由器模式**, or run `claudec network-mode router`. First
 disable the system proxy and restore existing network guards for the target app
-and CLI / Playwright. Managed launches check service-specific HTTPS and UDP
-exits; DNS is an advisory single sample. Actual browser WebRTC and IP reputation
-remain unverified. On Windows, managed Claude desktop and Claude CLI launches
+and CLI / Playwright. Managed launches query the exit country through one
+independent Cloudflare HTTPS endpoint. Claude/Anthropic services, STUN, UDP and
+DNS are not separately probed; browser WebRTC and IP reputation remain unverified. On Windows, managed Claude desktop and Claude CLI launches
 also request administrator authorization for a running network guard. It
 checks the route periodically and blocks registered Claude and Playwright EXEs
 when the check fails or the monitor exits, while keeping the session open.
@@ -459,15 +458,11 @@ walks through switching from TUN, checking a managed Playwright session,
 testing a failure and restoring protection. See also the
 [technical details](docs/desktop-safety.md#router-preflight-mode).
 
-**设置 → 安全检查 → 检查环境** runs both checks at once. It compares the HTTPS
-exit (through the configured HTTP proxy) with the machine's UDP exit measured by
-a STUN binding request, and checks the selected app's public-IP region against
-the shared policy. It reports the proxy mode, Chrome/Edge policy state and the
-IPv6 default route. The WebRTC result is a heuristic: it measures the local UDP
-path, not a real browser session, and cannot replace an in-browser WebRTC test
-such as browserleaks.com/webrtc. The STUN server necessarily sees the local UDP
-exit IP. Browser-extension proxies, PAC/SOCKS proxies and split tunnels that
-route only selected browser traffic may not be visible to this check.
+**设置 → 安全检查 → 检查环境** queries the public-IP country against the shared
+policy and reads local proxy, browser policy and IPv6 settings. It does not
+verify browser WebRTC, UDP or DNS exits, Claude-specific split routes or IP
+reputation. Cloudflare sees the connecting public IP; ordinary DNS resolution
+is still needed to reach it.
 
 On Windows, select an installed app and choose **启用网络防护**. After Windows
 administrator authorization, **固定 HTTP 代理** mode permits only TCP to the system HTTP proxy's
@@ -534,9 +529,8 @@ installation path require reapplying protection before using that path; launchin
 such a new path outside the launcher is not covered by old executable filters.
 Only use a dedicated app installation directory, not a shared runtime directory.
 
-The manual STUN request still tests the launcher itself, not a protected target
-process. Its raw UDP exit can differ from the proxy even while the target's
-direct traffic is correctly blocked. See [the native acceptance probe](tools/windows_network_guard_probe.py)
+The country check does not test a protected browser's WebRTC route. See
+[the native acceptance probe](tools/windows_network_guard_probe.py)
 for isolated TCP/UDP, IPv4/IPv6, offline fallback, rollback and restore checks.
 The [TUN acceptance probe](tools/windows_tun_guard_probe.py) creates two
 disposable Wintun adapters and benchmark/documentation-only routes. It verifies

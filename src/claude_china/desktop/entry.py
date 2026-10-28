@@ -78,10 +78,10 @@ def main(argv=None):
         from .platforms import get_backend
         try:
             backend = get_backend()
-            if backend is None or args.router_runtime_probe not in router.HOSTS:
+            if backend is None or args.router_runtime_probe not in router.APPS:
                 raise ValueError()
             target = args.router_runtime_target or args.router_runtime_probe
-            if target not in (*router.HOSTS, 'playwright'):
+            if target not in (*router.APPS, 'playwright'):
                 raise ValueError()
             data = config.load_desktop_config()
             router.check_ready(target, data, backend, allow_router_guard=True)

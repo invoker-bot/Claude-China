@@ -126,13 +126,13 @@
             <div class="editor-body">
               <label class="switch" for="safety-enabled"><span class="switch-text"><span class="field-label">启动前检查环境</span><span class="field-hint">每次启动或重启前查询出口地区。命中统一禁止名单时取消启动，三个应用使用相同规则。</span></span><input type="checkbox" id="safety-enabled" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
               <label class="switch" for="safety-strict"><span class="switch-text"><span class="field-label">无法确认时也阻止启动</span><span class="field-hint">包括查询失败、无法识别地区或代理出口不明确。推荐开启。</span></span><input type="checkbox" id="safety-strict" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
-              <label class="switch" for="safety-router"><span class="switch-text"><span class="field-label">路由器模式</span><span class="field-hint">无需本机代理。Claude 在 Windows 上持续检查网络；发现异常或监控退出时阻断连接并保留会话，需要管理员授权。Codex 和 Grok 仅在启动前检查；已有网络防护请先还原。</span></span><input type="checkbox" id="safety-router" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
+              <label class="switch" for="safety-router"><span class="switch-text"><span class="field-label">路由器模式</span><span class="field-hint">无需本机代理。Claude 在 Windows 上持续检查出口地区；命中禁止地区、严格模式下无法确认或监控退出时阻断连接并保留会话，需要管理员授权。Codex 和 Grok 仅在启动前检查；已有网络防护请先还原。</span></span><input type="checkbox" id="safety-router" role="switch"><span class="switch-ui" aria-hidden="true"></span></label>
               <p class="field-hint">路由器检查间隔约 10 秒，单次最多 12 秒；检测前仍可能有流量。未知结果按上方设置处理。</p>
               <div class="field"><h3 class="field-label">统一禁止地区</h3><p id="safety-blocked-regions"></p><p class="field-hint">其他已识别地区按当前规则放行。此名单是本应用的启动规则。</p></div>
               <div class="field"><h3 class="field-label">本机环境</h3><dl class="safety-local" id="safety-local"></dl><p class="field-hint">时区与语言仅供核对，不单独作为拦截依据。</p></div>
               <div class="field">
                 <div class="safety-toolbar"><label class="field-label" for="safety-app">出口地区检查</label><select id="safety-app" aria-label="检查的应用"></select><button class="btn" id="safety-check" type="button"><span data-icon="refresh"></span>检查环境</button></div>
-                <p class="field-hint">检查出口地区，并用启动器自身的 UDP STUN 请求辅助检查网络出口；此探测不能代表目标应用的实际连接。STUN 服务器会看到该请求的出口 IP。</p>
+                <p class="field-hint">仅向 Cloudflare 查询出口国家或地区；不测试浏览器 WebRTC、UDP 或 DNS 出口。</p>
                 <div class="safety-result" id="safety-result" role="status" aria-live="polite"><p>尚未检查。启动时会重新检测地区。</p></div>
                 <button class="text-button safety-source" id="safety-source" type="button">查看应用官方说明<span data-icon="external"></span></button>
                 <h3 class="field-label">系统网络防护</h3>

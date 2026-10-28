@@ -212,16 +212,16 @@ def test_safety_settings_default_strict_and_persist_without_ip(bridge):
 
 
 @pytest.mark.parametrize("body", [
-    {"success": False, "message": "private IP"},
-    {"success": True, "ip": "127.0.0.1", "country_code": "US"},
-    {"success": True, "ip": "1.1.1.1", "country_code": "XX"},
-    {"success": "true", "ip": "1.1.1.1", "country_code": "US"},
+    b"ip=127.0.0.1\nloc=US\n",
+    b"ip=1.1.1.1\nloc=XX\n",
+    b"loc=US\n",
+    b"ip=1.1.1.1\n",
 ])
 def test_untrusted_ip_response_cannot_authorize_launch(monkeypatch, body):
     connection = Mock()
     response = connection.getresponse.return_value
     response.status = 200
-    response.read.return_value = json.dumps(body).encode()
+    response.read.return_value = body
     monkeypatch.setattr(safety.http.client, "HTTPSConnection", Mock(return_value=connection))
     with pytest.raises(safety.SafetyCheckError):
         safety.lookup_ip(None)
@@ -232,13 +232,13 @@ def test_https_lookup_tunnels_and_never_sends_proxy_password_to_service(monkeypa
     connection = Mock()
     response = connection.getresponse.return_value
     response.status = 200
-    response.read.return_value = json.dumps({"success": True, "ip": "1.1.1.1", "country_code": "SG"}).encode()
+    response.read.return_value = b"ip=1.1.1.1\nloc=SG\n"
     factory = Mock(return_value=connection)
     monkeypatch.setattr(safety.http.client, "HTTPSConnection", factory)
     result = safety.lookup_ip("http://user:pass@localhost:7890")
     assert result["country_code"] == "SG"
     assert factory.call_args.args == ("localhost", 7890)
-    assert connection.set_tunnel.call_args.args == ("ipwho.is", 443)
+    assert connection.set_tunnel.call_args.args == ("www.cloudflare.com", 443)
     assert "Proxy-Authorization" in connection.set_tunnel.call_args.kwargs["headers"]
     assert "pass" not in repr(connection.request.call_args)
     assert "Proxy-Authorization" not in connection.request.call_args.kwargs["headers"]

@@ -99,7 +99,7 @@ const ENVIRONMENT_HEADS = {
   unsupported: ["禁止地区", "将阻止启动"],
   warn: ["存在暴露风险", "建议修复"],
   unknown: ["无法确认", "需要手动确认"],
-  ok: ["检查通过", "允许启动"],
+  ok: ["地区规则通过", "允许启动"],
 };
 const PRIVACY_MODES = {
   system_proxy: "系统代理", tun: "TUN / 虚拟网卡", env_proxy: "环境变量代理",
@@ -114,13 +114,11 @@ const BROWSER_NAMES = { chrome: "Chrome", edge: "Edge" };
 // A blocked region always wins; anything unconfirmed keeps the summary honest.
 function environmentStatus(safety, privacy) {
   if (safety?.status === "unsupported") return "unsupported";
-  if (safety?.router?.dns?.status === "warning") return "warn";
   const guard = NETWORK_GUARDS[document.getElementById("safety-app").value];
   if (guard?.router_state === "blocked" || guard?.router_state === "unknown") return "warn";
   if (guard?.enabled && !guard.verified) return "warn";
-  if (safety?.router) return safety.status === "supported" ? "ok" : "unknown";
   if (privacy?.level === "warn" && !guard?.verified) return "warn";
-  if (!safety || !privacy || safety.status === "unknown" || privacy.level === "unknown") return "unknown";
+  if (!safety || safety.status === "unknown") return "unknown";
   return "ok";
 }
 function privacyPolicyLabel(browser) {
@@ -155,31 +153,10 @@ function environmentRows(safety, privacy) {
     rows.push(["出口 IP", network.ip || "未获取", !network.ip]);
     rows.push(["出口地区", [network.country, network.country_code, network.region].filter(Boolean).join(" · ") || "未知", !network.country_code]);
     rows.push(["检测连接", safety.route || "尚未确认"]);
-    if (safety.router) {
-      const labels = {match: "一致", mismatch: "不一致", unavailable: "未检测到默认路由", unknown: "无法判断"};
-      for (const service of safety.router.services || [])
-        rows.push([`${service.host} (IPv${service.family})`, service.status === "ok"
-          ? `${service.ip} · ${service.country_code}` : I18n.text("无法判断"), true]);
-      for (const family of [4, 6]) {
-        const probe = safety.router[`udp${family}`] || {};
-        rows.push([`UDP IPv${family}`, `${I18n.text(labels[probe.status] || "无法判断")}${probe.ip ? ` · ${probe.ip}` : ""}`, true]);
-      }
-      const dns = safety.router.dns;
-      rows.push(["DNS 解析器（单次参考）", dns && typeof dns === "object"
-        ? `${dns.ip} · ${dns.country_code} · AS${dns.asn}${dns.status === "warning" ? ` · ${I18n.text("需要复核")}` : ""}`
-        : I18n.text("无法判断"), true]);
-      rows.push(["浏览器 WebRTC", I18n.text("未验证目标浏览器")]);
-      rows.push(["IP 信誉", I18n.text("未查询")]);
-    }
+    rows.push(["浏览器 WebRTC", I18n.text("未验证目标浏览器")]);
   }
   if (privacy) {
-    const network = privacy.https || {};
-    const udp = privacy.udp || {};
-    const consistent = privacy.consistent === true ? "一致" : privacy.consistent === false ? "不一致" : "无法判断";
     rows.push(["代理模式", I18n.text(PRIVACY_MODES[privacy.mode] || PRIVACY_MODES.unknown)]);
-    rows.push(["HTTPS 出口", network.ok ? `${network.ip}${network.country ? ` · ${network.country}` : ""}` : "未获取", !network.ip]);
-    rows.push(["启动器 UDP 出口（辅助）", udp.ok ? udp.ip : "未获取", !udp.ip]);
-    rows.push(["出口一致性", I18n.text(consistent)]);
     rows.push(["浏览器策略", ["chrome", "edge"].map(privacyPolicyLabel).join(" · ")]);
     rows.push(["IPv6", privacyIpv6Label(privacy.ipv6)]);
   }
@@ -318,7 +295,7 @@ async function checkEnvironment() {
   button.disabled = true; button.classList.add("is-busy");
   document.getElementById("safety-app").disabled = true;
   const box = document.getElementById("safety-result");
-  box.dataset.status = "checking"; box.innerHTML = "<p>正在检查出口地区与 WebRTC 出口…</p>";
+  box.dataset.status = "checking"; box.innerHTML = "<p>正在检查出口地区…</p>";
   const [safetyResult, privacyResult] = await Promise.allSettled([
     api().check_safety(id), SAFETY_SETTINGS.router_mode ? Promise.resolve(null) : api().check_privacy()]);
   if (safetyResult.status === "fulfilled") SAFETY_REPORTS[id] = safetyResult.value;
