@@ -78,7 +78,7 @@ def login_browser_command(
 
 @app.command(name="network-mode")
 def network_mode_command(mode: str = typer.Argument(..., help="router or default")):
-    """Select router preflight or the existing proxy/TUN settings."""
+    """Select router mode or the existing proxy/TUN settings."""
     if mode not in ("router", "default"):
         raise typer.BadParameter("Choose 'router' or 'default'.", param_hint="mode")
     from .desktop import config as desktop_config
@@ -87,8 +87,8 @@ def network_mode_command(mode: str = typer.Argument(..., help="router or default
         desktop_config.set_safety_settings(data, {"router_mode": mode == "router"})
         desktop_config.save_desktop_config(data)
     if mode == "router":
-        typer.echo("Router preflight enabled. Restore existing system network guards and disable the local system proxy before launch.")
-        typer.echo("The check cannot block direct connections after the router fails.")
+        typer.echo("Router mode enabled. Restore existing system network guards and disable the local system proxy before launch.")
+        typer.echo("On Windows, managed Claude launches also monitor the network and can block registered programs after a failure. Checks are periodic; other apps receive preflight only.")
     else:
         typer.echo("Router preflight disabled; existing proxy/TUN settings apply.")
 

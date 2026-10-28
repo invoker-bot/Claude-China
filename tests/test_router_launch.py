@@ -156,7 +156,10 @@ def test_cli_can_switch_network_mode_without_deleting_existing_settings(tmp_path
     monkeypatch.setattr(config, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
     config.save_desktop_config({"env_vars": {"OTHER": "value"}})
     runner = CliRunner()
-    assert runner.invoke(app, ["network-mode", "router"]).exit_code == 0
+    result = runner.invoke(app, ["network-mode", "router"])
+    assert result.exit_code == 0
+    assert "managed Claude" in result.output and "Windows" in result.output
+    assert "cannot block direct connections after the router fails" not in result.output
     assert config.get_safety_settings(config.load_desktop_config())["router_mode"]
     assert config.load_desktop_config()["env_vars"] == {"OTHER": "value"}
     assert runner.invoke(app, ["network-mode", "default"]).exit_code == 0
