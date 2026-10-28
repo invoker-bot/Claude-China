@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-china"
-version = "0.4.6"
+version = "0.4.7"
 description = "Claude China: AI coding profiles and a desktop launcher"
 readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
