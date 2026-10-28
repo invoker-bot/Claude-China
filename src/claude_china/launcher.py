@@ -267,6 +267,27 @@ def launch(profile_dict, extra_args, use_default_args=True):
         if cli_guard.enabled(data):
             from .desktop.terminal_host import resolve_cli_argv
             full_cmd, env = cli_guard.prepare(resolve_cli_argv(ptype) + final_args, env, data)
+            if settings['enabled']:
+                from .desktop import egress, safety
+                from .desktop.platforms import get_backend
+                from .desktop.platforms.base import AppStatus
+                try:
+                    tunnel = (egress._store().read().get('playwright') or {}).get('tunnel')
+                    backend = get_backend()
+                    if not tunnel or backend is None:
+                        raise ValueError('missing tunnel')
+                    app_id = 'grok-bot' if ptype == 'grok' else ptype
+                    status = AppStatus(app_id, True, True, full_cmd[0], full_cmd[0])
+                    report = safety.inspect_environment(app_id, env, backend, status, tunnel=tunnel)
+                except Exception:
+                    print('安全检查未通过：无法确认指定 TUN 的出口地区。', file=sys.stderr)
+                    sys.exit(1)
+                if not safety.launch_allowed(report, settings):
+                    print('安全检查未通过：' + report.get('reason', '无法确认出口地区。'), file=sys.stderr)
+                    sys.exit(1)
+                if desktop_config.launch_settings_changed(data, desktop_config.load_desktop_config()):
+                    print('安全检查未通过：检测期间启动设置发生变化，请重试。', file=sys.stderr)
+                    sys.exit(1)
             try:
                 result = subprocess.run(full_cmd, env=env)
                 sys.exit(result.returncode)
