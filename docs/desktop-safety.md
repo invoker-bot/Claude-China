@@ -21,6 +21,8 @@ a local proxy. Disable the system proxy and
 restore any existing system network protection for the selected desktop app or
 the **CLI / Playwright 浏览器** target before using it. Proxy variables are
 removed from managed child environments, but existing saved values are retained.
+For step-by-step setup, testing and recovery, see the
+[路由器模式配置与测试教程](router-mode.md).
 
 Each managed desktop, terminal-profile and `claudec` launch checks the relevant
 service domains directly using their Cloudflare trace endpoints, checks the
@@ -45,8 +47,8 @@ administrator authorization and installs user-scoped WFP rules for the registere
 Claude installation or managed CLI and discovered local Playwright browser EXEs.
 The elevation must use the same Windows account as the requesting session;
 cross-account administrator credentials are rejected for runtime monitoring.
-The guard checks the same service and UDP measurements every 10 seconds; a
-probe may take up to 12 seconds before it is treated as unknown. A blocked
+The guard waits about 10 seconds after each completed check before starting the
+next; a probe may take up to 12 seconds before it is treated as unknown. A blocked
 region, mismatched or changed exit, newly detected IPv6 route, or an unknown
 result in strict mode removes the temporary network permits. A crash of the
 monitor also removes those permits. The persistent deny remains in place for

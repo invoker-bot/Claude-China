@@ -114,9 +114,9 @@ Download the desktop app from
 [GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
 It includes Python and the desktop dependencies; installing the CLI is optional.
 
-v0.4.5 publishes Windows and Linux installers plus the CLI. macOS Intel and
+v0.4.6 publishes Windows and Linux installers plus the CLI. macOS Intel and
 Apple Silicon packages are currently build-validation artifacts in GitHub
-Actions, not downloads attached to the v0.4.5 Release.
+Actions, not downloads attached to the v0.4.6 Release.
 
 | Platform | Download | Install | Uninstall |
 | --- | --- | --- | --- |
@@ -189,7 +189,7 @@ Grok Bot's `grok-bot` desktop command is detected automatically; select an
 installed executable in settings for other or portable desktop apps. Terminal
 commands such as `claude`, `codex` and `grok` are not treated as desktop apps.
 
-Windows signing service enrollment is pending; the v0.4.5 Windows installer is
+Windows signing service enrollment is pending; the v0.4.6 Windows installer is
 unsigned. The macOS Actions artifacts are ad-hoc signed and not notarized.
 Developer ID signing and Apple notarization can be enabled once credentials
 are configured; see the
@@ -454,8 +454,10 @@ also request administrator authorization for a running network guard. It
 checks the route periodically and blocks registered Claude and Playwright EXEs
 when the check fails or the monitor exits, while keeping the session open.
 Detection is not instantaneous; traffic may escape before the next check. Codex
-and Grok receive startup checks only. See [router mode](docs/desktop-safety.md#router-preflight-mode)
-for the recovery steps and coverage limits.
+and Grok receive startup checks only. The [路由器模式配置与测试教程](docs/router-mode.md)
+walks through switching from TUN, checking a managed Playwright session,
+testing a failure and restoring protection. See also the
+[technical details](docs/desktop-safety.md#router-preflight-mode).
 
 **设置 → 安全检查 → 检查环境** runs both checks at once. It compares the HTTPS
 exit (through the configured HTTP proxy) with the machine's UDP exit measured by

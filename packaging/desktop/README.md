@@ -128,7 +128,7 @@ uploads Actions artifacts; ordinary branch pushes and PRs do not trigger builds.
 A `v*` tag must match
 `src/claude_china/__init__.py`; all build and validation jobs must succeed
 before the workflow publishes the selected installers and `SHA256SUMS` to the
-matching GitHub Release. For v0.4.5, `PUBLISH_MACOS` is `false`: only the Windows
+matching GitHub Release. For v0.4.6, `PUBLISH_MACOS` is `false`: only the Windows
 EXE and Linux DEB/RPM are published, with their three checksum sidecars. The
 macOS builds remain Actions artifacts. Set `PUBLISH_MACOS` to `true` to include
 both Mac architectures in a subsequent release. The collector requires exact
