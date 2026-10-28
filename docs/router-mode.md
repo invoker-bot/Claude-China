@@ -4,7 +4,7 @@
 
 ## 开始前
 
-- 安装 Claude China v0.4.7 或更新版，并已安装 Claude 桌面应用或 Claude Code。桌面程序和独立安装的 CLI 需要分别更新。
+- 安装 Claude China v0.4.8 或更新版，并已安装 Claude 桌面应用或 Claude Code。桌面程序和独立安装的 CLI 需要分别更新。
 - 确认路由器已经按你的预期处理 Claude 的 HTTPS 和 UDP 流量。关闭 Windows 的系统 HTTP/PAC 代理；不需要为此启动本机代理或开启本机 TUN。
 - 保存工作并结束准备切换的受保护 CLI / Playwright 会话。将原有网络防护还原后，旧进程将不再受原规则保护。
 - 此处的运行期阻断仅支持 Windows 上的受管 Claude 桌面、Claude Code CLI 和登记的本机 Playwright 浏览器。Codex、Grok 在路由器模式下只进行启动前检查。
