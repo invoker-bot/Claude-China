@@ -48,6 +48,10 @@ ambiguous resets and overlapping records are handled conservatively with a
 coverage notice. In-progress Grok turns contribute activity, but their token
 usage is unavailable until `turn_completed` arrives.
 
+The table intentionally has no Antigravity source yet. Antigravity CLI history
+and token statistics are unsupported, not zero; no private conversation or
+keyring storage is scanned.
+
 ## Tool calls
 
 The model/application breakdown and the **Tool call breakdown** show calls by

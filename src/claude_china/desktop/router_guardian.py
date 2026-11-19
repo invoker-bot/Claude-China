@@ -14,7 +14,7 @@ import time
 import uuid
 
 from ..config_paths import config_dir
-from . import router_runtime
+from . import notifications, router_runtime
 
 TARGETS = ('claude', 'playwright')
 REQUEST_NAME = re.compile(r'claudec-router-watch-[a-z0-9_]{8,64}')
@@ -288,6 +288,10 @@ def restore(target):
                               '--router-guardian-parent-created', repr(psutil.Process().create_time())])
         if status(target)['enabled']:
             raise GuardError('无法确认路由器网络防护已还原。')
+        try:
+            (_read_control(target) / 'stop').touch(exist_ok=True)
+        except GuardError:
+            pass
         _control_file(target).unlink(missing_ok=True)
     except GuardError:
         raise
@@ -353,14 +357,47 @@ def _lifecycle(stop, lost, directory, paths, parent_pid, parent_created):
 
 
 def _alert(reason):
+    notifications.show_network_warning(reason)
+
+
+def _monitor_blocked(stop, settings, target, verify=None, restore=None):
+    notified = True
     try:
-        outcome = ('无法验证网络阻断状态，请立即检查网络防护。' if reason.startswith('网络异常，无法验证')
-                   else 'Claude 的网络已阻断，窗口和会话保留。请在安全检查中还原网络防护。')
-        ctypes.windll.user32.MessageBoxW(None,
-            reason + '\n' + outcome,
-            'Claude China · 网络防护', 0x1010)
-    except Exception:
-        pass
+        while not stop.wait(router_runtime.INTERVAL_SECONDS):
+            try:
+                verified = verify() if verify is not None else True
+            except Exception:
+                verified = False
+            current = router_runtime.sample('claude', target)
+            reason = ('网络异常，无法验证阻断规则；请立即检查网络防护。' if not verified
+                      else router_runtime.failure(None, current, settings))
+            if reason and not notified:
+                _alert(reason)
+                notified = True
+            elif not reason and notified:
+                if restore is not None:
+                    try:
+                        restore()
+                    except Exception:
+                        continue
+                notifications.dismiss_network_warning()
+                notified = False
+                if restore is not None:
+                    stop.set()
+                    return
+    finally:
+        notifications.dismiss_network_warning()
+
+
+def _restore_verified(owner, target, policies):
+    from .platforms.windows_wfp import Engine
+    with Engine(owner, scope=scope(target)) as engine:
+        if not engine.verify(policies):
+            raise GuardError('路由器防护规则已变化，未自动还原。')
+        engine.replace({}, expected=policies)
+        if engine.read():
+            raise GuardError('无法确认路由器网络防护已自动还原。')
+    _control_file(target).unlink(missing_ok=True)
 
 
 def run_request(path, digest):
@@ -412,8 +449,14 @@ def run_request(path, digest):
                 return router_runtime.sample('claude', target)
             reason = router_runtime.watch(initial, settings, probe, lambda reason: None, stop)
             return reason or (router_runtime.NETWORK_FAILED if lost.is_set() else None)
-        guard_session(policies, lambda dynamic=False: Engine(owner, scope=scope(target), dynamic=dynamic),
-                      watch, ready, _alert)
+        def rules_verified():
+            with Engine(owner, scope=scope(target)) as engine:
+                return engine.verify(policies)
+        outcome = guard_session(policies, lambda dynamic=False: Engine(owner, scope=scope(target), dynamic=dynamic),
+                                watch, ready, _alert)
+        if outcome in ('blocked', 'unverified'):
+            _monitor_blocked(stop, settings, target, rules_verified,
+                             lambda: _restore_verified(owner, target, policies))
         return 0
     except Exception:
         return 1

@@ -5,14 +5,13 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import shutil
-import sys
 import threading
 from urllib.parse import urlsplit
 
 from .. import config as cli_config
-from ..launcher import prepare_environment, resolve_default_args, PROXY_ENV_VARS
+from ..launcher import find_command, prepare_environment, resolve_default_args, PROXY_ENV_VARS
 from ..models import VALID_TYPES, OFFICIAL_BASE_URLS, profile_from_dict, profile_to_dict
+from ..providers import PROVIDERS, get_provider, safety_app_id
 from . import config, safety, terminal_history
 from .env import merge_env
 from .platforms.base import AppStatus
@@ -20,7 +19,7 @@ from .proxy import SystemProxyError
 from .terminal_host import resolve_cli_argv
 
 _STORE_LOCK = threading.RLock()
-TOOL_NAMES = {'claude': 'Claude Code', 'codex': 'Codex CLI', 'grok': 'Grok CLI'}
+TOOL_NAMES = {provider.id: provider.display for provider in PROVIDERS}
 
 
 def _revision(profile):
@@ -96,7 +95,7 @@ def _public(name, record, detail=False):
     kind, mode = record.get('type', ''), record.get('mode', 'api')
     result = {'name': name, 'type': kind, 'mode': mode, 'revision': _revision(record),
               'has_secret': bool(record.get('token') or record.get('api_key')),
-              'supported': kind in VALID_TYPES and mode in ('api', 'login')}
+              'supported': kind in VALID_TYPES and mode in get_provider(kind).auth_modes}
     if detail:
         result.update(base_url=record.get('base_url', ''), proxy=record.get('proxy', ''),
                       credentials_path=record.get('credentials_path', ''),
@@ -135,12 +134,13 @@ class TerminalService:
         kind, mode = payload.get('type'), payload.get('mode')
         if kind not in VALID_TYPES or mode not in ('api', 'login'):
             raise ValueError('请选择支持的 CLI 工具和认证方式。')
+        if mode not in get_provider(kind).auth_modes:
+            raise ValueError('此 CLI 暂不支持所选认证方式。')
         arguments = payload.get('default_args', [])
         if not isinstance(arguments, list) or any(not isinstance(v, str) or '\0' in v for v in arguments):
             raise ValueError('默认参数必须是字符串数组。')
         proxy = _url(payload.get('proxy') or '', '代理地址', ('http', 'https', 'socks5', 'socks5h'))
-        with _STORE_LOCK:
-            data = _read()
+        with _STORE_LOCK, cli_config.transaction() as data:
             old = _existing(data, original_name, revision or '') if original_name is not None else {}
             if name in data['profiles'] and name != original_name:
                 raise ValueError('配置名称已存在，请使用其他名称。')
@@ -158,13 +158,16 @@ class TerminalService:
                 value['manual_browser_login'] = manual if kind == 'claude' else None
             else:
                 value['base_url'] = _url(payload.get('base_url') or OFFICIAL_BASE_URLS[kind], 'API 地址')
-                key = 'token' if kind == 'claude' else 'api_key'
+                key = get_provider(kind).secret_field
                 secret = payload.get('secret', '')
                 if not isinstance(secret, str) or '\0' in secret or '\n' in secret or '\r' in secret:
                     raise ValueError('密钥格式无效。')
                 unchanged = old.get('type') == kind and old.get('mode', 'api') == mode
                 value[key] = None if payload.get('clear_secret') else secret or (old.get(key) if unchanged else None)
             record = profile_to_dict(profile_from_dict(value))
+            if get_provider(kind).settings_provider:
+                from ..antigravity import configure_gemini_api
+                configure_gemini_api()
             # Keep extension fields written by CLI versions this UI does not know.
             fields = {'name', 'type', 'mode', 'proxy', 'default_args', 'base_url', 'token', 'api_key', 'credentials_path',
                       'manual_browser_login'}
@@ -172,13 +175,11 @@ class TerminalService:
             if original_name is not None:
                 del data['profiles'][original_name]
             data['profiles'][name] = record
-            cli_config.save_config(data)
             return _public(name, record, detail=True)
 
     def copy_profile(self, name, revision):
         from .localization import display_message
-        with _STORE_LOCK:
-            data = _read()
+        with _STORE_LOCK, cli_config.transaction() as data:
             record = deepcopy(_existing(data, name, revision))
             base = name[:65] + ' ' + display_message('副本')
             new_name, number = base, 2
@@ -186,15 +187,12 @@ class TerminalService:
                 new_name, number = base + ' ' + str(number), number + 1
             record['name'] = new_name
             data['profiles'][new_name] = record
-            cli_config.save_config(data)
             return _public(new_name, record)
 
     def delete_profile(self, name, revision):
-        with _STORE_LOCK:
-            data = _read()
+        with _STORE_LOCK, cli_config.transaction() as data:
             _existing(data, name, revision)
             del data['profiles'][name]
-            cli_config.save_config(data)
 
     def workspace(self):
         prefs = config.load_desktop_config().get('terminals', {})
@@ -209,9 +207,13 @@ class TerminalService:
                 'projects': [{'directory': p, 'name': Path(p).name or p,
                               'favorite': os.path.normcase(p) in favorite_keys, 'available': Path(p).is_dir()}
                              for p in projects],
-                'tools': [{'id': kind, 'display': TOOL_NAMES[kind],
-                           'installed': bool(shutil.which(kind + '.cmd') or shutil.which(kind)) if sys.platform == 'win32' else bool(shutil.which(kind))}
-                          for kind in VALID_TYPES]}
+                'tools': [{'id': provider.id, 'display': provider.display,
+                           'installed': bool(find_command(provider.id)),
+                           'auth_modes': list(provider.auth_modes),
+                           'official_base_url': provider.official_base_url,
+                           'history_supported': bool(provider.history_home),
+                           'settings_provider': provider.settings_provider}
+                          for provider in PROVIDERS]}
 
     def remember_directory(self, directory, profile=None):
         directory = directory_path(directory)
@@ -256,6 +258,8 @@ class TerminalService:
         record = deepcopy(_existing(_read(), name))
         if not _public(name, record)['supported']:
             raise ValueError('此 CLI 配置类型暂不支持，请先编辑配置。')
+        if not get_provider(record['type']).history_home:
+            return {'sessions': [], 'warnings': ['此 CLI 暂不支持历史会话。'], 'truncated': False}
         return terminal_history.list_sessions(record['type'], terminal_history.profile_home(record))
 
     def _session(self, record, session_id):
@@ -315,7 +319,7 @@ class TerminalService:
         env = playwright_guard.prepare_environment(env, data=data, ensure_router_clear=record['type'] == 'claude')
         argv, env = cli_guard.prepare(argv, env, data=data)
         if settings['enabled'] or router_mode:
-            app_id = 'grok-bot' if record['type'] == 'grok' else record['type']
+            app_id = safety_app_id(record['type'])
             try:
                 status = AppStatus(app_id, True, True, argv[0], argv[0])
                 if router_mode:

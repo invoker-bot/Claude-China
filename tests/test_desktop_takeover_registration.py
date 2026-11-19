@@ -163,11 +163,12 @@ def test_uninstall_refuses_to_leave_owned_registration_without_manifest(setup, m
         registration.uninstall()
 
 
-def test_three_registrations_are_independent_and_uninstall_cleans_each(setup, monkeypatch):
+def test_four_registrations_are_independent_and_uninstall_cleans_each(setup, monkeypatch):
     paths = {}
     monkeypatch.setattr(registration.sys, 'platform', 'win32')
     monkeypatch.setattr(registration.ctypes, 'windll', SimpleNamespace(shell32=SimpleNamespace(IsUserAnAdmin=lambda: True)), raising=False)
-    for app_id, name in [('grok-bot', 'Grok Bot.exe'), ('claude', 'Claude.exe'), ('codex', 'Codex.exe')]:
+    for app_id, name in [('grok-bot', 'Grok Bot.exe'), ('claude', 'Claude.exe'), ('codex', 'Codex.exe'),
+                         ('antigravity', 'Antigravity.exe')]:
         target = setup.target.with_name(name)
         target.touch()
         path = setup.path.with_name(app_id + '.json')
@@ -175,11 +176,11 @@ def test_three_registrations_are_independent_and_uninstall_cleans_each(setup, mo
         paths[app_id] = path
         registration.apply_registration(path, True)
         assert registration.read_registration(app_id)['target'] == str(target)
-    assert len(setup.registry.data) == 6
+    assert len(setup.registry.data) == 8
     before = deepcopy(setup.registry.data)
     registration.apply_registration(paths['codex'], False)
     assert registration.read_registration('codex') is None
-    for app_id in ('claude', 'grok-bot'):
+    for app_id in ('claude', 'grok-bot', 'antigravity'):
         key = registration.registry_key(app_id)
         assert setup.registry.data[key] == before[key]
         assert setup.registry.data[key + '\\' + registration.FILTER] == before[key + '\\' + registration.FILTER]

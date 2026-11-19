@@ -58,7 +58,7 @@ def test_import_preserves_credentials_comments_and_old_files(settings_home):
     assert config.load_config() == profiles
     assert desktop_config.load_desktop_config() == {
         **desktop, "auto_proxy_env": False, "safety_check": True, "safety_block_unknown": True,
-        "language": "system",
+        "safety_require_tun": True, "language": "system",
     }
     for name, content in original.items():
         assert (current / name).read_bytes() == content
@@ -225,3 +225,21 @@ def test_import_creates_private_settings_files(settings_home):
     assert stat.S_IMODE(current.stat().st_mode) == 0o700
     for name in ("config.yaml", "desktop.yaml"):
         assert stat.S_IMODE((current / name).stat().st_mode) == 0o600
+
+
+def test_antigravity_cli_type_migrates_without_losing_profile_fields(settings_home):
+    current, _ = settings_home
+    write_yaml(current / 'config.yaml', {'profiles': {'google': {
+        'name': 'google', 'type': 'antigravity-cli', 'mode': 'api',
+        'base_url': 'https://gemini.example.test', 'api_key': 'test-only-key',
+        'default_args': ['--mode', 'plan'], 'extension': 'preserve',
+    }}})
+    record = config.load_config()['profiles']['google']
+    assert record == {
+        'name': 'google', 'type': 'antigravity', 'mode': 'api',
+        'base_url': 'https://gemini.example.test', 'api_key': 'test-only-key',
+        'default_args': ['--mode', 'plan'], 'extension': 'preserve',
+    }
+    with (current / 'config.yaml').open(encoding='utf-8') as stream:
+        saved = yaml.safe_load(stream)
+    assert saved['profiles']['google']['type'] == 'antigravity'

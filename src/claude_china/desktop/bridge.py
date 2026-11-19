@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import threading
@@ -29,6 +30,9 @@ class LauncherBridge:
         self._open_dialog = 20  # pywebview OPEN_DIALOG; overridden in app.py
         self._screen_height = None
         self._status = {}
+        self._launched = set()
+        self._guard_watch_thread = None
+        self._guard_watch_stop = threading.Event()
         self._activity = None
         self._updater = None
         self._window_controls = None
@@ -151,6 +155,11 @@ class LauncherBridge:
             return {"ok": False, "error": str(exc) + " 已取消启动。"}
         except Exception:
             return {"ok": False, "error": "无法验证系统网络防护，已取消启动。"}
+        if not router_mode and settings.get("require_tun") is True and egress.supported():
+            if not guard.get("enabled"):
+                return {"ok": False, "error": "已要求 TUN 网络防护：请先在设置 → 安全检查 → 系统网络防护中为该应用启用 TUN 模式。已取消启动。"}
+            if guard.get("mode") != "tun":
+                return {"ok": False, "error": "已要求 TUN 网络防护：该应用当前使用固定代理模式，请改为指定 TUN 隧道。已取消启动。"}
         report = None
         if settings["enabled"] or router_mode:
             report = self._check_safety(app_id, env, status, settings, False, data)
@@ -183,6 +192,8 @@ class LauncherBridge:
             if guardian:
                 router_guardian.stop_session(guardian)
             return {"ok": False, "error": f"启动失败: {exc}"}
+        self._launched.add(app_id)
+        self._start_guard_watch()
         return {"ok": True, "safety": report} if report else {"ok": True}
 
     def stop_app(self, app_id):
@@ -194,7 +205,64 @@ class LauncherBridge:
             self._backend.stop(status)
         except Exception as exc:
             return {"ok": False, "error": f"中止失败: {exc}"}
+        self._launched.discard(app_id)
         return {"ok": True}
+
+    # ---- runtime TUN guard watch ----
+    def _start_guard_watch(self):
+        if self._window is None or self._guard_watch_thread is not None:
+            return
+        self._guard_watch_thread = threading.Thread(
+            target=self._guard_watch_loop, name="guard-watch", daemon=True)
+        self._guard_watch_thread.start()
+
+    def _guard_watch_loop(self):
+        while not self._guard_watch_stop.wait(30):
+            try:
+                self._guard_watch_pass()
+            except Exception:
+                logging.getLogger(__name__).debug("Network guard watch failed", exc_info=True)
+
+    def _guard_watch_pass(self):
+        """Stop apps whose verified TUN guard disappeared; returns alert payloads."""
+        alerts = []
+        if not self._launched or not egress.supported():
+            return alerts
+        data = cfg.load_desktop_config()
+        require_tun = cfg.get_safety_settings(data).get("require_tun") is True
+        for app_id in list(self._launched):
+            status = self._status.get(app_id)
+            if not status or not self._running(app_id):
+                self._launched.discard(app_id)
+                continue
+            # Router monitoring blocks network without closing the session.
+            if app_id == "claude" and router_guardian.status(app_id).get("enabled"):
+                continue
+            try:
+                state = egress.status(app_id, self._backend, self._guard_detect(app_id, data))
+            except Exception:
+                state = {"enabled": True, "verified": False, "message": "无法验证网络防护。"}
+            broken = state.get("enabled") and (
+                not state.get("verified") or (require_tun and state.get("mode") != "tun"))
+            if not broken:
+                continue
+            self._launched.discard(app_id)
+            try:
+                self._backend.stop(status)
+            except Exception:
+                pass
+            alerts.append({"app_id": app_id,
+                           "name": next((app.display for app in self._apps if app.id == app_id), app_id),
+                           "message": state.get("message") or "网络防护已失效。"})
+        if alerts and self._window is not None:
+            try:
+                self._window.evaluate_js("guardWatchAlert(" + json.dumps(alerts, ensure_ascii=False) + ")")
+            except Exception:
+                logging.getLogger(__name__).debug("Network guard alert failed", exc_info=True)
+        return alerts
+
+    def _shutdown_guard_watch(self):
+        self._guard_watch_stop.set()
 
     # ---- settings ----
     def get_locale(self):

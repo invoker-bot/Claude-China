@@ -11,6 +11,16 @@ in `~/.claudec/desktop.yaml` as `safety_check` and `safety_block_unknown`.
 Existing environment variables and application paths are preserved. Manual
 **检查环境** uses saved settings; unsaved edits do not change launch behavior.
 
+**只允许 TUN 网络防护** also defaults to enabled (`safety_require_tun: true`).
+On Windows, outside router preflight mode, a launch is cancelled unless the selected app has a verified
+TUN-mode guard: no guard, an unverified guard, or fixed-proxy mode all block it.
+While such an app runs, the launcher re-verifies the guard every 30 seconds; if
+the tunnel or its rules disappear, it stops the app and shows a notice. The WFP
+rules already fail closed, so this watch turns a silent stall into a visible
+stop rather than adding a second leak path. Turning the switch off restores
+per-app fixed-proxy or unguarded launches. macOS/Linux show the switch but do
+not enforce it.
+
 ## Router preflight mode
 
 Choose **路由器模式** and save, or run
@@ -47,7 +57,13 @@ region or an unknown country result in strict mode removes the temporary
 network permits. An IP change within an allowed region does not trigger it. A crash of the
 monitor also removes those permits. The persistent deny remains in place for
 registered programs, including already-established connections, and a warning
-is displayed; the program and its session are not terminated. Normal session
+is displayed; the program and its session are not terminated. The warning is a
+non-modal Windows system notification, not a message box. Successful network and
+blocking-rule checks dismiss it and atomically remove this guard's unchanged
+filters, automatically restoring application traffic. The old process is no longer
+monitored; start a new managed session for renewed protection. Closing the protected session or restoring
+protection also dismisses the notification. A crashed monitor cannot perform
+automatic recovery and still needs manual restoration. Normal session
 exit removes the guard, and **安全检查 → 还原网络防护** removes it after a
 failure. Administrator authorization is needed again when restoring a failed
 guard. The uninstaller restores both router targets before it removes the app.
@@ -161,7 +177,8 @@ external entries are unaffected.
 
 ## Shared region policy
 
-On 2026-10-21 the user requested one common rule for Claude, Codex and Grok Bot:
+On 2026-10-21 the user requested one common rule for Claude, Codex and Grok Bot.
+The same shared rule also applies to Antigravity launches:
 
 | Code | Region blocked |
 | --- | --- |

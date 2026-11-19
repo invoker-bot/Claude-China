@@ -11,8 +11,11 @@ let TERMINAL_DIRTY = false;
 let CLI_EDIT = null;
 let CLI_SAVING = false;
 let CLI_RETURN_FOCUS;
-const CLI_NAMES = { claude: 'Claude Code', codex: 'Codex CLI', grok: 'Grok CLI' };
-const CLI_BASE_URLS = { claude: 'https://api.anthropic.com', codex: 'https://api.openai.com/v1', grok: 'https://api.x.ai/v1' };
+const CLI_NAMES = { claude: 'Claude Code', codex: 'Codex CLI', grok: 'Grok CLI', 'antigravity': 'Antigravity CLI' };
+const CLI_BASE_URLS = { claude: 'https://api.anthropic.com', codex: 'https://api.openai.com/v1', grok: 'https://api.x.ai/v1', 'antigravity': '' };
+
+function cliTool(kind) { return TERMINALS.tools.find(tool => tool.id === kind); }
+function cliBaseUrlPlaceholder(kind) { return CLI_BASE_URLS[kind] || '留空使用 CLI 默认地址'; }
 
 function terminalError(message = '') {
   const el = document.getElementById('terminal-error');
@@ -28,6 +31,10 @@ async function refreshTerminals() {
     const result = await api().list_cli_profiles();
     if (!result.ok) throw new Error(result.error);
     TERMINALS = result.data;
+    for (const tool of TERMINALS.tools) {
+      CLI_NAMES[tool.id] = tool.display;
+      CLI_BASE_URLS[tool.id] = tool.official_base_url || '';
+    }
     const select = document.getElementById('terminal-launch-profile');
     const selected = select.value || TERMINALS.last_profile;
     const profiles = TERMINALS.profiles.filter(p => p.supported);
@@ -81,6 +88,12 @@ async function refreshTerminalHistory() {
   const request = ++TERMINAL_HISTORY_REQUEST;
   const profile = selectedTerminalProfile();
   TERMINAL_HISTORY = {sessions: [], warnings: [], truncated: false};
+  const selected = TERMINALS.profiles.find(p => p.name === profile);
+  if (selected && cliTool(selected.type)?.history_supported === false) {
+    TERMINAL_HISTORY_LOADING = false;
+    renderTerminalHistory();
+    return;
+  }
   TERMINAL_HISTORY_LOADING = Boolean(profile);
   renderTerminalHistory();
   try {
@@ -108,6 +121,11 @@ function renderTerminalHistory() {
   const note = document.getElementById('terminal-history-note');
   const profile = TERMINALS.profiles.find(p => p.name === selectedTerminalProfile());
   note.textContent = profile ? `读取“${profile.name}”所用目录的本地会话，包含从其他入口启动的记录。` : '选择一条 CLI 配置来查看对应的历史。';
+  if (profile && cliTool(profile.type)?.history_supported === false) {
+    note.textContent = '此 CLI 暂不支持历史会话，可在上方选择项目并新建会话。';
+    list.innerHTML = terminalEmpty('历史会话暂不可用', 'Antigravity CLI 目前仅支持新建会话和参数透传。');
+    return;
+  }
   if (TERMINAL_HISTORY.truncated) note.insertAdjacentHTML('beforeend', '<span> 仅显示最近 200 条。</span>');
   for (const warning of TERMINAL_HISTORY.warnings) note.insertAdjacentHTML('beforeend', `<span> ${esc(warning)}</span>`);
   if (TERMINAL_HISTORY_LOADING) { list.innerHTML = '<p class="terminal-section-note">正在读取本地历史…</p>'; return; }
@@ -120,7 +138,7 @@ function renderTerminalHistory() {
     const date = new Date(s.updated_at);
     const time = Number.isNaN(date.getTime()) ? '' : date.toLocaleString(I18n.locale(), {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'});
     const favorite = terminalFavorite(s.directory);
-    return `<article class="terminal-session" data-session-index="${index}"><span class="terminal-session-icon" aria-hidden="true">${profile?.type === 'grok' ? icon('terminal') : appSymbol(profile?.type)}</span><div class="terminal-session-info"><h2 data-i18n-skip title="${esc(s.id)}">${esc(s.title)}</h2><p class="terminal-session-path" data-i18n-skip title="${esc(s.directory)}">${esc(s.directory)}</p><p class="terminal-session-meta">${esc(CLI_NAMES[profile?.type] || '')} · <span data-i18n-skip>${esc(time)}</span>${s.available ? '' : ' · 项目目录已不存在'}</p></div><div class="terminal-session-actions"><button class="icon-button ${favorite ? 'is-favorite' : ''}" type="button" data-session-action="favorite" aria-label="${favorite ? '取消收藏' : '收藏'}项目 ${esc(s.directory)}" aria-pressed="${favorite}" ${!s.available && !favorite ? 'disabled' : ''}>${icon('star')}</button><button class="btn" type="button" data-session-action="directory" ${s.available ? '' : 'disabled'} title="将此项目设为新会话目录">选用目录</button><button class="btn btn--key" type="button" data-session-action="resume" ${s.available ? '' : 'disabled'}>${icon('history')}继续会话</button></div></article>`;
+    return `<article class="terminal-session" data-session-index="${index}"><span class="terminal-session-icon" aria-hidden="true">${profile?.type === 'grok' || profile?.type === 'antigravity' ? icon('terminal') : appSymbol(profile?.type)}</span><div class="terminal-session-info"><h2 data-i18n-skip title="${esc(s.id)}">${esc(s.title)}</h2><p class="terminal-session-path" data-i18n-skip title="${esc(s.directory)}">${esc(s.directory)}</p><p class="terminal-session-meta">${esc(CLI_NAMES[profile?.type] || '')} · <span data-i18n-skip>${esc(time)}</span>${s.available ? '' : ' · 项目目录已不存在'}</p></div><div class="terminal-session-actions"><button class="icon-button ${favorite ? 'is-favorite' : ''}" type="button" data-session-action="favorite" aria-label="${favorite ? '取消收藏' : '收藏'}项目 ${esc(s.directory)}" aria-pressed="${favorite}" ${!s.available && !favorite ? 'disabled' : ''}>${icon('star')}</button><button class="btn" type="button" data-session-action="directory" ${s.available ? '' : 'disabled'} title="将此项目设为新会话目录">选用目录</button><button class="btn btn--key" type="button" data-session-action="resume" ${s.available ? '' : 'disabled'}>${icon('history')}继续会话</button></div></article>`;
   }).join('');
 }
 
@@ -169,7 +187,7 @@ function renderTerminalProfiles() {
   }
   grid.innerHTML = entries.map(({profile: p, index}) => {
     const tool = TERMINALS.tools.find(tool => tool.id === p.type);
-    const symbol = p.type === 'grok' ? icon('terminal') : appSymbol(p.type);
+    const symbol = p.type === 'grok' || p.type === 'antigravity' ? icon('terminal') : appSymbol(p.type);
     return `<article class="terminal-card" data-profile-index="${index}"><div class="terminal-card-top"><span class="terminal-tool-icon" aria-hidden="true">${symbol}</span><span class="terminal-tool-name">${esc(CLI_NAMES[p.type] || p.type)}</span><span class="terminal-detected ${tool?.installed ? 'is-installed' : ''}">${tool?.installed ? '已检测到' : '未检测到 CLI'}</span></div>` +
       `<h2 data-i18n-skip>${esc(p.name)}</h2><p class="terminal-card-mode">${p.mode === 'login' ? '登录配置目录' : `API · ${p.has_secret ? '已保存密钥' : '未配置密钥'}`}</p>` +
       `<p class="terminal-endpoint" ${p.mode !== 'login' && p.endpoint ? 'data-i18n-skip' : ''}>${esc(p.mode === 'login' ? '使用独立登录目录' : p.endpoint || '默认服务地址')}</p>` +
@@ -196,14 +214,25 @@ async function terminalAction(name, button, directory = document.getElementById(
 }
 
 function renderCliMode() {
-  const login = document.getElementById('cli-mode').value === 'login';
-  const manualBrowser = login && document.getElementById('cli-type').value === 'claude';
+  const kind = document.getElementById('cli-type').value;
+  const tool = cliTool(kind);
+  const modes = tool?.auth_modes || ['api', 'login'];
+  const modeSelect = document.getElementById('cli-mode');
+  const requested = modeSelect.value;
+  modeSelect.innerHTML = modes.map(mode => `<option value="${mode}">${mode === 'api' ? 'API 密钥' : '登录配置目录'}</option>`).join('');
+  modeSelect.value = modes.includes(requested) ? requested : modes[0];
+  modeSelect.disabled = modes.length === 1 || Boolean(CLI_EDIT?.remove);
+  const login = modeSelect.value === 'login';
+  const manualBrowser = login && kind === 'claude';
   document.getElementById('cli-api-fields').hidden = login;
   document.getElementById('cli-login-fields').hidden = !login;
   document.getElementById('cli-manual-browser-row').hidden = !manualBrowser;
   document.getElementById('cli-credentials-path').required = login;
   // Hidden URL inputs must not prevent submitting a login configuration.
-  document.getElementById('cli-base-url').disabled = login;
+  document.getElementById('cli-base-url').disabled = login || CLI_EDIT?.remove;
+  if (tool?.settings_provider && !CLI_EDIT?.remove) {
+    document.getElementById('cli-secret-hint').textContent = '保存时会启用 Antigravity CLI 的 Gemini API 认证，并保留其他 settings.json 设置。';
+  }
 }
 
 function cliFormError(message = '') {
@@ -236,7 +265,7 @@ async function openCliEditor(profile = null, remove = false) {
     document.getElementById('cli-type').value = detail?.type || (TERMINAL_FILTER === 'all' ? 'claude' : TERMINAL_FILTER);
     document.getElementById('cli-mode').value = detail?.mode || 'api';
     document.getElementById('cli-base-url').value = detail?.base_url || '';
-    document.getElementById('cli-base-url').placeholder = CLI_BASE_URLS[document.getElementById('cli-type').value];
+    document.getElementById('cli-base-url').placeholder = cliBaseUrlPlaceholder(document.getElementById('cli-type').value);
     document.getElementById('cli-credentials-path').value = detail?.credentials_path || '';
     document.getElementById('cli-manual-browser').checked = detail?.type === 'claude' && detail?.mode === 'login'
       ? detail.manual_browser_login !== false : true;
@@ -354,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
   for (const id of ['cli-dialog-close', 'cli-cancel']) document.getElementById(id).onclick = closeCliEditor;
   document.getElementById('cli-profile-dialog').addEventListener('cancel', event => { event.preventDefault(); closeCliEditor(); });
   document.getElementById('cli-mode').onchange = renderCliMode;
-  document.getElementById('cli-type').onchange = () => { document.getElementById('cli-base-url').placeholder = CLI_BASE_URLS[document.getElementById('cli-type').value]; renderCliMode(); };
+  document.getElementById('cli-type').onchange = () => { document.getElementById('cli-base-url').placeholder = cliBaseUrlPlaceholder(document.getElementById('cli-type').value); renderCliMode(); };
 });
 
 async function openTerminalFolder(directory) {

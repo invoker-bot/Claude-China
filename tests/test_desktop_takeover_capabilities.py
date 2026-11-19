@@ -26,7 +26,7 @@ def windows_runtime(tmp_path, monkeypatch):
     return tmp_path
 
 
-@pytest.mark.parametrize('app_id', ['claude', 'codex', 'grok-bot'])
+@pytest.mark.parametrize('app_id', ['claude', 'codex', 'grok-bot', 'antigravity'])
 def test_stable_executable_can_be_selected_independently(windows_runtime, app_id):
     target = windows_runtime / takeover.WINDOWS_EXECUTABLES[app_id]
     target.touch()
@@ -56,7 +56,7 @@ def test_other_platforms_do_not_claim_global_support_or_use_windows_registration
     write = Mock(side_effect=AssertionError('no Windows registry on this platform'))
     monkeypatch.setattr(takeover_windows, 'get_status', read)
     monkeypatch.setattr(takeover_windows, 'set_enabled', write)
-    for app_id in ('claude', 'codex', 'grok-bot'):
+    for app_id in ('claude', 'codex', 'grok-bot', 'antigravity'):
         status = AppStatus(app_id, True, True, '/Applications/vendor')
         result = takeover.get_status(app_id, status)
         assert not result['supported'] and not result['enabled']

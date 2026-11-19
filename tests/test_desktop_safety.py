@@ -25,10 +25,12 @@ def bridge(tmp_path, monkeypatch, backend):
     monkeypatch.setattr("src.claude_china.desktop.bridge.os", SimpleNamespace(environ={}))
     bridge = LauncherBridge(backend)
     bridge.save_settings({"check_system_proxy": False, "env_vars": {}})
+    # TUN enforcement has its own tests; these cover region/safety behavior.
+    bridge.save_safety_settings({"require_tun": False})
     return bridge
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 @pytest.mark.parametrize("country", ["CN", "HK", "MO", "RU", "IR", "KP"])
 def test_shared_policy_blocks_every_explicitly_restricted_region(app_id, country):
     report = safety.assess_region(app_id, country)
@@ -36,7 +38,7 @@ def test_shared_policy_blocks_every_explicitly_restricted_region(app_id, country
     assert "禁止" in report["reason"]
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 @pytest.mark.parametrize("country", ["JP", "SG", "US", "TW", "UA"])
 def test_shared_policy_allows_other_identified_regions_without_claiming_official_support(app_id, country):
     report = safety.assess_region(app_id, country)
@@ -46,7 +48,7 @@ def test_shared_policy_allows_other_identified_regions_without_claiming_official
     assert "source" not in report and "reviewed_on" not in report
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 @pytest.mark.parametrize("country", ["ZZ", "", None])
 def test_shared_policy_keeps_unidentified_regions_unknown(app_id, country):
     assert safety.assess_region(app_id, country)["status"] == "unknown"
@@ -203,6 +205,7 @@ def test_check_receives_exact_merged_launch_environment(bridge, backend, monkeyp
 
 
 def test_safety_settings_default_strict_and_persist_without_ip(bridge):
+    assert cfg.get_safety_settings(cfg.DEFAULTS)["require_tun"] is True
     assert bridge.get_safety_settings()["enabled"] is True
     assert bridge.get_safety_settings()["block_unknown"] is True
     bridge.save_safety_settings({"enabled": True, "block_unknown": False})

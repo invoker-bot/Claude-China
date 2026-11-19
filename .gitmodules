@@ -1,0 +1,9 @@
+[submodule "docs/refs/check-cc"]
+	path = docs/refs/check-cc
+	url = https://github.com/yacuo/check-cc.git
+[submodule "docs/refs/claude-guardian"]
+	path = docs/refs/claude-guardian
+	url = https://github.com/DUNHKpcc/Claude-Guardian.git
+[submodule "docs/refs/claude-ip-guard"]
+	path = docs/refs/claude-ip-guard
+	url = https://github.com/cso1z/claude-ip-guard.git

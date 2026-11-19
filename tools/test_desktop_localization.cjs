@@ -91,6 +91,21 @@ async function main() {
     assert.ok((await page.locator('.terminal-session-meta').last().textContent()).includes('Project folder no longer exists'));
     assert.ok((await page.locator('.terminal-session-meta').first().textContent()).includes('Oct'));
 
+    await page.locator('[data-terminal-view="profiles"]').click();
+    await page.locator('#new-cli-profile').click();
+    await page.locator('#cli-type').selectOption('antigravity');
+    assert.equal(await page.locator('#cli-mode option').count(), 1);
+    assert.equal(await page.locator('#cli-mode').inputValue(), 'api');
+    assert.equal(await page.locator('#cli-mode').isDisabled(), true);
+    assert.equal(await page.locator('#cli-base-url').getAttribute('placeholder'), 'Leave blank to use the CLI default endpoint');
+    assert.ok((await page.locator('#cli-secret-hint').textContent()).includes('Gemini API authentication'));
+    await page.locator('#cli-name').fill('Antigravity browser test');
+    await page.locator('#cli-secret').fill('browser-only-secret');
+    await page.locator('#cli-submit').click(); await terminalReady();
+    await page.waitForFunction(() => !CLI_SAVING);
+    await page.locator('#terminal-launch-profile').selectOption('Antigravity browser test'); await terminalReady();
+    await text('#terminal-history-note', 'Session history is not available for this CLI. Select a project above to start a new session.');
+
     // Late asynchronous updates and nested diagnostics use the current language.
     await page.locator('#open-settings').click();
     await page.locator('[data-panel="updates"]').click();

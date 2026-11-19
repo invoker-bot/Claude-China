@@ -9,7 +9,7 @@ if (!cp[marker] && process.env.CLAUDEC_BROWSER_GUARD_HELPER) {
   cp[marker] = true;
   const names = new Set(['chrome.exe', 'msedge.exe', 'chromium.exe', 'firefox.exe',
     'headless_shell.exe', 'chrome-headless-shell.exe', 'playwright.exe', 'minibrowser.exe']);
-  const cliNames = new Set(['claude.exe', 'codex.exe', 'grok.exe']);
+  const cliNames = new Set(['claude.exe', 'codex.exe', 'grok.exe', 'agy.exe']);
   function cli(file) {
     return process.env.CLAUDEC_CLI_GUARD === '1' &&
       cliNames.has(path.win32.basename(file).toLowerCase());

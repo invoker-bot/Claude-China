@@ -243,6 +243,11 @@ def verify_window(window, tray, report):
     result = {"ok": False, "version": __version__, "platform": sys.platform,
               "frozen": bool(getattr(sys, "frozen", False)), "pid": os.getpid()}
     try:
+        import certifi
+        result["tls_trust"] = os.path.isfile(certifi.where())
+    except Exception:
+        result["tls_trust"] = False
+    try:
         if not window.events.loaded.wait(30):
             raise RuntimeError("The bundled UI did not load within 30 seconds")
         _wait_js(window, "typeof READY !== 'undefined' && READY")
@@ -401,11 +406,12 @@ def verify_window(window, tray, report):
             "!document.getElementById('editor-safety').hidden"
             " && document.getElementById('safety-enabled').checked"
             " && document.getElementById('safety-strict').checked"
+            " && document.getElementById('safety-require-tun').checked"
             " && document.querySelectorAll('#safety-local dd').length === 3"
             " && document.getElementById('safety-blocked-regions').textContent.includes('HK')"
             " && document.getElementById('safety-blocked-regions').textContent.includes('MO')"
             " && document.getElementById('safety-blocked-regions').textContent.includes('KP')"
-            " && document.getElementById('safety-app').options.length === 3")
+            f" && document.getElementById('safety-app').options.length === {len(APP_REGISTRY)}")
         window.evaluate_js("document.getElementById('safety-strict').click(); setMainView('terminals'); showSettings('safety')")
         result["safety_draft_preserved"] = window.evaluate_js(
             "hasUnsavedSettings() && !document.getElementById('safety-strict').checked")
@@ -429,7 +435,7 @@ def verify_window(window, tray, report):
         _verify_statistics(window)
         result["local_usage_statistics"] = True
         if not all(result[key] for key in (
-            "grok_bot_settings", "menu_settings_page", "menu_preserves_edits",
+            "tls_trust", "grok_bot_settings", "menu_settings_page", "menu_preserves_edits",
             "category_preserves_edits", "restart_guard", "escape_keeps_settings_page",
             "reopen_preserves_edits", "cancel_restores_settings",
             "auto_proxy_default_off", "auto_proxy_saved", "auto_proxy_reopened",

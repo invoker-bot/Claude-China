@@ -1,9 +1,10 @@
+from contextlib import contextmanager
 import os
 import tempfile
 
 import yaml
 
-from .config_paths import config_dir, ensure_config_file
+from .config_paths import config_dir, ensure_config_file, settings_lock
 from .models import profile_from_dict, profile_to_dict, BaseProfile
 
 CONFIG_DIR = config_dir()
@@ -14,25 +15,38 @@ def load_config():
     ensure_config_file(CONFIG_FILE, {"profiles": {}})
     with open(CONFIG_FILE, "r", encoding="utf-8") as f:
         data = yaml.safe_load(f)
-    if not data or "profiles" not in data:
+    if data is None:
         data = {"profiles": {}}
+    if not isinstance(data, dict):
+        raise ValueError("Configuration must be a mapping")
     migrated = False
+    if "profiles" not in data:
+        data["profiles"] = {}
+        migrated = True
+    if not isinstance(data.get("profiles"), dict):
+        raise ValueError("Configuration must contain a profiles mapping")
     profiles = data.get("profiles", {})
     for name, profile in profiles.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Profile names must be non-empty strings")
         if not isinstance(profile, dict):
-            continue
+            raise ValueError(f"Profile '{name}' must be a mapping")
         if "name" not in profile:
             profile["name"] = name
             migrated = True
         if "mode" not in profile:
             profile["mode"] = "api"
             migrated = True
+        if profile.get("type") == "antigravity-cli":
+            profile["type"] = "antigravity"
+            migrated = True
+        profile_from_dict(profile)
     if migrated:
         save_config(data)
     return data
 
 
-def save_config(data):
+def _save_config(data):
     CONFIG_FILE.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
     temporary = None
     try:
@@ -46,6 +60,19 @@ def save_config(data):
     finally:
         if temporary and os.path.exists(temporary):
             os.unlink(temporary)
+
+
+def save_config(data):
+    with settings_lock(CONFIG_FILE):
+        _save_config(data)
+
+
+@contextmanager
+def transaction():
+    with settings_lock(CONFIG_FILE):
+        data = load_config()
+        yield data
+        _save_config(data)
 
 
 def init_config():

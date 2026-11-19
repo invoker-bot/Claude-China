@@ -280,8 +280,9 @@ def main():
         parser.error(f"Unsupported OS: {sys.platform}")
     for artifact in artifacts:
         digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-        artifact.with_suffix(artifact.suffix + ".sha256").write_text(
-            f"{digest}  {artifact.name}\n", encoding="utf-8")
+        checksum = artifact.with_suffix(artifact.suffix + ".sha256")
+        with checksum.open("w", encoding="utf-8", newline="\n") as stream:
+            stream.write(f"{digest}  {artifact.name}\n")
         print(f"Built {artifact} ({artifact.stat().st_size:,} bytes)", flush=True)
 
 

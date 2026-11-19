@@ -8,6 +8,7 @@ import shutil
 import tempfile
 
 from ..config_paths import config_dir
+from ..providers import PROVIDERS
 from . import config as cfg, egress, playwright_guard
 
 CLI_GUARD = "CLAUDEC_CLI_GUARD"
@@ -85,7 +86,8 @@ def discover(create=False):
     from .terminal_host import resolve_cli_argv
 
     targets = set()
-    for kind in ("claude", "codex", "grok"):
+    for provider in PROVIDERS:
+        kind = provider.id
         try:
             argv = resolve_cli_argv(kind)
         except ValueError:

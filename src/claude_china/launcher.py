@@ -8,29 +8,16 @@ from typing import List
 
 from .models import profile_from_dict, ApiProfile, LoginProfile, is_builtin_grok_api
 from .grok import find_npm_installation
+from .providers import PROVIDERS, get_provider, safety_app_id
 
 ENV_MAP = {
-    "claude": {
-        "env": {"ANTHROPIC_BASE_URL": "base_url", "ANTHROPIC_AUTH_TOKEN": "token"},
-        "cmd": "claude",
-    },
-    "grok": {
-        "env": {
-            "GROK_CLI_CHAT_PROXY_BASE_URL": "base_url",
-            "XAI_API_KEY": "api_key",
-        },
-        "cmd": "grok",
-    },
-    "codex": {
-        "env": {"OPENAI_BASE_URL": "base_url", "OPENAI_API_KEY": "api_key"},
-        "cmd": "codex",
-    },
+    provider.id: {"env": dict(provider.env), "cmd": provider.command}
+    for provider in PROVIDERS
 }
 
 CONFIG_DIR_ENV_VARS = {
-    "claude": "CLAUDE_CONFIG_DIR",
-    "grok": "GROK_HOME",
-    "codex": "CODEX_HOME",
+    provider.id: provider.config_dir_env
+    for provider in PROVIDERS if provider.config_dir_env
 }
 
 PROXY_ENV_VARS = (
@@ -47,7 +34,11 @@ MANAGED_ENV_VARS = frozenset(
     env_var
     for spec in ENV_MAP.values()
     for env_var in spec["env"]
-) | frozenset(CONFIG_DIR_ENV_VARS.values()) | frozenset(PROXY_ENV_VARS) | frozenset((MANUAL_BROWSER_MARKER, PREVIOUS_BROWSER))
+) | frozenset(CONFIG_DIR_ENV_VARS.values()) | frozenset(PROXY_ENV_VARS) | frozenset(
+    (MANUAL_BROWSER_MARKER, PREVIOUS_BROWSER)
+) | frozenset(
+    env_var for provider in PROVIDERS for env_var in provider.managed_env
+)
 
 
 def clear_managed_environment(env):
@@ -115,6 +106,12 @@ def prepare_environment(profile, base_env=None):
             if env_var == "GROK_CLI_CHAT_PROXY_BASE_URL" and is_builtin_grok_api(value):
                 continue
             env[env_var] = value
+        provider = get_provider(ptype)
+        if provider.settings_provider:
+            if not profile.api_key:
+                raise ValueError(f"API profile '{profile.name or ptype}' is missing api_key")
+            from .antigravity import validate_gemini_api
+            validate_gemini_api()
 
     # Handle proxy (all modes)
     if profile.proxy:
@@ -191,6 +188,13 @@ def find_command(ptype):
         installation = find_npm_installation()
         if installation:
             cmd_path = installation.command
+    if ptype == "antigravity" and not cmd_path:
+        if sys.platform == "win32":
+            local = os.environ.get("LOCALAPPDATA")
+            candidates = [os.path.join(local, "agy", "bin", "agy.exe")] if local else []
+        else:
+            candidates = [os.path.expanduser("~/.local/bin/agy")]
+        cmd_path = next((path for path in candidates if os.path.isfile(path)), None)
     return cmd_path
 
 
@@ -209,7 +213,11 @@ def launch(profile_dict, extra_args, use_default_args=True):
         sys.exit(1)
 
     # Prepare environment
-    env = prepare_environment(profile)
+    try:
+        env = prepare_environment(profile)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(1)
     from .desktop import config as desktop_config
     data = desktop_config.load_desktop_config()
     settings = desktop_config.get_safety_settings(data)
@@ -222,7 +230,7 @@ def launch(profile_dict, extra_args, use_default_args=True):
                 raise router.RouterError("当前平台无法检查路由器模式。")
             router.check_ready("playwright", data, backend)
             env = router.direct_environment(env)
-            app_id = "grok-bot" if ptype == "grok" else ptype
+            app_id = safety_app_id(ptype)
             report = router.inspect(app_id, backend)
             if not router.allowed(report, settings):
                 raise router.RouterError(report.get("reason", "无法确认网络环境。"))
@@ -276,7 +284,7 @@ def launch(profile_dict, extra_args, use_default_args=True):
                     backend = get_backend()
                     if not tunnel or backend is None:
                         raise ValueError('missing tunnel')
-                    app_id = 'grok-bot' if ptype == 'grok' else ptype
+                    app_id = safety_app_id(ptype)
                     status = AppStatus(app_id, True, True, full_cmd[0], full_cmd[0])
                     report = safety.inspect_environment(app_id, env, backend, status, tunnel=tunnel)
                 except Exception:
@@ -296,7 +304,7 @@ def launch(profile_dict, extra_args, use_default_args=True):
             return
         _, env = cli_guard.prepare(full_cmd, env, data)
         # On Windows, ensure UTF-8 console encoding (fixes mojibake/encoding issues
-        # in PowerShell when launching AI editors like claude, codex, grok).
+        # in PowerShell when launching AI editors like claude, codex, grok, agy).
         # PowerShell defaults to UTF-16LE; we wrap the launch in PowerShell
         # to set OutputEncoding to UTF8 so the child process inherits a UTF-8 console.
         ps_script = (

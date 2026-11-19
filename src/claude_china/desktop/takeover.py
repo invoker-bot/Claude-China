@@ -13,7 +13,8 @@ from .platforms import get_backend
 from .platforms.base import AppStatus
 
 
-WINDOWS_EXECUTABLES = {'claude': 'Claude.exe', 'codex': 'Codex.exe', 'grok-bot': 'Grok Bot.exe'}
+WINDOWS_EXECUTABLES = {'claude': 'Claude.exe', 'codex': 'Codex.exe', 'grok-bot': 'Grok Bot.exe',
+                       'antigravity': 'Antigravity.exe'}
 
 
 def checked_target(value, app_id='grok-bot', must_exist=True):

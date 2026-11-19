@@ -89,15 +89,16 @@ def test_discover_registers_native_cli_and_a_private_node_not_the_shared_node(tm
     codex_exe = codex_entry.parent.parent / "node_modules" / "@openai" / "codex-win32-x64" / "vendor" / "x86_64-pc-windows-msvc" / "bin" / "codex.exe"
     grok_entry = tmp_path / "node_modules" / "@xai-official" / "grok" / "bin" / "grok"
     grok_exe = tmp_path / "grok-profile" / "bin" / "grok.exe"
-    for path in (claude, node, codex_entry, codex_exe, grok_entry, grok_exe):
+    agy = tmp_path / "agy" / "bin" / "agy.exe"
+    for path in (claude, node, codex_entry, codex_exe, grok_entry, grok_exe, agy):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(b"fixture")
     monkeypatch.setattr(terminal_host, "resolve_cli_argv", lambda kind: {
         "claude": [str(claude)], "codex": [str(node), str(codex_entry)],
-        "grok": [str(node), str(grok_entry)]}[kind])
+        "grok": [str(node), str(grok_entry)], "antigravity": [str(agy)]}[kind])
     monkeypatch.setattr(cli_config, "load_config", lambda: {"profiles": {
         "login": {"type": "grok", "credentials_path": str(grok_exe.parent.parent)}}})
     targets = set(cli_guard.discover(create=True))
-    assert targets == {str(path.resolve()) for path in (claude, codex_exe, grok_exe,
+    assert targets == {str(path.resolve()) for path in (claude, codex_exe, grok_exe, agy,
                                                          cli_guard.guarded_node(node))}
     assert str(node.resolve()) not in targets

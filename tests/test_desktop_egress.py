@@ -49,7 +49,8 @@ def setup(tmp_path, monkeypatch):
     monkeypatch.setattr(egress, "_store", lambda: store)
     monkeypatch.setattr(egress, "_write", lambda policies, expected=None: store.replace(policies))
     bridge = LauncherBridge(backend, apps=[get_app("claude")], base_env={})
-    cfg.save_desktop_config({"safety_check": False, "check_system_proxy": False})
+    cfg.save_desktop_config({"safety_check": False, "check_system_proxy": False,
+                             "safety_require_tun": False})
     return bridge, backend, store, status
 
 
@@ -321,3 +322,77 @@ def test_protected_launch_replaces_proxy_and_bypass_variables_in_any_case(setup)
     assert not any(key.lower() in ("no_proxy", "all_proxy") for key in env)
     assert all(value == "http://127.0.0.1:7890" for key, value in env.items()
                if key.lower() in ("http_proxy", "https_proxy"))
+
+
+def test_require_tun_default_blocks_unprotected_launch(setup):
+    bridge, backend, _, _ = setup
+    data = cfg.load_desktop_config()
+    data["safety_require_tun"] = True
+    cfg.save_desktop_config(data)
+    result = bridge.launch_app("claude")
+    assert result["ok"] is False
+    assert "TUN" in result["error"]
+    backend.launch.assert_not_called()
+
+
+def test_require_tun_rejects_fixed_proxy_mode(setup):
+    bridge, backend, _, _ = setup
+    assert bridge.apply_network_guard("claude")["ok"]
+    data = cfg.load_desktop_config()
+    data["safety_require_tun"] = True
+    cfg.save_desktop_config(data)
+    result = bridge.launch_app("claude")
+    assert result["ok"] is False
+    assert "固定代理" in result["error"]
+    backend.launch.assert_not_called()
+
+
+def test_require_tun_accepts_verified_tun_guard(setup, monkeypatch):
+    bridge, backend, _, _ = setup
+    monkeypatch.setattr(egress, "ensure", lambda *args, **kwargs: {
+        "enabled": True, "verified": True, "mode": "tun"})
+    data = cfg.load_desktop_config()
+    data["safety_require_tun"] = True
+    cfg.save_desktop_config(data)
+    assert bridge.launch_app("claude")["ok"] is True
+    backend.launch.assert_called_once()
+
+
+def test_guard_watch_stops_app_when_tun_protection_disappears(setup, monkeypatch):
+    bridge, backend, _, status = setup
+    bridge._status["claude"] = status
+    backend.is_running.return_value = True
+    bridge._launched.add("claude")
+    bridge._window = Mock()
+    monkeypatch.setattr(egress, "status", lambda *args, **kwargs: {
+        "enabled": True, "verified": False, "mode": "tun", "message": "rules missing"})
+    alerts = bridge._guard_watch_pass()
+    assert [alert["app_id"] for alert in alerts] == ["claude"]
+    backend.stop.assert_called_once_with(status)
+    bridge._window.evaluate_js.assert_called_once()
+    assert "claude" not in bridge._launched
+
+
+def test_guard_watch_keeps_verified_tun_app(setup, monkeypatch):
+    bridge, backend, _, status = setup
+    bridge._status["claude"] = status
+    backend.is_running.return_value = True
+    bridge._launched.add("claude")
+    monkeypatch.setattr(egress, "status", lambda *args, **kwargs: {
+        "enabled": True, "verified": True, "mode": "tun"})
+    assert bridge._guard_watch_pass() == []
+    backend.stop.assert_not_called()
+    assert "claude" in bridge._launched
+
+
+def test_tun_watcher_does_not_close_router_guarded_claude(setup, monkeypatch):
+    from src.claude_china.desktop import router_guardian
+    bridge, backend, _, status = setup
+    bridge._status["claude"] = status
+    bridge._launched.add("claude")
+    monkeypatch.setattr(bridge, "_running", lambda app_id: True)
+    monkeypatch.setattr(router_guardian, "status", lambda target: {"enabled": True, "state": "blocked"})
+    monkeypatch.setattr(egress, "status", Mock(side_effect=AssertionError("must not stop router sessions")))
+    assert bridge._guard_watch_pass() == []
+    backend.stop.assert_not_called()
+    assert "claude" in bridge._launched

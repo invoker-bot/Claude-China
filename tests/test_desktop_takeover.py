@@ -16,7 +16,8 @@ def guard(tmp_path, monkeypatch):
     target = tmp_path / 'Grok Bot.exe'
     target.write_bytes(b'fixture')
     data = deepcopy(config.DEFAULTS)
-    data.update(check_system_proxy=False, env_vars={'TAKEOVER_TEST': 'common'})
+    data.update(check_system_proxy=False, safety_require_tun=False,
+                env_vars={'TAKEOVER_TEST': 'common'})
     data['apps'] = {'grok-bot': {'env_vars': {'TAKEOVER_TEST': 'app'}}}
     monkeypatch.setattr(config, 'load_desktop_config', lambda: deepcopy(data))
     check = Mock(return_value={'status': 'supported', 'reason': 'fixture'})
@@ -122,7 +123,7 @@ def test_proxy_parse_error_blocks_all_apps(guard, monkeypatch):
     data['auto_proxy_env'] = True
     backend = WindowsBackend()
     monkeypatch.setattr(backend, 'system_http_proxy', Mock(side_effect=SystemProxyError('invalid')))
-    for app_id in ('claude', 'codex', 'grok-bot'):
+    for app_id in ('claude', 'codex', 'grok-bot', 'antigravity'):
         result, env = takeover.prepare_launch(target, app_id=app_id, backend=backend)
         assert not result['ok'] and env is None
 

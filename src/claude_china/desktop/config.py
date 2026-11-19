@@ -18,6 +18,7 @@ DEFAULTS = {
     "auto_proxy_env": False,
     "safety_check": True,
     "safety_block_unknown": True,
+    "safety_require_tun": True,
     "env_vars": {},   # 通用 (common) — every app launch
     "apps": {},       # per-app: {<id>: {"path": str, "env_vars": {...}}}
 }
@@ -44,6 +45,7 @@ def _load_desktop_config() -> dict:
     data.setdefault("auto_proxy_env", False)
     data.setdefault("safety_check", True)
     data.setdefault("safety_block_unknown", True)
+    data.setdefault("safety_require_tun", True)
     data.setdefault("language", "system")
     return data
 
@@ -100,11 +102,13 @@ def get_safety_settings(data: dict) -> dict:
     # Invalid handwritten values must not accidentally disable protection.
     return {"enabled": data.get("safety_check") is not False,
             "block_unknown": data.get("safety_block_unknown") is not False,
+            "require_tun": data.get("safety_require_tun") is not False,
             "router_mode": data.get("safety_router_mode") is True}
 
 
 def set_safety_settings(data: dict, payload: dict) -> None:
-    for field, key in (("enabled", "safety_check"), ("block_unknown", "safety_block_unknown")):
+    for field, key in (("enabled", "safety_check"), ("block_unknown", "safety_block_unknown"),
+                       ("require_tun", "safety_require_tun")):
         if field in payload:
             data[key] = payload[field] is not False
     if "router_mode" in payload:

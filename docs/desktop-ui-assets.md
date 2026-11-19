@@ -1,7 +1,7 @@
 # Desktop UI assets
 
-Application logos are copied without modification from the installed applications,
-bundled locally for offline use, and shared by the launcher cards and settings
+Application logos come from installed applications or official web assets,
+are bundled locally for offline use, and are shared by the launcher cards and settings
 navigation. The launcher's own `icon.png` is separate from the Claude application logo.
 
 ## Claude
@@ -28,6 +28,15 @@ from OpenAI's installed desktop package `OpenAI.Codex_26.1013.4894.0_x64__2p2nqs
 - Original resource: `resources/app.asar` → `dist/renderer/assets/app-icon-C7NKj2u7.png`.
 - SHA-256: `79e6a73e634ce7ad8d1982739e9064bcc9c9ec5106bdd7281d7514ee68169ad2`.
 - This is Grok Bot's robot icon, not the separate Grok chatbot's logo.
+
+## Antigravity
+
+`src/claude_china/desktop/ui/antigravity.png` is the 48 × 48 official favicon
+from `https://antigravity.google/favicon.ico`, converted to RGBA and resized to
+256 × 256 with Lanczos resampling.
+
+- Source SHA-256: `d81604f50d96d4d7c3212bde47f598876985951eb7fdc4bebb30ab2691b7f531`.
+- Packaged PNG SHA-256: `b3b2f1bedbe85003da4a1827fd46b8a85d252c11c92a130ed7eae60c22f4c1c3`.
 
 The application names and logos belong to their respective owners; the project's
 MIT license does not grant rights to third-party trademarks.

@@ -14,9 +14,10 @@ import uuid
 
 from ..config_paths import config_dir
 from ..launcher import find_command
+from ..providers import PROVIDERS
 from . import process
 
-PACKAGES = {'claude': '@anthropic-ai/claude-code', 'codex': '@openai/codex', 'grok': '@xai-official/grok'}
+PACKAGES = {provider.id: provider.npm_package for provider in PROVIDERS if provider.npm_package}
 
 
 def resolve_cli_argv(kind):

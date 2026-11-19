@@ -1,6 +1,7 @@
 # README screenshots
 
-All six PNGs show the v0.4.3 desktop UI in English with a 2× pixel scale.
+All six PNGs show the current desktop UI in English with a 2× pixel scale.
+The app launcher includes Claude, Codex, Grok Bot and Antigravity.
 The statistics view uses a 1280 × 1000 logical viewport; the other five use
 1120 × 780.
 They use the browser preview's in-memory example data with English profile names

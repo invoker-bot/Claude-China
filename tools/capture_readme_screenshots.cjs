@@ -42,7 +42,7 @@ async function main() {
     await page.goto(url.href);
     await page.waitForFunction(() => READY);
     assert.equal(await page.title(), 'Claude China');
-    assert.equal(await page.locator('.bay').count(), 3);
+    assert.equal(await page.locator('.bay').count(), 4);
 
     // Use English sample content for documentation only. The app correctly keeps
     // user-authored profile names and session titles unchanged when switching languages.
@@ -86,6 +86,7 @@ async function main() {
     await screenshot('desktop-apps');
 
     await page.getByRole('button', { name: 'My terminals', exact: true }).click();
+    await page.locator('#terminal-launch-profile').selectOption('Daily development');
     await terminalReady();
     assert.equal(await page.locator('.terminal-session').count(), 3);
     await page.locator('#terminal-search').fill('Projects');

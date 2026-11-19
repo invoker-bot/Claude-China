@@ -8,7 +8,7 @@ or a new version can bypass the guard.
 
 | Installation | Original entry and restart coverage | Current status |
 | --- | --- | --- |
-| Windows x64, fixed-path EXE | Exact registered image path, including replacement at the same path | Independent Claude/Codex/Grok registrations implemented; only real Grok tested |
+| Windows x64, fixed-path EXE | Exact registered image path, including replacement at the same path | Independent Claude/Codex/Grok/Antigravity registrations implemented; only real Grok tested |
 | Windows MSIX | Package activation and changing package version paths | Not implemented; UI refuses enabling |
 | Windows versioned `app-<version>` directory | New version uses a different image path | Not implemented; UI refuses enabling |
 | macOS signed `.app` | Finder/LaunchServices, direct execution and updater relaunch | No native interceptor; control disabled |

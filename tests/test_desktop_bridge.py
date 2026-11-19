@@ -73,12 +73,12 @@ def test_list_apps_reports_claude_codex_and_grok_bot(monkeypatch):
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
             b = LauncherBridge(FakeBackend(found=True), APP_REGISTRY)
             apps = b.list_apps()
-            assert [a["id"] for a in apps] == ["claude", "codex", "grok-bot"]
+            assert [a["id"] for a in apps] == ["claude", "codex", "grok-bot", "antigravity"]
             assert all(a["found"] for a in apps)
             assert all(a["running"] is False for a in apps)
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_launch_blocked_when_proxy_off(app_id):
     with temp_desktop_config() as f:
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
@@ -100,7 +100,7 @@ def test_launch_blocked_when_not_found():
             assert be.launched is None
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_launch_merges_env_with_per_app_winning(app_id):
     with temp_desktop_config() as f:
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
@@ -121,7 +121,7 @@ def test_launch_merges_env_with_per_app_winning(app_id):
             assert _status.app_id == app_id
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_launch_stops_running_app_before_starting(app_id):
     with temp_desktop_config() as f:
         with patch("src.claude_china.desktop.config.DESKTOP_CONFIG_FILE", f):
@@ -169,7 +169,7 @@ def test_settings_round_trip():
             assert a["env_vars"] == {"X": "Y"}
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_auto_proxy_env_uses_current_proxy_on_each_launch(tmp_path, monkeypatch, app_id):
     from src.claude_china.desktop import config as cfg
 
@@ -212,7 +212,7 @@ def test_auto_proxy_env_explicit_common_and_app_overrides_win(tmp_path, monkeypa
 
 
 @pytest.mark.parametrize("check_proxy", [True, False])
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_invalid_auto_proxy_blocks_restart_before_stopping_app(tmp_path, monkeypatch, check_proxy, app_id):
     from src.claude_china.desktop import config as cfg
 
@@ -271,12 +271,14 @@ def test_save_app_path_and_environment_together_and_restore_auto_detection(tmp_p
     assert bridge.get_app_settings("grok-bot") == {
         "path": path, "env_vars": {"APP_TEST": "1"},
     }
-    assert backend.detect.call_args.args[1] == path
+    grok_call = next(call for call in reversed(backend.detect.call_args_list) if call.args[0].id == 'grok-bot')
+    assert grok_call.args[1] == path
     bridge.save_app_settings("grok-bot", {"env_vars": {"APP_TEST": "2"}})
     assert bridge.get_app_settings("grok-bot")["path"] == path
     bridge.save_app_settings("grok-bot", {"path": "", "env_vars": {}})
     assert bridge.get_app_settings("grok-bot") == {"path": "", "env_vars": {}}
-    assert not backend.detect.call_args.args[1]
+    grok_call = next(call for call in reversed(backend.detect.call_args_list) if call.args[0].id == 'grok-bot')
+    assert not grok_call.args[1]
 
 
 def test_explicit_refresh_redetects_newly_installed_apps(tmp_path, monkeypatch):

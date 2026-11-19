@@ -14,8 +14,8 @@ permissions:
   contents: read
 
 env:
-  # Publish Windows/Linux; macOS remains available as CI build artifacts.
-  PUBLISH_MACOS: 'false'
+  # Publish all native installers directly on GitHub Releases.
+  PUBLISH_MACOS: 'true'
   # Enable explicitly after credentials are configured; signing failures never fall back.
   SIGN_MACOS: 'false'
 

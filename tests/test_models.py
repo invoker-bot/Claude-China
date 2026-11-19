@@ -143,7 +143,7 @@ def test_profile_to_dict_login():
 
 def test_valid_types():
     """Test VALID_TYPES constant"""
-    assert VALID_TYPES == ("claude", "grok", "codex")
+    assert VALID_TYPES == ("claude", "grok", "codex", "antigravity")
 
 
 def test_profile_from_dict_default_args_list():

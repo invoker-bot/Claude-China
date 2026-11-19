@@ -37,7 +37,7 @@ def test_non_browser_tools_are_not_blocked_by_the_preload():
     assert result.returncode == 0, result.stderr
 
 
-@pytest.mark.parametrize("cli", ["claude.exe", "codex.exe", "grok.exe"])
+@pytest.mark.parametrize("cli", ["claude.exe", "codex.exe", "grok.exe", "agy.exe"])
 def test_cli_children_are_denied_before_spawn_when_cli_guard_is_enabled(cli):
     node = shutil.which("node")
     if not node:

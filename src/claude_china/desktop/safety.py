@@ -19,6 +19,7 @@ SERVICE_DOMAINS = {
     "claude": ("claude.ai", "claude.com", "anthropic.com"),
     "codex": ("chatgpt.com", "openai.com", "oaistatic.com", "oaiusercontent.com"),
     "grok-bot": ("grok.com", "x.ai", "x.com"),
+    "antigravity": ("antigravity.google", "googleapis.com", "google.com", "gstatic.com", "googleusercontent.com"),
 }
 
 

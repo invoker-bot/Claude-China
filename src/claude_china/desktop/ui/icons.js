@@ -34,6 +34,7 @@ function appSymbol(id) {
   if (id === "claude") return '<img src="claude.png" alt="" draggable="false">';
   if (id === "codex") return '<img src="codex.png" alt="" draggable="false">';
   if (id === "grok-bot") return '<img src="grok-bot.png" alt="" draggable="false">';
+  if (id === "antigravity") return '<img src="antigravity.png" alt="" draggable="false">';
   return icon("document");
 }
 

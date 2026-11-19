@@ -65,7 +65,9 @@ def check_browser(executable, store=None):
         from . import router_guardian
         state = router_guardian.status(TARGET)
         if state.get('state') != 'healthy':
-            raise egress.GuardError('路由器运行防护已失效，已阻止浏览器启动。')
+            if state.get('enabled'):
+                raise egress.GuardError('路由器运行防护已失效，已阻止浏览器启动。')
+            return None
         try:
             target = os.path.normcase(str(Path(executable).resolve(strict=True)))
         except OSError:

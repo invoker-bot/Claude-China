@@ -5,16 +5,16 @@ in one place.
 
 `claude-china` gives each profile its own provider, endpoint, credentials,
 proxy, and default arguments. The `claudec` command then starts Claude Code,
-OpenAI Codex, or Grok using that profile.
+OpenAI Codex, Grok, or Google Antigravity CLI (`agy`) using that profile.
 
 Repository: [invoker-bot/Claude-China](https://github.com/invoker-bot/Claude-China)
 · Desktop: [Download](https://github.com/invoker-bot/Claude-China/releases/latest)
 · PyPI: [claude-china](https://pypi.org/project/claude-china/)
 · CLI: `claudec`
 
-![Claude China desktop: Claude, Codex and Grok Bot with launch controls and shared settings](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/desktop-apps.png)
+![Claude China desktop: Claude, Codex, Grok Bot and Antigravity with launch controls and shared settings](https://raw.githubusercontent.com/invoker-bot/Claude-China/main/docs/screenshots/desktop-apps.png)
 
-**Your apps, one launcher.** Start Claude, Codex and Grok Bot with shared or
+**Your apps, one launcher.** Start Claude, Codex, Grok Bot and Antigravity with shared or
 per-app environment settings, and check for launcher updates from the header.
 
 ## Features
@@ -24,7 +24,7 @@ per-app environment settings, and check for launcher updates from the header.
 - Configure a custom endpoint and proxy for each profile
 - Forward arguments to the underlying AI CLI
 - Set per-profile default arguments such as `--model`
-- Upgrade the supported AI CLIs through npm
+- Upgrade all supported AI CLIs, or select and exclude tools explicitly
 - Standalone Windows, macOS and Linux desktop launcher
 - Desktop display languages: English, Simplified Chinese and Traditional Chinese
 - Open project terminals and manage CLI profiles in the desktop app
@@ -114,15 +114,14 @@ Download the desktop app from
 [GitHub Releases](https://github.com/invoker-bot/Claude-China/releases/latest).
 It includes Python and the desktop dependencies; installing the CLI is optional.
 
-v0.4.8 publishes Windows and Linux installers plus the CLI. macOS Intel and
-Apple Silicon packages are currently build-validation artifacts in GitHub
-Actions, not downloads attached to the v0.4.8 Release.
+Release tags publish Windows, macOS and Linux installers plus the CLI directly
+to GitHub Releases. Older releases may not contain every platform asset.
 
 | Platform | Download | Install | Uninstall |
 | --- | --- | --- | --- |
 | Windows x64 | `*-windows-x64-setup.exe` | Run the installer | Settings → Apps → Installed apps → Claude China |
-| macOS Apple Silicon | `*-macos-arm64.dmg` (Actions artifact) | Drag Claude China to Applications | Quit the app, then move it to Trash |
-| macOS Intel | `*-macos-x64.dmg` (Actions artifact) | Drag Claude China to Applications | Quit the app, then move it to Trash |
+| macOS Apple Silicon | `*-macos-arm64.dmg` | Drag Claude China to Applications | Quit the app, then move it to Trash |
+| macOS Intel | `*-macos-x64.dmg` | Drag Claude China to Applications | Quit the app, then move it to Trash |
 | Debian / Ubuntu x64 | `*-linux-x64.deb` | Open with the software installer, or `sudo apt install ./<file>.deb` | Software manager, or `sudo apt remove claude-china-desktop` |
 | Fedora x64 | `*-linux-x64.rpm` | Open with the software installer, or `sudo dnf install ./<file>.rpm` | Software manager, or `sudo dnf remove claude-china-desktop` |
 
@@ -164,7 +163,7 @@ after Developer ID/Gatekeeper verification; Linux requests system authorization
 and upgrades through apt/dnf. macOS needs an Applications folder you can write
 to; Linux needs `pkexec` and a desktop authentication agent. Development/unpacked
 copies can check releases and open the download page but do not self-install.
-Updating restarts only the launcher, leaving launched Claude/Codex/Grok Bot apps running.
+Updating restarts only the launcher, leaving launched provider apps running.
 Failures are shown in the launcher when it reopens.
 
 You can also install a newer package over the existing installation.
@@ -177,21 +176,22 @@ CLI requirements:
 
 - Python 3.9 or later
 - At least one supported AI CLI installed and available on `PATH`
-- Node.js and npm for `claudec upgrade`
+- Node.js and npm for npm-backed CLI upgrades; PowerShell or Bash/curl for Antigravity's official installer
 
 Desktop requirements: Windows 10/11, macOS 12 or later, or a Linux desktop with
 GTK 3 and WebKitGTK 4.1 (Ubuntu 22.04 or later; Fedora 40 or later). Windows
 setup installs Microsoft's WebView2 Runtime if it is missing, which requires
 internet access. Linux package managers resolve system GUI dependencies.
-The launcher does not install Claude, Codex or Grok Bot themselves. On Linux,
-Grok Bot's `grok-bot` desktop command is detected automatically; select an
+The launcher does not install the provider apps or CLIs themselves. On Linux,
+Antigravity and Grok Bot desktop commands are detected automatically; select an
 installed executable in settings for other or portable desktop apps. Terminal
-commands such as `claude`, `codex` and `grok` are not treated as desktop apps.
+commands such as `claude`, `codex`, `grok` and `agy` are not treated as desktop apps.
 
-Windows signing service enrollment is pending; the v0.4.8 Windows installer is
-unsigned. The macOS Actions artifacts are ad-hoc signed and not notarized.
-Developer ID signing and Apple notarization can be enabled once credentials
-are configured; see the
+Windows signing service enrollment is pending; Windows installers are currently
+unsigned. macOS packages are ad-hoc signed and not notarized. Download the DMG
+from GitHub Releases and install or replace the app manually; ad-hoc packages are
+not eligible for in-app macOS installation. Developer ID signing and Apple
+notarization can be enabled once credentials are configured; see the
 [signing setup guide](packaging/desktop/SIGNING.md). A valid Windows signature
 does not guarantee that a new download has sufficient SmartScreen reputation.
 
@@ -263,9 +263,11 @@ Useful commands:
 ```text
 claudec list                         List configured profiles
 claudec add                          Add a profile interactively
-claudec show <profile>               Show profile details
+claudec edit <profile> --proxy ...   Edit a profile without losing its saved key
+claudec show <profile>               Show profile details with masked credentials
+claudec doctor [profile]             Validate local configuration and CLI detection
 claudec remove <profile>             Remove a profile
-claudec upgrade                      Upgrade Claude, Codex, and Grok CLIs
+claudec upgrade                      Upgrade every supported CLI
 claudec --version                    Show the installed version
 claudec --help                       Show command help
 ```
@@ -275,8 +277,22 @@ The supported AI CLIs are:
 - Claude Code: `@anthropic-ai/claude-code`
 - OpenAI Codex: `@openai/codex`
 - Grok: `@xai-official/grok`
+- Antigravity CLI: native `agy` command, installed by Google's official installer
 
-`claudec upgrade` also refreshes the Grok binary in each login profile's
+`claudec upgrade` updates every supported CLI by default. Select tools positionally,
+or repeat `--exclude` to keep specific CLIs uninstalled or unchanged:
+
+```bash
+claudec upgrade
+claudec upgrade claude codex
+claudec upgrade --exclude grok --exclude antigravity
+claudec upgrade antigravity
+```
+
+Claude, Codex and Grok use npm. Antigravity uses Google's native installer and
+self-updater, never an npm compatibility package. Every selected CLI is checked
+by running its actual `--version` command after installation.
+For Grok, the upgrade also refreshes the binary in each login profile's
 credentials directory. Grok stores a separate binary under `GROK_HOME/bin`, so
 updating only the global npm package can leave a login profile running an old
 version. The upgrade enables npm install scripts and verifies the actual binary
@@ -322,13 +338,66 @@ profiles:
     mode: api
     base_url: https://api.x.ai
     api_key: xai-...
+
+  antigravity-api:
+    name: antigravity-api
+    type: antigravity
+    mode: api
+    base_url: ""
+    api_key: gemini-...
 ```
 
 Login profiles isolate credentials through the provider-specific environment
 variables used by the CLIs. API profiles set the corresponding endpoint and
 authentication variables for the selected provider.
 
-Keep tokens and personal configuration out of source control.
+Keep tokens and personal configuration out of source control. `claudec show`
+masks saved credentials by default; use `--reveal` only when disclosure is
+intended. Interactive secret prompts hide input on a terminal. For scripted
+creation or editing, pass the secret through standard input rather than command
+arguments or shell history:
+
+```bash
+printf '%s\n' "$GEMINI_API_KEY" | claudec add \
+  --name google --type antigravity --secret-stdin
+claudec edit google --default-args "--model your-model"
+claudec doctor google --versions
+```
+
+Profile mutations use a cross-process read/modify/write transaction. Invalid
+provider IDs, authentication modes, URLs, proxies and relative login directories
+are rejected instead of being silently reinterpreted.
+
+### Antigravity CLI API setup
+
+Antigravity CLI uses the native `agy` executable. The first integration supports
+Gemini API-key profiles, custom Gemini-compatible endpoints, proxies and argument
+forwarding. Creating or saving an API profile explicitly enables
+`"modelProvider": "gemini"` in `~/.gemini/antigravity-cli/settings.json` while
+preserving other settings. To repair that setting without recreating a profile:
+
+```bash
+claudec configure antigravity
+claudec doctor antigravity-api
+```
+
+Existing profiles with `type: antigravity-cli` are automatically migrated to
+`type: antigravity`; their endpoints, keys and arguments are preserved. Google's
+own `~/.gemini/antigravity-cli/` directory name remains unchanged.
+
+Only setting `GEMINI_API_KEY` is not sufficient. Claude China validates both the
+key and this setting before launch, and supplies `GOOGLE_GEMINI_BASE_URL` only
+when a custom endpoint is configured. See Google's
+[authentication documentation](https://antigravity.google/docs/cli/install/).
+
+Antigravity login-directory profiles are deliberately unsupported: `agy` keeps
+account credentials in the operating-system keyring and has no supported isolated
+auth-profile selector. Claude China does not extract OAuth tokens, automate
+account rotation or emulate isolation by replacing `HOME`. Review Google's
+[third-party software FAQ](https://antigravity.google/docs/faq/) before wrapping
+consumer-plan account sessions. Antigravity session history and usage statistics
+are also not claimed in this release; the desktop UI marks those capabilities as
+unavailable rather than displaying zero.
 
 ### Open Claude Code's login link manually
 
@@ -370,21 +439,10 @@ a flag. Skip profile defaults for one launch with:
 claudec run --no-default-args claude-api --model claude-opus-4-5
 ```
 
-## Claude Buddy
-
-Claude profiles can have a deterministic companion card generated from the
-profile name:
-
-```bash
-claudec roll-claude-buddy claude-api
-claudec roll-claude-buddy claude-api --name capybara
-claudec roll-claude-buddy claude-api --type legendary
-```
-
 ## Desktop launcher
 
 The standalone desktop launcher provides a graphical interface for Claude,
-Codex and [Grok Bot](https://cursor.com/download/bot) desktop apps.
+Codex, [Grok Bot](https://cursor.com/download/bot) and Google Antigravity desktop apps.
 Install it from GitHub Releases and open **Claude China**
 from the Start Menu, Applications, or your Linux application menu.
 
@@ -452,6 +510,12 @@ DNS are not separately probed; browser WebRTC and IP reputation remain unverifie
 also request administrator authorization for a running network guard. It
 checks the route periodically and blocks registered Claude and Playwright EXEs
 when the check fails or the monitor exits, while keeping the session open.
+Failures use a non-modal Windows system notification instead of a dialog. A
+Successful network and blocking-rule checks dismiss the notification and remove
+only this guard's unchanged filters, automatically restoring application traffic.
+The old process is no longer monitored; start a new managed session for renewed
+protection. A crashed monitor cannot perform automatic recovery and still needs
+manual restoration.
 Detection is not instantaneous; traffic may escape before the next check. Codex
 and Grok receive startup checks only. The [路由器模式配置与测试教程](docs/router-mode.md)
 walks through switching from TUN, checking a managed Playwright session,
@@ -490,6 +554,16 @@ Packet-level rules additionally prevent the tunnel's pinned source addresses
 from exiting another adapter, including established UDP flows after a route
 change. This source-address restriction also applies to other processes using
 those addresses.
+
+**只允许 TUN 网络防护** is enabled by default (`safety_require_tun: true` on
+Windows). Outside router preflight mode, a launch is cancelled unless the selected app has a verified TUN-mode
+guard: no guard, an unverified guard, or fixed-proxy mode all block it. While an
+app launched this way is running, the launcher re-verifies the guard every 30
+seconds and stops the app with a notice if the tunnel or its rules disappear.
+The WFP rules already fail closed, so this watch turns a silent stall into a
+visible stop instead of adding a second leak path. Turn the switch off to allow
+per-app fixed-proxy mode again; on macOS/Linux the switch is shown but not
+enforced.
 
 Choose **CLI / Playwright 浏览器** to protect browsers outside a desktop app's
 installation. Standard Playwright caches are discovered automatically,
@@ -557,11 +631,17 @@ directly to pass environment variables. On Linux, it resolves the installed
 `grok-bot` desktop command. All platforms also accept a manually selected path.
 Grok Bot desktop controls do not manage the separate Grok CLI or its profiles.
 
+Antigravity desktop controls detect `Antigravity.exe`, `Antigravity.app` and the
+Linux `Antigravity` command, with manual paths for portable installations. They
+launch only the official app and never read its account credentials. Desktop
+settings and safety checks are separate from `antigravity` API profiles.
+
 ### My Terminals
 
-**我的终端**, next to **我的应用**, manages Claude Code, Codex CLI and Grok CLI
-profiles in the same `~/.claudec/config.yaml` used by `claudec`. Search or filter
-profiles, create API or login profiles, edit/rename, copy and delete them.
+**我的终端**, next to **我的应用**, manages Claude Code, Codex CLI, Grok CLI
+and Antigravity CLI profiles in the same `~/.claudec/config.yaml` used by
+`claudec`. Search or filter profiles, create supported API or login profiles,
+edit/rename, copy and delete them.
 Editing leaves an existing key unchanged when the key field is blank; explicitly
 clear it to remove it. Stored keys are not returned to the page. Deleting a
 profile keeps its project files and login directory. Refresh to load external
@@ -580,7 +660,8 @@ CLI history, including sessions started outside the launcher. Search by title
 or project and choose **继续会话** to resume the exact conversation. **常用项目**
 keeps starred and recent directories ready for **新建会话** with the selected
 profile. Missing directories are shown but cannot be launched. Resume repeats
-the same environment checks and injection as a new session.
+the same environment checks and injection as a new session. Antigravity CLI can
+start new sessions but is explicitly excluded from local history and resume.
 
 Windows uses PowerShell, macOS uses Terminal (automation permission may be
 required), and Linux uses an installed terminal such as GNOME Terminal, Konsole
@@ -612,10 +693,17 @@ installer builds and release validation are documented in
 builds the desktop packages for GitHub Releases and independently publishes
 the CLI distribution to PyPI.
 
-Ordinary branch pushes and pull request updates do not run GitHub Actions.
-Release tags trigger automatic validation and publishing; manual validation and
-optional dependency-cache warming remain available. See [CI and dependency
-caches](docs/ci.md).
+Pushes to `main` and pull requests run cross-platform source tests. Other
+ordinary branch pushes do not run GitHub Actions. Release tags trigger automatic
+validation and publishing; manual validation and optional dependency-cache
+warming remain available. See [CI and dependency caches](docs/ci.md).
+
+## References
+
+Third-party Claude account-safety projects are tracked as git submodules under
+[docs/refs](docs/refs/README.md). They are reference material only: clone with
+`git clone --recurse-submodules` (or run `git submodule update --init`) to read
+them, and note that they are not built, packaged or shipped with this project.
 
 ## License
 

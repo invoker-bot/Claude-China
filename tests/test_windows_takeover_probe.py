@@ -19,7 +19,8 @@ def gate(tmp_path, monkeypatch):
     target = tmp_path / "Grok Bot.exe"
     target.write_bytes(b"fixture")
     data = deepcopy(config.DEFAULTS)
-    data.update(check_system_proxy=False, env_vars={"PROBE_COMMON": "common"})
+    data.update(check_system_proxy=False, safety_require_tun=False,
+                env_vars={"PROBE_COMMON": "common"})
     data["apps"] = {"grok-bot": {"env_vars": {"PROBE_COMMON": "app"}}}
     monkeypatch.setattr(config, "load_desktop_config", lambda: deepcopy(data))
     check = Mock(return_value={"status": "unknown", "reason": "no verified regions"})

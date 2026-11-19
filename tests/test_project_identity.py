@@ -55,3 +55,12 @@ def test_macos_install_cleanup_removes_old_and_new_shortcuts_only(tmp_path, monk
     assert {Path(p) for p in removed} == set(shortcuts)
     assert all(not p.exists() for p in shortcuts)
     assert (desktop / "Claude.app").is_dir()
+
+
+def test_buddy_command_is_removed():
+    runner = CliRunner()
+    help_result = runner.invoke(app, ["--help"], prog_name="claudec")
+    assert help_result.exit_code == 0
+    assert "roll-claude-buddy" not in help_result.stdout
+    removed = runner.invoke(app, ["roll-claude-buddy"], prog_name="claudec")
+    assert removed.exit_code != 0

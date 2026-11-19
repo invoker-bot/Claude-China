@@ -179,6 +179,7 @@ def test_language_change_during_safety_check_does_not_cancel_app_launch(tmp_path
     backend = Mock()
     backend.detect.side_effect = lambda app, path: AppStatus(app.id, found=True, direct=True, launch_target='fixture', match_root='fixture')
     bridge = LauncherBridge(backend, APP_REGISTRY, base_env={})
+    bridge.save_safety_settings({'require_tun': False})
 
     def check(*args):
         assert bridge.set_language('en')['ok']

@@ -124,14 +124,16 @@ read or overwrite the user's settings.
 
 `.github/workflows/desktop-release.yml` builds Windows x64, macOS Intel, macOS
 Apple Silicon and Linux x64 on native GitHub runners. Manual dispatch only
-uploads Actions artifacts; ordinary branch pushes and PRs do not trigger builds.
+uploads Actions artifacts; `main` pushes and PRs run source CI but do not trigger
+native desktop builds.
 A `v*` tag must match
 `src/claude_china/__init__.py`; all build and validation jobs must succeed
 before the workflow publishes the selected installers and `SHA256SUMS` to the
-matching GitHub Release. For v0.4.8, `PUBLISH_MACOS` is `false`: only the Windows
-EXE and Linux DEB/RPM are published, with their three checksum sidecars. The
-macOS builds remain Actions artifacts. Set `PUBLISH_MACOS` to `true` to include
-both Mac architectures in a subsequent release. The collector requires exact
+matching GitHub Release. Windows, both macOS architectures and Linux packages
+are all attached directly to the Release with checksum sidecars and a combined
+`SHA256SUMS`; users can install the matching package manually. macOS publication
+does not require Developer ID credentials, and ad-hoc signed DMGs remain manual
+install/update packages rather than eligible in-app update packages. The collector requires exact
 versioned filenames and verifies every selected file before copying anything
 into the release directory. The existing PyPI workflow remains independent.
 Update `pyproject.toml` and `__version__` together before tagging a new version.
@@ -152,10 +154,10 @@ See [SIGNING.md](SIGNING.md) for certificate creation, GitHub credentials,
 notarization checks and the Windows open-source signing application process.
 The existing v0.3.0 downloads are unsigned on Windows and ad-hoc signed on macOS.
 
-PR builds and default manual builds remain unsigned/ad-hoc. Manual runs can
+Default desktop builds remain unsigned/ad-hoc. Manual runs can
 enable `macos_signing` to exercise Developer ID signing and notarization.
 `SIGN_MACOS` is currently `false`, so missing signing credentials do not block
-the Windows/Linux release. Set it to `true` to require signed macOS builds on
+any Release packages. Set it to `true` to require signed macOS builds on
 tags as well as other runs. An explicitly requested signed build fails if
 credentials, signature, notarization or Gatekeeper checks fail; it never falls
 back to ad-hoc signing. Signing and publishing macOS are independent switches.

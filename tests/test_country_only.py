@@ -16,7 +16,7 @@ def _connection(monkeypatch, body=b'ip=8.8.8.8\nloc=US\n'):
     return factory, connection
 
 
-@pytest.mark.parametrize('app_id', ['claude', 'codex', 'grok-bot'])
+@pytest.mark.parametrize('app_id', ['claude', 'codex', 'grok-bot', 'antigravity'])
 def test_router_uses_one_independent_country_request_without_service_udp_or_dns(monkeypatch, app_id):
     factory, connection = _connection(monkeypatch)
     for name in ('trace_host', 'stun_exit', 'dns_probe'):

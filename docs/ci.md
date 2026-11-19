@@ -1,8 +1,10 @@
 # CI triggers and dependency caches
 
-Ordinary branch pushes and pull request updates do not start GitHub Actions.
-Run tests locally before pushing. Automatic publication runs only on release tags:
+Pushes to `main` and pull requests run the cross-platform `CI` workflow. Other
+ordinary branch pushes do not start GitHub Actions. Run tests locally before
+pushing. Automatic publication runs only on release tags:
 
+- `CI`: CLI and desktop-source tests on Ubuntu, macOS and Windows; never publishes.
 - `v*`: cross-platform CLI tests and PyPI publishing, plus native desktop
   installation, update and removal checks followed by GitHub Release publishing.
 - `legacy-v*`: compatibility-package tests and publishing.
@@ -66,10 +68,10 @@ python -m pytest tests/ -q
 actionlint
 ```
 
-The regression checks cover the tag-only automatic trigger policy, unchanged
-release tag routing, cache/warmup compatibility and preservation of validation
-steps on a cache hit. Use actionlint to validate workflow syntax and expressions.
-Pushing a change to these files without a tag does not run remote validation.
+The regression checks cover tag-only publication, pull-request and `main` CI,
+release tag routing, direct macOS installer publication, cache/warmup
+compatibility and validation on a cache hit. Use actionlint to validate workflow
+syntax and expressions. Other branch pushes still require local validation.
 
 References: [setup-python caching](https://github.com/actions/setup-python/blob/v6/README.md#caching-packages-dependencies),
 [GitHub cache scope and retention](https://docs.github.com/en/actions/reference/workflows-and-actions/dependency-caching).

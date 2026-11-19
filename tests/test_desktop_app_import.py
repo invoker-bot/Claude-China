@@ -27,7 +27,7 @@ def test_ui_assets_are_packaged():
     assert (ui / "preview.js").is_file()
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_each_app_has_a_bundled_png_icon(app_id):
     from pathlib import Path
     icon = Path(app_mod.__file__).parent / "ui" / (app_id + ".png")

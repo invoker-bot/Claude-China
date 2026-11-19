@@ -18,11 +18,14 @@ profiles are separate from the Grok Bot desktop application.
   or environment are serialized here. The worker consumes and deletes its
   request before launching.
 
-Editing, copying and deleting use a record revision to reject stale forms after
-an external CLI edit. This is optimistic conflict detection, not a cross-process
-transaction lock. Delete removes only the profile entry. Blank API keys preserve
+Editing, copying and deleting use a cross-process read/modify/write transaction
+plus a record revision to reject stale forms after an external CLI edit. Delete
+removes only the profile entry. Blank API keys preserve
 the current value on edits of the same tool/authentication mode; changing either
 requires new credentials. The page receives only a `has_secret` flag.
+Antigravity CLI offers API mode only. Saving its profile explicitly enables
+`modelProvider=gemini` in `~/.gemini/antigravity-cli/settings.json`, preserves
+other JSON settings, and never reads or changes operating-system keyring entries.
 
 ## History and project shortcuts
 
@@ -54,6 +57,9 @@ broken files with a notice. The list shows up to 200 recent sessions from the
 newest 5,000 candidate files; it indicates when this limit is reached. Removed
 project directories remain visible with launch actions disabled. Native file
 formats may change between CLI versions; unsupported records are not guessed.
+Antigravity CLI currently supports new sessions and argument forwarding only;
+its history view reports the capability as unavailable instead of scanning
+private storage or displaying an empty zero-history result.
 
 Resume uses the provider's documented command:
 
@@ -112,7 +118,8 @@ close managed terminals before uninstalling. See the
 Unit coverage includes profile CRUD and stale revisions, credential redaction
 and preservation, atomic write failure, argument handling, system proxy and
 strict safety failures, launch-request replay/expiry, and platform dispatch.
-History coverage includes all three native formats, login-home isolation,
+History coverage includes all three supported native formats, Antigravity's
+explicit unsupported state, login-home isolation,
 partial records, missing directories, bounds/sorting, canonical directory
 matching, favorites, and exact resume arguments. A real isolated fake CLI
 process verifies the worker's resume ID, working directory, and environment.

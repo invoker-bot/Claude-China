@@ -32,9 +32,13 @@ function renderNetworkControls() {
   document.getElementById("network-guard-cli").checked = draft.includeCli;
 }
 
+function syncRouterTunControls() {
+  document.getElementById("safety-require-tun").disabled = document.getElementById("safety-router").checked;
+}
 function safetyDraft() {
   return { enabled: document.getElementById("safety-enabled").checked,
     block_unknown: document.getElementById("safety-strict").checked,
+    require_tun: document.getElementById("safety-require-tun").checked,
     router_mode: document.getElementById("safety-router").checked };
 }
 function renderLocalEnvironment(environment) {
@@ -46,7 +50,9 @@ function renderLocalEnvironment(environment) {
 function renderSafetySettings() {
   document.getElementById("safety-enabled").checked = SAFETY_SETTINGS.enabled;
   document.getElementById("safety-strict").checked = SAFETY_SETTINGS.block_unknown;
+  document.getElementById("safety-require-tun").checked = SAFETY_SETTINGS.require_tun !== false;
   document.getElementById("safety-router").checked = SAFETY_SETTINGS.router_mode === true;
+  syncRouterTunControls();
   document.getElementById("safety-blocked-regions").innerHTML =
     (SAFETY_SETTINGS.policy?.blocked_regions || []).map(region => `<span>${esc(region.name)}</span> (${esc(region.code)})`).join(", ") || "未读取到地区规则";
   renderLocalEnvironment(SAFETY_SETTINGS.environment || {});
@@ -115,6 +121,8 @@ const BROWSER_NAMES = { chrome: "Chrome", edge: "Edge" };
 function environmentStatus(safety, privacy) {
   if (safety?.status === "unsupported") return "unsupported";
   const guard = NETWORK_GUARDS[document.getElementById("safety-app").value];
+  if (guard && guard.supported !== false && SAFETY_SETTINGS.require_tun !== false && SAFETY_SETTINGS.router_mode !== true &&
+      (!guard.enabled || guard.mode !== "tun" || !guard.verified)) return "warn";
   if (guard?.router_state === "blocked" || guard?.router_state === "unknown") return "warn";
   if (guard?.enabled && !guard.verified) return "warn";
   if (privacy?.level === "warn" && !guard?.verified) return "warn";
@@ -164,6 +172,10 @@ function environmentRows(safety, privacy) {
   if (guard?.router_state) {
     const states = {healthy: "运行防护正常", blocked: "网络已阻断", unknown: "无法验证"};
     rows.push(["路由器运行防护", I18n.text(states[guard.router_state] || "无法验证")]);
+  } else if (guard && guard.supported !== false) {
+    const state = !guard.enabled ? "未启用" : !guard.verified ? "防护未验证"
+      : guard.mode === "tun" ? "TUN 已保护" : "固定代理已保护";
+    rows.push(["系统网络防护", I18n.text(state)]);
   }
   return rows;
 }
@@ -347,6 +359,7 @@ async function restoreEnvironment() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("safety-router").addEventListener("change", syncRouterTunControls);
   document.getElementById("safety-app").onchange = () => { document.getElementById("network-guard-target").value = document.getElementById("safety-app").value; renderEnvironmentReport(); loadNetworkGuard(); };
   document.getElementById("network-guard-target").onchange = () => loadNetworkGuard();
   for (const [element, key] of [["network-guard-mode", "mode"], ["network-guard-tunnel", "guid"], ["network-guard-browser-paths", "paths"]]) {
@@ -373,3 +386,12 @@ document.addEventListener("DOMContentLoaded", () => {
 window.addEventListener('languagechange', () => {
   if (READY && !environmentChecking) renderEnvironmentReport();
 });
+
+// Called by the Python TUN guard watch after it stops an app whose protection vanished.
+function guardWatchAlert(alerts) {
+  if (!Array.isArray(alerts)) return;
+  for (const alert of alerts) {
+    toast(I18n.text("网络防护已失效，已停止 {0}。").replace("{0}", alert.name || ""));
+  }
+  if (alerts.length) refresh().catch(() => {});
+}

@@ -113,7 +113,7 @@ The vendor EXE hash stayed unchanged. The real 0.72.0→0.72.1 vendor update abo
 was not repeated during this refactor; same-path replacement is also covered by
 unit tests. This does not constitute Claude/Codex or MSIX runtime acceptance.
 All 23 baseline Claude/Codex processes retained their PIDs, executable paths
-and creation times. All four saved configuration hashes and the three apps'
+and creation times. All four saved configuration hashes and the four apps'
 IFEO trees were unchanged; Claude/Codex takeover remained disabled. The final
 installed launcher, native hook and settings UI matched the rebuilt bundle,
 and the installed GUI smoke test passed.

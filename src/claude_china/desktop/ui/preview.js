@@ -13,9 +13,10 @@ if (new URLSearchParams(location.search).has("preview")) {
     { id: "claude", display: "Claude", found: true, running: true },
     { id: "codex", display: "Codex", found: false, running: false },
     { id: "grok-bot", display: "Grok Bot", found: true, running: false },
+    { id: "antigravity", display: "Antigravity", found: true, running: false },
   ];
   let settings = { check_system_proxy: true, auto_proxy_env: false, env_vars: { HTTPS_PROXY: "http://127.0.0.1:7890" } };
-  let safetySettings = { enabled: true, block_unknown: true, router_mode: false,
+  let safetySettings = { enabled: true, block_unknown: true, require_tun: true, router_mode: false,
     policy: { kind: "blocked_regions", updated_on: "2026-10-21", blocked_regions:
       [["CN", "中国大陆"], ["HK", "香港"], ["MO", "澳门"], ["RU", "俄罗斯"], ["IR", "伊朗"], ["KP", "朝鲜"]].map(([code, name]) => ({ code, name })) },
     environment: { timezone: "Asia/Shanghai", utc_offset: "+0800", language: "zh-CN", region: "CN" } };
@@ -67,8 +68,9 @@ if (new URLSearchParams(location.search).has("preview")) {
   const perApp = {
     claude: { path: "", env_vars: { ANTHROPIC_BASE_URL: "https://api.example.com" } },
     codex: { path: "", env_vars: {} }, "grok-bot": { path: "", env_vars: {} },
+    antigravity: { path: "", env_vars: {} },
   };
-  let state = { phase: "idle", current: "0.4.8", latest: "", can_install: true, message: "手动检查新版本", progress: 0 };
+  let state = { phase: "idle", current: "0.5.0", latest: "", can_install: true, message: "手动检查新版本", progress: 0 };
   let timer;
   let maximized = false;
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -77,6 +79,7 @@ if (new URLSearchParams(location.search).has("preview")) {
     {name:'日常开发', type:'claude', mode:'api', base_url:'https://api.anthropic.com', has_secret:true, default_args:['--model', 'sonnet'], revision:'preview-claude'},
     {name:'工作项目', type:'codex', mode:'api', base_url:'https://api.openai.com/v1', has_secret:true, default_args:[], revision:'preview-codex'},
     {name:'个人账号', type:'grok', mode:'login', credentials_path:'~/.claudec/accounts/personal', has_secret:false, default_args:[], revision:'preview-grok'},
+    {name:'Gemini API', type:'antigravity', mode:'api', base_url:'', has_secret:true, default_args:['--mode', 'plan'], revision:'preview-antigravity'},
   ];
   let terminalDirectory = 'D:\\Projects\\my-project';
   let terminalRecent = [terminalDirectory, 'D:\\Projects\\docs-site'];
@@ -149,12 +152,12 @@ if (new URLSearchParams(location.search).has("preview")) {
     },
     list_cli_profiles: async () => ({ok:true, data:{directory:terminalDirectory, recent_directories:clone(terminalRecent),favorite_directories:clone(terminalFavorites),
       projects:[...new Set([...terminalFavorites,...terminalRecent])].map(directory=>({directory,name:directory.split('\\').pop(),favorite:terminalFavorites.includes(directory),available:true})),
-      tools:[{id:'claude',display:'Claude Code',installed:true},{id:'codex',display:'Codex CLI',installed:true},{id:'grok',display:'Grok CLI',installed:false}],
+      tools:[{id:'claude',display:'Claude Code',installed:true,auth_modes:['api','login'],official_base_url:'https://api.anthropic.com',history_supported:true},{id:'codex',display:'Codex CLI',installed:true,auth_modes:['api','login'],official_base_url:'https://api.openai.com/v1',history_supported:true},{id:'grok',display:'Grok CLI',installed:false,auth_modes:['api','login'],official_base_url:'https://api.x.ai/v1',history_supported:true},{id:'antigravity',display:'Antigravity CLI',installed:true,auth_modes:['api'],official_base_url:'',history_supported:false,settings_provider:'gemini'}],
       profiles:cliProfiles.map(cliPublic)}}),
     list_cli_history: async name => {
       const profile=cliProfiles.find(p=>p.name===name);if(!profile)return cliFailure();
       if(modes.get('history')==='error')return {ok:false,error:'无法读取历史目录（预览）'};
-      return {ok:true,data:{sessions:modes.has('empty-history')||profile.type==='grok'?[]:clone(terminalSessions),warnings:[],truncated:false}};
+      return {ok:true,data:{sessions:modes.has('empty-history')||profile.type==='grok'||profile.type==='antigravity'?[]:clone(terminalSessions),warnings:[],truncated:false}};
     },
     set_terminal_favorite: async (directory, favorite) => {
       if(!directory.trim())return {ok:false,error:'请选择项目目录。'};
@@ -269,7 +272,7 @@ if (new URLSearchParams(location.search).has("preview")) {
       timer = setTimeout(() => {
         const mode = modes.get("update");
         state = { ...state, phase: mode === "error" ? "error" : mode === "latest" ? "latest" : "available",
-          latest: mode === "latest" ? "0.4.8" : "0.4.9", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。" : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.4.9（预览）" };
+          latest: mode === "latest" ? "0.5.0" : "0.5.1", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。" : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.5.1（预览）" };
       }, 600);
       return clone(state);
     },

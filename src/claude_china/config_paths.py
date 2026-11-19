@@ -1,8 +1,10 @@
 """Shared settings location and one-time import from pre-claudec releases."""
 
 import os
+from contextlib import contextmanager
 from pathlib import Path
 import tempfile
+import threading
 from typing import Optional
 
 import yaml
@@ -10,6 +12,59 @@ import yaml
 
 def config_dir() -> Path:
     return Path.home() / ".claudec"
+
+
+_LOCKS = {}
+_LOCKS_GUARD = threading.Lock()
+_LOCK_STATE = threading.local()
+
+
+def _thread_lock(key):
+    with _LOCKS_GUARD:
+        return _LOCKS.setdefault(key, threading.RLock())
+
+
+@contextmanager
+def settings_lock(destination):
+    destination = Path(destination)
+    key = os.path.normcase(os.path.abspath(str(destination)))
+    with _thread_lock(key):
+        depths = getattr(_LOCK_STATE, "depths", None)
+        if depths is None:
+            depths = _LOCK_STATE.depths = {}
+        if key in depths:
+            depths[key] += 1
+            try:
+                yield
+            finally:
+                depths[key] -= 1
+            return
+        depths[key] = 1
+        try:
+            destination.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            lock_path = destination.with_name(destination.name + ".lock")
+            with open(lock_path, "a+b") as stream:
+                if os.name == "nt":
+                    import msvcrt
+                    stream.seek(0, os.SEEK_END)
+                    if not stream.tell():
+                        stream.write(b"\0")
+                        stream.flush()
+                    stream.seek(0)
+                    msvcrt.locking(stream.fileno(), msvcrt.LK_LOCK, 1)
+                else:
+                    import fcntl
+                    fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    stream.seek(0)
+                    if os.name == "nt":
+                        msvcrt.locking(stream.fileno(), msvcrt.LK_UNLCK, 1)
+                    else:
+                        fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
+        finally:
+            depths.pop(key, None)
 
 
 def legacy_config_file(destination: Path) -> Optional[Path]:

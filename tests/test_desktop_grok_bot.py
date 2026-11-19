@@ -140,7 +140,7 @@ def test_macos_finds_grok_bot_by_bundle_name_without_invented_bundle_id(tmp_path
     assert "com.apple.application-bundle" in query[1]
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_macos_detected_bundle_launches_binary_to_pass_environment(tmp_path, monkeypatch, app_id):
     app = get_app(app_id)
     bundle = tmp_path / app.mac_bundle_name
@@ -189,10 +189,11 @@ def test_linux_grok_bot_override_wins(tmp_path, monkeypatch):
     assert status.match_root == str(image.resolve())
 
 
-@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot"])
+@pytest.mark.parametrize("app_id", ["claude", "codex", "grok-bot", "antigravity"])
 def test_linux_never_looks_up_terminal_cli_for_desktop(app_id, monkeypatch):
     def which(command):
-        assert command == "grok-bot"
+        assert command in get_app(app_id).linux_commands
+        assert command != 'agy'
         return None
 
     monkeypatch.setattr(linux.shutil, "which", which)

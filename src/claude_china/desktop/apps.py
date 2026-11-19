@@ -49,6 +49,16 @@ APP_REGISTRY: List[AppSpec] = [
         win_uninstall_key="8db316bb-b3e2-5dd2-9554-ecccb62be362",
         linux_commands=("grok-bot",),
     ),
+    AppSpec(
+        id="antigravity",
+        display="Antigravity",
+        win_aumid="",
+        win_package_family="",
+        mac_bundle_name="Antigravity.app",
+        mac_bundle_id="",
+        win_executable="Antigravity.exe",
+        linux_commands=("Antigravity", "antigravity"),
+    ),
 ]
 
 _BY_ID = {a.id: a for a in APP_REGISTRY}

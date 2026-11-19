@@ -14,13 +14,30 @@ def workflow(name):
     return yaml.load((WORKFLOWS / name).read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
 
 
-@pytest.mark.parametrize("path", sorted(WORKFLOWS.glob("*.yml")), ids=lambda path: path.name)
-def test_untagged_pushes_and_pr_updates_do_not_start_workflows(path):
-    events = workflow(path.name)["on"]
+@pytest.mark.parametrize("name", ["publish.yml", "publish-legacy.yml", "desktop-release.yml"])
+def test_release_workflows_only_publish_from_version_tags(name):
+    events = workflow(name)["on"]
     assert set(events) <= {"push", "workflow_dispatch"}
-    if "push" in events:
-        assert set(events["push"]) == {"tags"}
-        assert events["push"]["tags"] in (["v*"], ["legacy-v*"])
+    assert set(events["push"]) == {"tags"}
+
+
+def test_pull_requests_and_main_run_cross_platform_ci_without_publishing():
+    events = workflow("ci.yml")["on"]
+    assert set(events) == {"pull_request", "push", "workflow_dispatch"}
+    assert events["push"]["branches"] == ["main"]
+    jobs = workflow("ci.yml")["jobs"]
+    assert set(jobs) == {"test"}
+    commands = "\n".join(step.get("run", "") for step in jobs["test"]["steps"])
+    assert "python -m pytest tests/ -q" in commands
+    assert not any(word in commands for word in ("twine upload", "gh release", "build_desktop.py"))
+
+
+def test_release_publishes_macos_packages_without_requiring_signing():
+    release = workflow("desktop-release.yml")
+    assert release["env"]["PUBLISH_MACOS"] == "true"
+    assert release["env"]["SIGN_MACOS"] == "false"
+    commands = "\n".join(step.get("run", "") for step in release["jobs"]["release"]["steps"])
+    assert "prepare_desktop_release.py --include-macos" in commands
 
 
 @pytest.mark.parametrize("name, tag", [

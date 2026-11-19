@@ -7,15 +7,19 @@ from pathlib import Path
 import re
 from urllib.parse import unquote
 
+from ..providers import PROVIDERS, get_provider
+
 MAX_SESSIONS = 200
 MAX_FILES = 5000
 HEADER_BYTES = 512 * 1024
 TAIL_BYTES = 64 * 1024
 _UUID = re.compile(r'[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}')
-_HOMES = {'claude': '.claude', 'codex': '.codex', 'grok': '.grok'}
+_HOMES = {provider.id: provider.history_home for provider in PROVIDERS if provider.history_home}
 
 
 def profile_home(record):
+    if record['type'] not in _HOMES:
+        raise ValueError('此 CLI 暂不支持历史会话。')
     if record.get('mode', 'api') == 'login':
         value = record.get('credentials_path')
         if not isinstance(value, str) or not value.strip():
@@ -207,7 +211,9 @@ def list_sessions(kind, root):
 def _check_defaults(kind, defaults, resuming):
     # A saved default must not silently switch the selected session or project,
     # fork it, restore files, or connect to a remote server instead.
-    blocked = {'--resume', '-r', '--continue', '--cwd', '--cd', '-C', '--last', '--remote', '--'}
+    blocked = {'--resume', '-r', '--continue', '--cwd', '--cd', '-C', '--last', '--remote', '--conversation', '--'}
+    if kind == 'antigravity':
+        blocked.update({'--remote-agent', '--project', '--new-project'})
     blocked.add('-c' if kind != 'codex' else '--include-non-interactive')
     if resuming:
         blocked.update({'--fork-session', '--session-id', '--restore-code', '--worktree', '-w'})
@@ -229,5 +235,7 @@ def resume_args(kind, session_id, defaults):
     if not isinstance(session_id, str) or not _UUID.fullmatch(session_id):
         raise ValueError('会话 ID 无效，请刷新历史记录。')
     _check_defaults(kind, defaults, resuming=True)
-    prefix = ['resume'] if kind == 'codex' else ['--resume']
+    prefix = list(get_provider(kind).resume_prefix)
+    if not prefix:
+        raise ValueError('此 CLI 暂不支持历史会话。')
     return prefix + [session_id] + defaults

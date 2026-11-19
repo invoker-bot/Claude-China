@@ -10,6 +10,7 @@ SOURCES = {
     "claude": "https://support.claude.com/en/articles/8461763-where-can-i-access-claude",
     "codex": "https://help.openai.com/en/articles/7947663-chatgpt-supported-countries",
     "grok-bot": "https://docs.x.ai/grok-bot/overview",
+    "antigravity": "https://antigravity.google/docs/faq/",
 }
 
 ISO_COUNTRIES = frozenset("""

@@ -5,17 +5,14 @@ from typing import Optional, List
 
 import typer
 
-from .config import load_config, save_config
-from .profiles import list_profiles, add_profile, remove_profile, show_profile
+from .config import load_config, transaction
+from .profiles import (
+    list_profiles, add_profile, remove_profile, show_profile,
+    create_profile_data, update_profile_data,
+)
 from .launcher import launch
 from .grok import find_npm_installation, home_binary, check_version as check_grok_version
-from .buddy import (
-    RARITIES, SPECIES, RARITY_COLORS,
-    roll_by_name, bruteforce_user_id,
-    write_user_id_to_claude_config, get_claude_config_path,
-    format_buddy_card,
-)
-from .models import profile_from_dict, LoginProfile
+from .providers import PROVIDERS, get_provider
 from . import __version__
 
 app = typer.Typer(
@@ -32,27 +29,162 @@ def list_command():
 
 
 @app.command(name="show")
-def show_command(name: str = typer.Argument(..., help="Profile name to show")):
-    """Show profile details (platform, URL, and credentials)"""
+def show_command(
+    name: str = typer.Argument(..., help="Profile name to show"),
+    reveal: bool = typer.Option(False, "--reveal", help="Reveal credentials in terminal output"),
+):
+    """Show profile details with credentials masked by default"""
     config = load_config()
-    show_profile(config, name)
+    show_profile(config, name, reveal=reveal)
+
+
+def _secret_from_stdin():
+    secret = sys.stdin.read().strip()
+    if "\n" in secret or "\r" in secret:
+        raise ValueError("Secret input must contain exactly one line")
+    if not secret:
+        raise ValueError("No secret was provided on standard input")
+    return secret
+
+
+def _configure_provider(provider):
+    if provider.settings_provider == "gemini":
+        from .antigravity import configure_gemini_api
+        return configure_gemini_api()
+    return None
+
+
+@app.command(name="doctor")
+def doctor_command(
+    profile: Optional[str] = typer.Argument(None, help="Check only this profile"),
+    versions: bool = typer.Option(False, "--versions", help="Execute each installed CLI with --version"),
+):
+    """Validate local profiles and CLI installations without network requests"""
+    from .diagnostics import collect
+    try:
+        report = collect(profile, versions)
+    except (OSError, ValueError) as exc:
+        typer.echo(f"Configuration error: {exc}", err=True)
+        raise typer.Exit(1) from None
+    for tool in report["tools"]:
+        state = "installed" if tool["installed"] else "not installed"
+        detail = tool["version"] or tool["path"] or "not required by a profile"
+        typer.echo(f"{tool['display']}: {state} · {detail}")
+        if tool["error"]:
+            typer.echo(f"  ERROR: {tool['error']}", err=True)
+    for item in report["profiles"]:
+        state = "OK" if item["ok"] else "ERROR"
+        typer.echo(f"Profile '{item['name']}' ({item['type']}): {state}")
+        for warning in item["warnings"]:
+            typer.echo(f"  WARNING: {warning}")
+        for error in item["errors"]:
+            typer.echo(f"  ERROR: {error}", err=True)
+    if not report["profiles"]:
+        typer.echo("No CLI profiles configured.")
+    raise typer.Exit(0 if report["ok"] else 1)
 
 
 @app.command(name="add")
-def add_command():
-    """Add a new profile interactively"""
-    config = load_config()
-    config = add_profile(config)
-    save_config(config)
+def add_command(
+    name: Optional[str] = typer.Option(None, "--name", help="Profile name for non-interactive creation"),
+    kind: Optional[str] = typer.Option(None, "--type", help="CLI provider id"),
+    mode: Optional[str] = typer.Option(None, "--mode", help="api or login, when supported"),
+    base_url: Optional[str] = typer.Option(None, "--base-url"),
+    credentials_path: Optional[str] = typer.Option(None, "--credentials-path"),
+    proxy: Optional[str] = typer.Option(None, "--proxy"),
+    default_args: Optional[str] = typer.Option(None, "--default-args"),
+    secret_stdin: bool = typer.Option(False, "--secret-stdin", help="Read the API secret from standard input"),
+):
+    """Add a profile interactively or with explicit options"""
+    values = (name, kind, mode, base_url, credentials_path, proxy, default_args)
+    try:
+        if not any(value is not None for value in values) and not secret_stdin:
+            with transaction() as config:
+                add_profile(config)
+        else:
+            if not name or not kind:
+                raise ValueError("Non-interactive add requires --name and --type")
+            secret = _secret_from_stdin() if secret_stdin else ""
+            record = create_profile_data(name, kind, mode or "api", base_url, secret,
+                                         credentials_path, proxy, default_args)
+            with transaction() as config:
+                if record["name"] in config.get("profiles", {}):
+                    raise ValueError(f"Profile '{record['name']}' already exists")
+                _configure_provider(get_provider(record["type"]))
+                config.setdefault("profiles", {})[record["name"]] = record
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from None
     typer.echo("Profile added.")
+
+
+@app.command(name="edit")
+def edit_command(
+    profile: str = typer.Argument(..., help="Existing profile name"),
+    name: Optional[str] = typer.Option(None, "--name", help="New profile name"),
+    mode: Optional[str] = typer.Option(None, "--mode"),
+    base_url: Optional[str] = typer.Option(None, "--base-url"),
+    credentials_path: Optional[str] = typer.Option(None, "--credentials-path"),
+    proxy: Optional[str] = typer.Option(None, "--proxy"),
+    clear_proxy: bool = typer.Option(False, "--clear-proxy"),
+    default_args: Optional[str] = typer.Option(None, "--default-args"),
+    clear_default_args: bool = typer.Option(False, "--clear-default-args"),
+    secret_stdin: bool = typer.Option(False, "--secret-stdin"),
+    clear_secret: bool = typer.Option(False, "--clear-secret"),
+):
+    """Edit a profile without exposing secrets in command arguments"""
+    supplied = any(value is not None for value in
+                   (name, mode, base_url, credentials_path, proxy, default_args))
+    supplied = supplied or any((clear_proxy, clear_default_args, secret_stdin, clear_secret))
+    if not supplied:
+        raise typer.BadParameter("Provide at least one edit option")
+    if secret_stdin and clear_secret:
+        raise typer.BadParameter("--secret-stdin and --clear-secret cannot be combined")
+    if clear_proxy and proxy is not None:
+        raise typer.BadParameter("--clear-proxy and --proxy cannot be combined")
+    if clear_default_args and default_args is not None:
+        raise typer.BadParameter("--clear-default-args and --default-args cannot be combined")
+    changes = dict(name=name, mode=mode, base_url=base_url, credentials_path=credentials_path,
+                   proxy=proxy, clear_proxy=clear_proxy, default_args=default_args,
+                   clear_default_args=clear_default_args, clear_secret=clear_secret)
+    try:
+        if secret_stdin:
+            changes["secret"] = _secret_from_stdin()
+        with transaction() as config:
+            record = config.get("profiles", {}).get(profile)
+            if not isinstance(record, dict):
+                raise ValueError(f"Profile '{profile}' not found")
+            updated = update_profile_data(record, changes)
+            new_name = updated["name"]
+            if new_name != profile and new_name in config["profiles"]:
+                raise ValueError(f"Profile '{new_name}' already exists")
+            _configure_provider(get_provider(updated["type"]))
+            del config["profiles"][profile]
+            config["profiles"][new_name] = updated
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from None
+    typer.echo("Profile updated.")
+
+
+@app.command(name="configure")
+def configure_command(kind: str = typer.Argument(..., help="CLI provider requiring additional setup")):
+    """Apply a provider's explicit local authentication setup"""
+    try:
+        provider = get_provider(kind)
+        if provider.settings_provider == "gemini":
+            from .antigravity import configure_gemini_api
+            path = configure_gemini_api()
+            typer.echo(f"Enabled Gemini API authentication in {path}")
+        else:
+            typer.echo(f"{provider.display} does not require additional local setup.")
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="kind") from None
 
 
 @app.command(name="remove")
 def remove_command(name: str = typer.Argument(..., help="Profile name to remove")):
     """Remove a profile"""
-    config = load_config()
-    config = remove_profile(config, name)
-    save_config(config)
+    with transaction() as config:
+        remove_profile(config, name)
 
 
 @app.command(name="login-browser")
@@ -63,16 +195,12 @@ def login_browser_command(
     """Choose whether Claude Code opens its login browser automatically."""
     if mode not in ("manual", "auto"):
         raise typer.BadParameter("Choose 'manual' or 'auto'.", param_hint="mode")
-    config = load_config()
-    record = config.get("profiles", {}).get(profile)
-    if not isinstance(record, dict) or record.get("type") != "claude" or record.get("mode") != "login":
-        typer.echo("Choose an existing Claude Code login profile.", err=True)
-        raise typer.Exit(1)
-    if mode == "manual":
-        record["manual_browser_login"] = True
-    else:
-        record["manual_browser_login"] = False
-    save_config(config)
+    with transaction() as config:
+        record = config.get("profiles", {}).get(profile)
+        if not isinstance(record, dict) or record.get("type") != "claude" or record.get("mode") != "login":
+            typer.echo("Choose an existing Claude Code login profile.", err=True)
+            raise typer.Exit(1)
+        record["manual_browser_login"] = mode == "manual"
     typer.echo("Manual browser login enabled." if mode == "manual" else "Automatic browser login enabled.")
 
 
@@ -93,83 +221,16 @@ def network_mode_command(mode: str = typer.Argument(..., help="router or default
         typer.echo("Router preflight disabled; existing proxy/TUN settings apply.")
 
 
-@app.command(name="roll-claude-buddy")
-def roll_claude_buddy_command(
-    profile: str = typer.Argument(..., help="Profile name to roll buddy for"),
-    species: Optional[str] = typer.Option(None, "--name", "-n", help="Target species: duck/cat/dragon/capybara/..."),
-    rarity: Optional[str] = typer.Option(None, "--type", "-t", help="Target rarity: common/uncommon/rare/epic/legendary"),
-):
-    """Roll a Claude Code buddy companion for a profile
-
-    By default the buddy is deterministic per profile (same profile = same buddy).
-    Use --name and/or --type to keep rolling until you get the target species/rarity.
-
-    Examples:
-      claudec roll-claude-buddy fox-claude                           Roll buddy for profile
-      claudec roll-claude-buddy fox-claude --name capybara           Roll until capybara
-      claudec roll-claude-buddy fox-claude --type legendary          Roll until legendary
-      claudec roll-claude-buddy fox-claude --name dragon --type epic Roll until epic dragon
-    """
-    config = load_config()
-    profiles = config.get("profiles", {})
-    if profile not in profiles:
-        typer.echo(f"Unknown profile: '{profile}'", err=True)
-        typer.echo("Run 'claudec list' to see available profiles.")
-        raise typer.Exit(1)
-
-    if rarity and rarity not in RARITIES:
-        typer.echo(f"Invalid rarity: '{rarity}'. Choose from: {', '.join(RARITIES)}", err=True)
-        raise typer.Exit(1)
-
-    if species and species not in SPECIES:
-        typer.echo(f"Invalid species: '{species}'. Choose from: {', '.join(SPECIES)}", err=True)
-        raise typer.Exit(1)
-
-    # Resolve the .claude.json path for this profile:
-    # login mode → credentials_path/.claude.json
-    # api mode   → ~/.claude.json
-    profile_obj = profile_from_dict(profiles[profile])
-    config_dir = None
-    if isinstance(profile_obj, LoginProfile) and profile_obj.credentials_path:
-        import os
-        config_dir = os.path.expanduser(profile_obj.credentials_path)
-
-    import io
-    out = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
-
-    if species or rarity:
-        claude_json = get_claude_config_path(config_dir)
-        out.write("\n")
-        target_desc = " + ".join(filter(None, [
-            rarity.capitalize() if rarity else None,
-            species.capitalize() if species else None,
-        ]))
-        out.write(f"  Bruteforcing userID for {target_desc}...\n")
-        out.flush()
-        user_id, bones = bruteforce_user_id(target_rarity=rarity, target_species=species)
-        write_user_id_to_claude_config(user_id, config_dir)
-        out.write(f"  Written userID to {claude_json}\n")
-    else:
-        bones = roll_by_name(profile)
-        user_id = None
-
-    color = RARITY_COLORS[bones.rarity]
-    card = format_buddy_card(bones)
-    out.write("\n")
-    out.write(typer.style(f"  [{profile}] You rolled a Claude Buddy!", bold=True) + "\n")
-    out.write("\n")
-    out.write(typer.style(card, fg=color) + "\n")
-    if user_id:
-        out.write("\n")
-        out.write(f"  Restart Claude Code to see your new buddy!\n")
-    out.write("\n")
-    out.flush()
-
-
 @app.command(name="upgrade")
-def upgrade_command():
-    """Upgrade claude, codex, and grok CLI via npm"""
-    upgrade()
+def upgrade_command(
+    tools: Optional[List[str]] = typer.Argument(None, help="Tools to upgrade; default is every supported CLI"),
+    exclude: Optional[List[str]] = typer.Option(None, "--exclude", help="Exclude a CLI from this upgrade; repeatable"),
+):
+    """Upgrade all supported CLIs, or only the selected tools"""
+    try:
+        upgrade(tools=tools, exclude=exclude)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc), param_hint="tools") from None
 
 
 @app.command(
@@ -296,11 +357,7 @@ def main(
     pass
 
 
-UPGRADE_PACKAGES = [
-    "@anthropic-ai/claude-code",
-    "@openai/codex",
-    "@xai-official/grok",
-]
+UPGRADE_PACKAGES = [provider.npm_package for provider in PROVIDERS if provider.npm_package]
 
 
 def _run_npm(args, env):
@@ -318,15 +375,56 @@ def _verify_grok(command, env, version):
         sys.exit(1)
 
 
-def upgrade():
-    typer.echo("Upgrading claude, codex, grok CLI...")
+def _selected_providers(tools=None, exclude=None):
+    selected = []
+    for kind in tools or [provider.id for provider in PROVIDERS]:
+        provider = get_provider(kind)
+        if provider not in selected:
+            selected.append(provider)
+    excluded = {get_provider(kind).id for kind in exclude or []}
+    selected = [provider for provider in selected if provider.id not in excluded]
+    if not selected:
+        raise ValueError("No CLI tools selected")
+    return selected
 
-    env = os.environ.copy()
-    env.pop("GROK_HOME", None)
-    result = _run_npm(["install", "-g", "--ignore-scripts=false"] + UPGRADE_PACKAGES, env)
-    if result.returncode:
-        sys.exit(result.returncode)
 
+def _verify_cli(kind, env):
+    from .diagnostics import command_version
+    return command_version(kind, env)
+
+
+def _upgrade_native(provider, env):
+    url = provider.native_upgrade
+    if sys.platform == "win32":
+        command = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+                   f"irm {url}.ps1 | iex"]
+        return subprocess.run(command, env=env)
+    return subprocess.run(["bash", "-c", f"curl -fsSL {url}.sh | bash"], env=env)
+
+
+def _upgrade_selected(selected, env):
+    npm = [provider for provider in selected if provider.npm_package]
+    if npm:
+        result = _run_npm(["install", "-g", "--ignore-scripts=false"]
+                          + [provider.npm_package for provider in npm], env)
+        if result.returncode:
+            sys.exit(result.returncode)
+    if any(provider.id == "grok" for provider in npm):
+        _upgrade_grok(env)
+    for provider in npm:
+        if provider.id != "grok":
+            typer.echo(f"{provider.display}: {_verify_cli(provider.id, env)}")
+    for provider in selected:
+        if not provider.native_upgrade:
+            continue
+        typer.echo(f"Updating {provider.display} with its official installer...")
+        result = _upgrade_native(provider, env)
+        if result.returncode:
+            sys.exit(result.returncode)
+        typer.echo(f"{provider.display}: {_verify_cli(provider.id, env)}")
+
+
+def _upgrade_grok(env):
     installation = find_npm_installation()
     if not installation:
         typer.echo("Cannot find the updated @xai-official/grok installation in the active npm prefix.", err=True)
@@ -358,6 +456,19 @@ def upgrade():
         _verify_grok(home_binary(home), profile_env, installation.version)
         typer.echo(f"Grok CLI {installation.version} verified for profile '{name}'.")
         refreshed.add(normalized_home)
+
+
+def upgrade(tools=None, exclude=None):
+    selected = _selected_providers(tools, exclude)
+    typer.echo("Upgrading " + ", ".join(provider.id for provider in selected) + "...")
+    env = os.environ.copy()
+    env.pop("GROK_HOME", None)
+    env.pop("AGY_CLI_DISABLE_AUTO_UPDATE", None)
+    try:
+        _upgrade_selected(selected, env)
+    except RuntimeError as exc:
+        typer.echo(str(exc), err=True)
+        sys.exit(1)
     sys.exit(0)
 
 

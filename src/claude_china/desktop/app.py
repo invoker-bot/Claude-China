@@ -104,5 +104,6 @@ def run_gui(smoke_report=None):
                 icon=_window_icon_path(), menu=commands.native_menu(),
             )
         finally:
+            bridge._shutdown_guard_watch()
             updater.shutdown()
             tray.stop()

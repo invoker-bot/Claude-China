@@ -1,10 +1,17 @@
 import os
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import pytest
 
 from src.claude_china import cli
 from src.claude_china.cli import UPGRADE_PACKAGES
+
+
+@pytest.fixture(autouse=True)
+def verified_commands(monkeypatch):
+    monkeypatch.setattr(cli, '_verify_cli', lambda kind, env: 'fixture-version')
+    monkeypatch.setattr(cli, '_upgrade_native', lambda provider, env: SimpleNamespace(returncode=0))
 
 
 @pytest.fixture(autouse=True)
@@ -182,3 +189,45 @@ def test_upgrade_fails_when_npm_installation_cannot_be_found(monkeypatch, capsys
         cli.upgrade()
     assert exc.value.code == 1
     assert "npm" in capsys.readouterr().err
+
+
+def test_upgrade_can_select_only_requested_npm_tools(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.subprocess, 'run', lambda *args, **kwargs: calls.append(args[0]) or SimpleNamespace(returncode=0))
+    with pytest.raises(SystemExit) as exc:
+        cli.upgrade(tools=['claude', 'codex'])
+    assert exc.value.code == 0
+    assert len(calls) == 1
+    command = calls[0] if isinstance(calls[0], list) else calls[0].split()
+    assert '@anthropic-ai/claude-code' in command and '@openai/codex' in command
+    assert '@xai-official/grok' not in command
+
+
+def test_upgrade_exclusions_preserve_all_other_tools(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cli.subprocess, 'run', lambda *args, **kwargs: calls.append(args[0]) or SimpleNamespace(returncode=0))
+    native = []
+    monkeypatch.setattr(cli, '_upgrade_native', lambda provider, env: native.append(provider.id) or SimpleNamespace(returncode=0))
+    with pytest.raises(SystemExit) as exc:
+        cli.upgrade(exclude=['grok'])
+    assert exc.value.code == 0
+    assert native == ['antigravity']
+    command = calls[0] if isinstance(calls[0], list) else calls[0].split()
+    assert '@xai-official/grok' not in command
+
+
+def test_upgrade_native_tool_does_not_run_npm(monkeypatch):
+    run = Mock(side_effect=AssertionError('npm must not run'))
+    monkeypatch.setattr(cli.subprocess, 'run', run)
+    native = []
+    monkeypatch.setattr(cli, '_upgrade_native', lambda provider, env: native.append(provider.id) or SimpleNamespace(returncode=0))
+    with pytest.raises(SystemExit) as exc:
+        cli.upgrade(tools=['antigravity'])
+    assert exc.value.code == 0 and native == ['antigravity']
+
+
+def test_upgrade_rejects_unknown_or_empty_selection():
+    with pytest.raises(ValueError, match='Unknown'):
+        cli.upgrade(tools=['unknown'])
+    with pytest.raises(ValueError, match='No CLI'):
+        cli.upgrade(tools=['claude'], exclude=['claude'])
