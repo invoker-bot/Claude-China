@@ -40,7 +40,7 @@ The flow for `claudec run <profile> [extra_args...]`:
 
 ### Provider registry and environment contract
 
-`providers.py` defines each CLI's command, authentication modes, environment mapping and upgrade strategy. `launcher.py` derives `ENV_MAP`, `CONFIG_DIR_ENV_VARS` and `MANAGED_ENV_VARS` from those definitions, including provider-specific `managed_env`. **When adding a new env var, update the provider definition and its leakage tests** — otherwise `clear_managed_environment` won't clean it up between runs and you get cross-profile bleed.
+`providers.py` defines each CLI's command, authentication modes, environment mapping and upgrade strategy. `upgrades.py` verifies npm metadata, actual executable versions, PATH shadowing and running-process upgrade safety. `launcher.py` derives `ENV_MAP`, `CONFIG_DIR_ENV_VARS` and `MANAGED_ENV_VARS` from those definitions, including provider-specific `managed_env`. **When adding a new env var, update the provider definition and its leakage tests** — otherwise `clear_managed_environment` won't clean it up between runs and you get cross-profile bleed.
 
 ### Login vs API mode
 

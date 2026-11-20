@@ -31,6 +31,13 @@ async function main() {
     await page.waitForFunction(() => READY);
     assert.equal(await page.locator('html').getAttribute('lang'), 'en');
     await text('#home-button', 'My apps');
+    await page.locator('#btn-install-codex').click();
+    await page.waitForFunction(() => APP_INSTALLS.codex.phase === 'launched');
+    assert.ok((await page.locator('#detail-codex').textContent()).includes('Official installer started'));
+    await page.locator('#btn-install-codex').click();
+    await page.waitForFunction(() => APP_INSTALLS.codex.phase === 'downloading');
+    await page.locator('#btn-install-codex').click();
+    await page.waitForFunction(() => APP_INSTALLS.codex.phase === 'idle');
     await page.locator('#open-settings').click();
     assert.equal(await page.locator('#app-language').inputValue(), 'system');
 

@@ -40,10 +40,26 @@ def collect(profile_name=None, versions=False):
         provider = get_provider(kind)
         command = find_command(kind)
         item = {"id": kind, "display": provider.display, "installed": bool(command),
-                "path": command or "", "version": "", "error": ""}
-        if versions and command:
+                "path": command or "", "version": "", "package_version": "",
+                "consistent": None, "warning": "", "error": ""}
+        if command:
+            from .upgrades import validate_native_package
+            try:
+                validate_native_package(kind)
+            except RuntimeError as exc:
+                item["error"] = str(exc)
+                failures = True
+        if versions and command and not item["error"]:
             try:
                 item["version"] = command_version(kind)
+                if provider.npm_package:
+                    from .upgrades import check_npm_installation
+                    installation = check_npm_installation(kind, command, item["version"], required=False)
+                    if installation is None:
+                        item["warning"] = "No npm package was found in the active prefix; using an unmanaged command."
+                    else:
+                        item["package_version"] = installation.version
+                        item["consistent"] = True
             except RuntimeError as exc:
                 item["error"] = str(exc)
                 failures = True

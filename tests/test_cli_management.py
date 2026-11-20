@@ -3,7 +3,7 @@ from unittest.mock import Mock
 
 from typer.testing import CliRunner
 
-from src.claude_china import antigravity, cli, config, diagnostics
+from src.claude_china import antigravity, cli, config, diagnostics, upgrades
 
 
 def isolated_config(tmp_path, monkeypatch):
@@ -114,6 +114,7 @@ def test_doctor_checks_profile_and_never_prints_credentials(tmp_path, monkeypatc
         'name': 'work', 'type': 'codex', 'mode': 'api', 'api_key': 'doctor-secret',
     }}})
     monkeypatch.setattr(diagnostics, 'find_command', lambda kind: '/usr/bin/codex')
+    monkeypatch.setattr(upgrades, 'validate_native_package', lambda kind: None)
     report = diagnostics.collect('work')
     assert report['ok'] and report['tools'][0]['id'] == 'codex'
     assert 'doctor-secret' not in str(report)
@@ -143,6 +144,8 @@ def test_doctor_optional_version_check_uses_real_command_adapter(tmp_path, monke
     config.save_config({'profiles': {}})
     monkeypatch.setattr(diagnostics, 'find_command', lambda kind: '/bin/cli')
     monkeypatch.setattr(diagnostics, 'command_version', lambda kind: kind + ' 1.2.3')
+    monkeypatch.setattr(upgrades, 'find_npm_installation', lambda kind: None)
+    monkeypatch.setattr(upgrades, 'validate_native_package', lambda kind: None)
     report = diagnostics.collect(versions=True)
     assert report['ok'] and len(report['tools']) == 4
     assert all(tool['version'].endswith('1.2.3') for tool in report['tools'])

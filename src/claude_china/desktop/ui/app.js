@@ -2,6 +2,9 @@ const api = () => window.pywebview.api;
 let APPS = [];
 let SETTINGS = { check_system_proxy: true, auto_proxy_env: false, env_vars: {} };
 const APP_SETTINGS = {};
+const APP_INSTALLS = {};
+const INSTALL_POLLS = {};
+const INSTALL_REQUESTS = {};
 let READY = false;
 let lastRefresh = 0;
 let brandAnimation;
@@ -128,10 +131,13 @@ function renderApps() {
       `<h2 class="bay-name" id="name-${id}">${name}</h2>` +
       `<p class="bay-status"><span class="lamp" aria-hidden="true"></span><span id="status-${id}" role="status"></span></p>` +
       `<p class="app-detail" id="detail-${id}"></p><div class="bay-actions">` +
+      `<button class="btn btn--key" id="btn-install-${id}" type="button">${icon("download")}下载并安装</button>` +
       `<button class="btn btn--key" id="btn-launch-${id}" type="button">启动</button>` +
       `<button class="btn btn--stop" id="btn-stop-${id}" type="button" aria-label="停止 ${name}" title="停止 ${name}">${icon("stop")}<span class="stop-text">停止</span></button>` +
-      `<button class="btn btn-config" id="btn-config-${id}" type="button">${icon("folder")}选择路径</button></div>`;
+      `<button class="btn btn-config" id="btn-config-${id}" type="button">${icon("folder")}选择路径</button></div>` +
+      `<progress class="app-install-progress" id="install-progress-${id}" max="100" value="0" aria-label="安装包下载进度" hidden></progress>`;
     list.appendChild(bay);
+    document.getElementById(`btn-install-${app.id}`).onclick = () => onInstallAction(app.id);
     document.getElementById(`btn-launch-${app.id}`).onclick = () => onAction(app.id, "launch");
     document.getElementById(`btn-stop-${app.id}`).onclick = () => onAction(app.id, "stop");
     document.getElementById(`btn-config-${app.id}`).onclick = () => showSettings(app.id);
@@ -144,23 +150,78 @@ function renderApps() {
 function rerenderBay(id) { const app = findApp(id); if (app) updateBay(id, app.found, app.running); }
 function updateBay(id, found, running) {
   const app = findApp(id);
-  if (app) { app.found = found; app.running = running; }
+  if (app) {
+    app.found = found; app.running = running;
+    if (app.install) APP_INSTALLS[id] = app.install;
+  }
   const bay = document.getElementById(`bay-${id}`);
   if (!bay) return;
-  const error = BAY_ERRORS[id], busy = BUSY_APPS.has(id);
+  const install = APP_INSTALLS[id] || { phase: 'idle', progress: 0, message: '' };
+  const installing = ['resolving', 'downloading', 'launching'].includes(install.phase);
+  const error = BAY_ERRORS[id], busy = BUSY_APPS.has(id) || installing;
   bay.classList.toggle("is-running", !!(found && running));
   bay.classList.toggle("is-missing", !found);
-  bay.classList.toggle("has-error", !!error);
-  document.getElementById(`status-${id}`).textContent = error || (busy ? "正在处理…" : !found ? "未检测到安装" : running ? "运行中" : "未运行");
+  bay.classList.toggle("has-error", !!error || install.phase === 'error');
+  document.getElementById(`status-${id}`).textContent = error || (installing ? install.message : !found ? "未检测到安装" : running ? "运行中" : "未运行");
   const count = Object.keys(APP_SETTINGS[id]?.env_vars || {}).length;
-  document.getElementById(`detail-${id}`).innerHTML = icon(!found ? "folder" : count ? "document" : "sliders") +
-    `<span>${!found ? "选择应用路径后即可启动" : count ? `专有环境变量 · ${count} 项` : "使用通用设置"}</span>`;
+  const installDetail = !found && install.message && install.phase !== 'idle';
+  document.getElementById(`detail-${id}`).innerHTML = icon(installDetail ? "download" : !found ? "folder" : count ? "document" : "sliders") +
+    `<span>${installDetail ? install.message : !found ? "选择路径或使用官方安装程序" : count ? `专有环境变量 · ${count} 项` : "使用通用设置"}</span>`;
   const launch = document.getElementById(`btn-launch-${id}`), stop = document.getElementById(`btn-stop-${id}`);
-  launch.hidden = !found; stop.hidden = !found;
-  document.getElementById(`btn-config-${id}`).hidden = found;
+  const installButton = document.getElementById(`btn-install-${id}`), choose = document.getElementById(`btn-config-${id}`);
+  launch.hidden = !found; stop.hidden = !found; installButton.hidden = found;
+  choose.hidden = found; choose.disabled = installing;
+  installButton.innerHTML = icon(installing ? "close" : "download") + `<span>${installing ? "取消" : install.phase === 'error' ? "重试安装" : "下载并安装"}</span>`;
+  const progress = document.getElementById(`install-progress-${id}`);
+  progress.hidden = install.phase !== 'downloading'; progress.value = install.progress || 0;
   launch.innerHTML = icon(running ? "refresh" : "play") + `<span>${running ? "重启" : "启动"}</span>`;
-  launch.disabled = busy; stop.disabled = busy;
+  launch.disabled = busy; stop.disabled = busy; installButton.disabled = BUSY_APPS.has(id);
   bay.setAttribute("aria-busy", String(busy));
+}
+async function onInstallAction(id) {
+  const current = APP_INSTALLS[id] || { phase: 'idle' };
+  const active = ['resolving', 'downloading', 'launching'].includes(current.phase);
+  try {
+    if (active) {
+      renderInstallState(id, await api().cancel_app_install(id));
+    } else {
+      const result = await api().install_app(id);
+      if (!result.ok) throw new Error(result.error || '无法开始下载安装。');
+      renderInstallState(id, result.state);
+    }
+    watchInstall(id);
+  } catch (reason) {
+    renderInstallState(id, { phase: 'error', progress: 0, message: reason.message || '无法开始下载安装。' });
+  }
+}
+function renderInstallState(id, state) {
+  APP_INSTALLS[id] = state;
+  const app = findApp(id); if (app) app.install = state;
+  updateBay(id, app?.found || false, app?.running || false);
+}
+async function watchInstall(id) {
+  const request = INSTALL_REQUESTS[id] = (INSTALL_REQUESTS[id] || 0) + 1;
+  clearTimeout(INSTALL_POLLS[id]);
+  try {
+    while (request === INSTALL_REQUESTS[id]) {
+      const state = await api().get_app_install_status(id);
+      renderInstallState(id, state);
+      if (!['resolving', 'downloading', 'launching'].includes(state.phase)) {
+        if (state.phase === 'launched') {
+          toast(state.message || '已启动官方安装器');
+          refresh(true).catch(() => {});
+        }
+        break;
+      }
+      await new Promise(resolve => { INSTALL_POLLS[id] = setTimeout(resolve, 600); });
+    }
+  } catch (_) {
+    if (request === INSTALL_REQUESTS[id]) {
+      renderInstallState(id, { phase: 'error', progress: 0, message: '无法读取安装进度，请稍后重试。' });
+    }
+  } finally {
+    if (request === INSTALL_REQUESTS[id]) clearTimeout(INSTALL_POLLS[id]);
+  }
 }
 async function onAction(id, mode) {
   if (BUSY_APPS.has(id)) return;

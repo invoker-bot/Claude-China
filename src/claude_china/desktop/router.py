@@ -36,6 +36,15 @@ def check_ready(target, data, backend, allow_router_guard=False):
         if target in ('claude', 'playwright'):
             from . import router_guardian
             state = router_guardian.status(target)
+            if state.get('state') == 'blocked' and state.get('active') is False:
+                from . import config
+                recovery = inspect('claude', backend)
+                if allowed(recovery, config.get_safety_settings(data)):
+                    try:
+                        router_guardian.restore(target)
+                    except Exception:
+                        raise RouterError('自动恢复网络防护未完成，请检查管理员授权后重试。') from None
+                    state = router_guardian.status(target)
             if state['enabled'] and (not allow_router_guard or state.get('state') != 'healthy'):
                 raise RouterError("该对象仍有路由器运行防护，请先在安全检查中还原。")
     except RouterError:

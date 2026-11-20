@@ -144,7 +144,7 @@
                 <div class="field" id="network-guard-cli-field" hidden><label class="switch" for="network-guard-cli"><span class="switch-text"><span class="field-label">同时保护 CLI 自身网络</span><span class="field-hint">仅支持 TUN；受管 CLI 跳过本地代理，Node 使用独立副本。CLI 更新后需重新应用防护。</span></span><input type="checkbox" id="network-guard-cli" role="switch"><span class="switch-ui" aria-hidden="true"></span></label></div>
                 <div class="safety-actions" id="safety-actions"></div>
                 <p class="field-hint">网络防护保留 WebRTC。HTTP 模式仅允许指定代理；TUN 模式允许 TCP/UDP 通过指定隧道。断开后禁止直连。Windows 会请求管理员授权，设置即时生效，可一键还原。</p>
-                <p class="field-hint safety-limit">目前支持 Windows。HTTP 和 TUN 规则持续生效；路由器运行防护在正常会话结束时还原，网络与规则恢复后自动解除异常阻断；监控进程异常退出时需手动还原。Playwright 启动前检查覆盖 claudec 和本启动器打开的 CLI/终端；外部启动器需自行接入。新浏览器版本、隧道身份或地址变化后需重新应用防护。TUN 模式也阻止该隧道源地址从其他网卡出站；它不隐藏网页可读取的本机网卡地址。地区检查通过仅表示本次查询符合地区清单。</p>
+                <p class="field-hint safety-limit">目前支持 Windows。HTTP 和 TUN 规则持续生效；路由器运行防护在正常会话结束时还原，网络与规则恢复后自动解除异常阻断；监控进程异常退出后，在下一次受管启动且网络检查通过时自动还原。Playwright 启动前检查覆盖 claudec 和本启动器打开的 CLI/终端；外部启动器需自行接入。新浏览器版本、隧道身份或地址变化后需重新应用防护。TUN 模式也阻止该隧道源地址从其他网卡出站；它不隐藏网页可读取的本机网卡地址。地区检查通过仅表示本次查询符合地区清单。</p>
               </div>
               <p class="form-error" id="error-safety" role="alert" hidden></p>
             </div>

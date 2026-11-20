@@ -60,10 +60,14 @@ registered programs, including already-established connections, and a warning
 is displayed; the program and its session are not terminated. The warning is a
 non-modal Windows system notification, not a message box. Successful network and
 blocking-rule checks dismiss it and atomically remove this guard's unchanged
-filters, automatically restoring application traffic. The old process is no longer
+filters, automatically restoring application traffic. A later managed launch also
+restores an inactive blocked guard after an allowed region check, using Windows
+administrator authorization when required. Unknown checks still follow strict mode
+and cannot authorize this recovery. The old process is no longer
 monitored; start a new managed session for renewed protection. Closing the protected session or restoring
-protection also dismisses the notification. A crashed monitor cannot perform
-automatic recovery and still needs manual restoration. Normal session
+protection also dismisses the notification. A crashed monitor cannot recover
+itself; the next managed launch performs inactive-guard recovery after an allowed
+check. Normal session
 exit removes the guard, and **安全检查 → 还原网络防护** removes it after a
 failure. Administrator authorization is needed again when restoring a failed
 guard. The uninstaller restores both router targets before it removes the app.
@@ -137,6 +141,17 @@ continues blocking regions in the denylist.
 Turning off the master switch disables automatic region queries and region blocking.
 It does not disable an installed system network guard; use its restore button.
 The earlier system-proxy and automatic-proxy-variable checks still apply.
+
+## Vendor app installers
+
+The missing-app download action uses only vendor-specific official page/download
+host allowlists and never accepts a redirect outside them. Downloads are bounded,
+cancellable and written under `~/.claudec/app-installers/` before launch. Windows
+requires a valid Authenticode signature and an expected publisher before starting
+an installer. Direct-link authorization failures fall back to the official page;
+the launcher does not bypass them. Vendor installers remain interactive, and a
+Linux archive is only downloaded/opened for manual extraction. This installation
+feature is separate from region checks and does not assert provider eligibility.
 
 ## What is checked
 

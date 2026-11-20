@@ -15,6 +15,8 @@ if (new URLSearchParams(location.search).has("preview")) {
     { id: "grok-bot", display: "Grok Bot", found: true, running: false },
     { id: "antigravity", display: "Antigravity", found: true, running: false },
   ];
+  const appInstalls = Object.fromEntries(apps.map(app => [app.id,
+    { app_id: app.id, phase: 'idle', progress: 0, message: '', method: '' }]));
   let settings = { check_system_proxy: true, auto_proxy_env: false, env_vars: { HTTPS_PROXY: "http://127.0.0.1:7890" } };
   let safetySettings = { enabled: true, block_unknown: true, require_tun: true, router_mode: false,
     policy: { kind: "blocked_regions", updated_on: "2026-10-21", blocked_regions:
@@ -207,7 +209,29 @@ if (new URLSearchParams(location.search).has("preview")) {
     },
     begin_window_resize: async () => ({ ok: true }),
     move_window: async () => ({ ok: true }),
-    list_apps: async () => clone(apps),
+    list_apps: async () => apps.map(app => ({...clone(app), install: clone(appInstalls[app.id])})),
+    get_app_install_status: async id => clone(appInstalls[id]),
+    install_app: async id => {
+      appInstalls[id] = { app_id: id, phase: 'resolving', progress: 0, message: '正在选择官方安装方式…', method: '' };
+      setTimeout(() => {
+        if (appInstalls[id].phase !== 'resolving') return;
+        appInstalls[id] = {...appInstalls[id], phase: 'downloading', message: '正在下载官方安装包…', method: 'package'};
+        const tick = () => {
+          const state = appInstalls[id];
+          if (state.phase !== 'downloading') return;
+          state.progress = Math.min(100, state.progress + 25);
+          if (state.progress === 100) {
+            appInstalls[id] = {...state, phase: 'launched', message: '已启动官方安装器；安装完成后点击刷新。'};
+          } else setTimeout(tick, 250);
+        };
+        tick();
+      }, 150);
+      return { ok: true, state: clone(appInstalls[id]) };
+    },
+    cancel_app_install: async id => {
+      appInstalls[id] = { app_id: id, phase: 'idle', progress: 0, message: '已取消下载。', method: '' };
+      return clone(appInstalls[id]);
+    },
     get_settings: async () => clone(settings),
     get_safety_settings: async () => clone(safetySettings),
     save_safety_settings: async payload => {

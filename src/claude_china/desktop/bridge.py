@@ -4,6 +4,7 @@ import os
 import threading
 
 from .apps import APP_REGISTRY, get_app
+from .app_install import AppInstallManager, InstallError
 from . import config as cfg
 from . import egress, privacy, router, router_guardian, safety
 from .env import merge_env
@@ -39,6 +40,7 @@ class LauncherBridge:
         self._language_changed = None
         self._usage_service = None
         self._usage_lock = threading.Lock()
+        self._app_installs = AppInstallManager()
         self._refresh_detection()
 
     def _attach_window(self, window, open_dialog, screen_height=None):
@@ -93,11 +95,36 @@ class LauncherBridge:
             self._refresh_detection()
         return [
             {"id": a.id, "display": a.display,
-             "found": self._status[a.id].found, "running": self._running(a.id)}
+             "found": self._status[a.id].found, "running": self._running(a.id),
+             "install": self._app_installs.status(a.id)}
             for a in self._apps
         ]
 
     # ---- actions ----
+    def _installed(self, app_id):
+        app = get_app(app_id)
+        data = cfg.load_desktop_config()
+        status = self._backend.detect(app, cfg.get_app_path(data, app_id))
+        self._status[app_id] = status
+        return status.found
+
+    def get_app_install_status(self, app_id):
+        return self._app_installs.status(app_id)
+
+    def install_app(self, app_id):
+        self._notify_activity()
+        try:
+            state = self._app_installs.start(app_id, lambda: self._installed(app_id))
+            return {"ok": True, "state": state}
+        except (InstallError, KeyError) as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def cancel_app_install(self, app_id):
+        return self._app_installs.cancel(app_id)
+
+    def _shutdown_app_installs(self):
+        self._app_installs.shutdown()
+
     def _notify_activity(self):
         if self._activity is not None:
             try:

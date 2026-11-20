@@ -26,6 +26,7 @@ per-app environment settings, and check for launcher updates from the header.
 - Set per-profile default arguments such as `--model`
 - Upgrade all supported AI CLIs, or select and exclude tools explicitly
 - Standalone Windows, macOS and Linux desktop launcher
+- Download missing desktop apps through current official OS-specific installers or stores
 - Desktop display languages: English, Simplified Chinese and Traditional Chinese
 - Open project terminals and manage CLI profiles in the desktop app
 - Search local CLI session history and resume a specific conversation
@@ -182,8 +183,9 @@ Desktop requirements: Windows 10/11, macOS 12 or later, or a Linux desktop with
 GTK 3 and WebKitGTK 4.1 (Ubuntu 22.04 or later; Fedora 40 or later). Windows
 setup installs Microsoft's WebView2 Runtime if it is missing, which requires
 internet access. Linux package managers resolve system GUI dependencies.
-The launcher does not install the provider apps or CLIs themselves. On Linux,
-Antigravity and Grok Bot desktop commands are detected automatically; select an
+The launcher does not install provider CLIs. When a supported desktop app is
+missing, it can download or open the app's official installer as described below.
+On Linux, Antigravity and Grok Bot desktop commands are detected automatically; select an
 installed executable in settings for other or portable desktop apps. Terminal
 commands such as `claude`, `codex`, `grok` and `agy` are not treated as desktop apps.
 
@@ -291,7 +293,12 @@ claudec upgrade antigravity
 
 Claude, Codex and Grok use npm. Antigravity uses Google's native installer and
 self-updater, never an npm compatibility package. Every selected CLI is checked
-by running its actual `--version` command after installation.
+by running its actual `--version` command after installation. npm-backed tools
+also compare that version with the package metadata and reject PATH shadowing or
+a stale native executable. Upgrades stop before changing packages when a process
+is still running from the current installation; close those sessions or background
+servers and retry instead of allowing a partial update. `claudec doctor --versions`
+performs the same package/executable consistency check without upgrading.
 For Grok, the upgrade also refreshes the binary in each login profile's
 credentials directory. Grok stores a separate binary under `GROK_HOME/bin`, so
 updating only the global npm package can leave a login profile running an old
@@ -513,9 +520,12 @@ when the check fails or the monitor exits, while keeping the session open.
 Failures use a non-modal Windows system notification instead of a dialog. A
 Successful network and blocking-rule checks dismiss the notification and remove
 only this guard's unchanged filters, automatically restoring application traffic.
-The old process is no longer monitored; start a new managed session for renewed
-protection. A crashed monitor cannot perform automatic recovery and still needs
-manual restoration.
+On a later managed launch, an inactive blocked guard is also restored automatically
+when the current region check allows it; Windows may request administrator
+authorization to delete those filters. Failed or unknown checks never bypass the
+strict-mode policy. The old process is no longer monitored; start a new managed session for renewed
+protection. A crashed monitor cannot recover itself; the next managed launch
+performs the same inactive-guard recovery after an allowed check.
 Detection is not instantaneous; traffic may escape before the next check. Codex
 and Grok receive startup checks only. The [路由器模式配置与测试教程](docs/router-mode.md)
 walks through switching from TUN, checking a managed Playwright session,
@@ -635,6 +645,34 @@ Antigravity desktop controls detect `Antigravity.exe`, `Antigravity.app` and the
 Linux `Antigravity` command, with manual paths for portable installations. They
 launch only the official app and never read its account credentials. Desktop
 settings and safety checks are separate from `antigravity` API profiles.
+
+### Installing missing desktop apps
+
+When an app is not detected, its card offers **下载并安装** alongside the manual
+path selector. Claude China reads the vendor's official download page, selects the
+current package for the operating system and x64/ARM64 architecture, and then:
+
+- Downloads direct EXE/DMG/DEB/RPM/AppImage packages with progress and cancellation.
+- Opens Claude's official Microsoft Store listing on Windows, and downloads the
+  Microsoft Store installer for Codex on Windows.
+- Prefers DEB or RPM according to the Linux distribution. Grok Bot also offers
+  AppImage through the official page.
+- Downloads Antigravity's official Linux archive and opens it for extraction;
+  this archive flow is not described as a completed installation.
+- Falls back to the official installation page when no supported direct package
+  exists or an official direct link rejects the request.
+
+Download and redirect hosts are restricted to an application-specific official
+allowlist. Windows installers are started only after a valid Authenticode
+signature with an expected publisher is verified. The launcher never silently
+accepts an unsigned installer, executes shell text from a download page, or
+bypasses a vendor's installation confirmation. macOS and Linux continue through
+their normal Gatekeeper, package-manager or archive flows.
+
+Installers are kept under `~/.claudec/app-installers/` so a downloaded package can
+also be opened manually. After the vendor installer finishes, use the app's refresh
+button to detect it. This feature does not install Claude Code, Codex CLI, Grok CLI,
+Antigravity CLI or provider accounts.
 
 ### My Terminals
 

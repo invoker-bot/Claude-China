@@ -20,6 +20,7 @@ const ICON_PATHS = {
   maximize: '<rect x="5" y="5" width="14" height="14" rx=".5"/>',
   restore: '<path d="M9 5h10v10M9 5v4m10 6h-4"/><rect x="5" y="9" width="10" height="10" rx=".5"/>',
   external: '<path d="M14 3h7v7m0-7L10 14M10 4H4v16h16v-6"/>',
+  download: '<path d="M12 3v12m-5-5 5 5 5-5"/><path d="M5 21h14"/>',
   document: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6m-6 4h6m-6 4h4"/>',
   sliders: '<path d="M3 5h4m4 0h10M3 12h10m4 0h4M3 19h4m4 0h10"/><circle cx="9" cy="5" r="2"/><circle cx="15" cy="12" r="2"/><circle cx="9" cy="19" r="2"/>',
   play: '<path d="m8 4 12 8-12 8Z" fill="currentColor" stroke="none"/>',

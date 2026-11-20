@@ -69,7 +69,11 @@ def doctor_command(
     for tool in report["tools"]:
         state = "installed" if tool["installed"] else "not installed"
         detail = tool["version"] or tool["path"] or "not required by a profile"
+        if tool.get("package_version"):
+            detail += " · npm " + tool["package_version"]
         typer.echo(f"{tool['display']}: {state} · {detail}")
+        if tool.get("warning"):
+            typer.echo(f"  WARNING: {tool['warning']}")
         if tool["error"]:
             typer.echo(f"  ERROR: {tool['error']}", err=True)
     for item in report["profiles"]:
@@ -389,8 +393,8 @@ def _selected_providers(tools=None, exclude=None):
 
 
 def _verify_cli(kind, env):
-    from .diagnostics import command_version
-    return command_version(kind, env)
+    from .upgrades import verify_installation
+    return verify_installation(kind, env)
 
 
 def _upgrade_native(provider, env):
@@ -405,6 +409,9 @@ def _upgrade_native(provider, env):
 def _upgrade_selected(selected, env):
     npm = [provider for provider in selected if provider.npm_package]
     if npm:
+        from .upgrades import ensure_not_running
+        for provider in npm:
+            ensure_not_running(provider.id)
         result = _run_npm(["install", "-g", "--ignore-scripts=false"]
                           + [provider.npm_package for provider in npm], env)
         if result.returncode:

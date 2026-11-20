@@ -10,8 +10,11 @@ from src.claude_china.cli import UPGRADE_PACKAGES
 
 @pytest.fixture(autouse=True)
 def verified_commands(monkeypatch):
+    from src.claude_china import upgrades
     monkeypatch.setattr(cli, '_verify_cli', lambda kind, env: 'fixture-version')
+    monkeypatch.setattr(upgrades, 'ensure_not_running', lambda kind: None)
     monkeypatch.setattr(cli, '_upgrade_native', lambda provider, env: SimpleNamespace(returncode=0))
+
 
 
 @pytest.fixture(autouse=True)
