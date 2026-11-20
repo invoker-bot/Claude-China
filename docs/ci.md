@@ -5,6 +5,8 @@ ordinary branch pushes do not start GitHub Actions. Run tests locally before
 pushing. Automatic publication runs only on release tags:
 
 - `CI`: CLI and desktop-source tests on Ubuntu, macOS and Windows; never publishes.
+  Python 3.9 jobs stay on Ubuntu 22.04 because current Ubuntu 26.04 runner images
+  do not provide that Python version.
 - `v*`: cross-platform CLI tests and PyPI publishing, plus native desktop
   installation, update and removal checks followed by GitHub Release publishing.
 - `legacy-v*`: compatibility-package tests and publishing.

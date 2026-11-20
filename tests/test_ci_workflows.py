@@ -40,6 +40,18 @@ def test_release_publishes_macos_packages_without_requiring_signing():
     assert "prepare_desktop_release.py --include-macos" in commands
 
 
+def test_python_39_jobs_use_a_supported_ubuntu_runner():
+    for name in ("ci.yml", "publish.yml", "publish-legacy.yml", "dependency-cache.yml"):
+        found = False
+        for job in workflow(name)["jobs"].values():
+            entries = job.get("strategy", {}).get("matrix", {}).get("include", [])
+            for entry in entries:
+                if entry.get("python") == "3.9":
+                    found = True
+                    assert entry["os"] == "ubuntu-22.04", (name, entry)
+        assert found, name
+
+
 @pytest.mark.parametrize("name, tag", [
     ("publish.yml", "v*"), ("desktop-release.yml", "v*"),
     ("publish-legacy.yml", "legacy-v*"),
