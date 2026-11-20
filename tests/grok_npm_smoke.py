@@ -33,10 +33,9 @@ def main():
         os.environ["npm_config_ignore_scripts"] = "true"
         os.environ["PATH"] = str(old_bin) + os.pathsep + os.environ["PATH"]
         profile = {"name": "smoke", "type": "grok", "mode": "login", "credentials_path": str(home)}
-        cli.UPGRADE_PACKAGES = ["@xai-official/grok"]
         cli.load_config = lambda: {"profiles": {"smoke": profile}}
         try:
-            cli.upgrade()
+            cli.upgrade(tools=["grok"])
         except SystemExit as exc:
             assert exc.code == 0, "Grok upgrade failed"
         installation = find_npm_installation()

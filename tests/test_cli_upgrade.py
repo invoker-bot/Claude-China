@@ -14,6 +14,7 @@ def verified_commands(monkeypatch):
     monkeypatch.setattr(cli, '_verify_cli', lambda kind, env: 'fixture-version')
     monkeypatch.setattr(upgrades, 'ensure_not_running', lambda kind: None)
     monkeypatch.setattr(cli, '_upgrade_native', lambda provider, env: SimpleNamespace(returncode=0))
+    monkeypatch.setattr(cli.subprocess, 'check_output', lambda *args, **kwargs: '11.0.0\n')
 
 
 
@@ -60,13 +61,15 @@ def test_upgrade_refreshes_each_grok_login_home(monkeypatch, tmp_path, platform,
     assert len(calls) == 3
     assert "GROK_HOME" not in calls[0][1]["env"]
     assert [call[1]["env"]["GROK_HOME"] for call in calls[1:]] == homes
+    allow_packages = "--allow-scripts=" + ",".join(UPGRADE_PACKAGES)
+    allow_grok = "--allow-scripts=@xai-official/grok"
     if platform == "win32":
-        assert calls[0][0] == "npm install -g --ignore-scripts=false " + " ".join(UPGRADE_PACKAGES)
+        assert calls[0][0] == "npm install -g --ignore-scripts=false " + allow_packages + " " + " ".join(UPGRADE_PACKAGES)
         assert all(call[1]["shell"] for call in calls)
-        assert [call[0] for call in calls[1:]] == ["npm rebuild -g --ignore-scripts=false --foreground-scripts @xai-official/grok"] * 2
+        assert [call[0] for call in calls[1:]] == ["npm rebuild -g --ignore-scripts=false --foreground-scripts " + allow_grok + " @xai-official/grok"] * 2
     else:
-        assert calls[0][0] == ["npm", "install", "-g", "--ignore-scripts=false"] + UPGRADE_PACKAGES
-        assert [call[0] for call in calls[1:]] == [["npm", "rebuild", "-g", "--ignore-scripts=false", "--foreground-scripts", "@xai-official/grok"]] * 2
+        assert calls[0][0] == ["npm", "install", "-g", "--ignore-scripts=false", allow_packages] + UPGRADE_PACKAGES
+        assert [call[0] for call in calls[1:]] == [["npm", "rebuild", "-g", "--ignore-scripts=false", "--foreground-scripts", allow_grok, "@xai-official/grok"]] * 2
     installation, checks = installed_grok
     binary_name = "grok.exe" if platform == "win32" else "grok"
     assert [check[0] for check in checks] == [
@@ -192,6 +195,21 @@ def test_upgrade_fails_when_npm_installation_cannot_be_found(monkeypatch, capsys
         cli.upgrade()
     assert exc.value.code == 1
     assert "npm" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('version, expected', [
+    ('11.19.1\n', ['--allow-scripts=@anthropic-ai/claude-code,@openai/codex']),
+    ('10.9.4\n', []),
+    ('unknown\n', []),
+])
+def test_npm_script_permissions_require_npm_11(monkeypatch, version, expected):
+    monkeypatch.setattr(cli.subprocess, 'check_output', lambda *args, **kwargs: version)
+    assert cli._npm_script_permissions(['@anthropic-ai/claude-code', '@openai/codex'], {}) == expected
+
+
+def test_npm_script_permissions_tolerate_version_check_failure(monkeypatch):
+    monkeypatch.setattr(cli.subprocess, 'check_output', Mock(side_effect=OSError('npm unavailable')))
+    assert cli._npm_script_permissions(['@openai/codex'], {}) == []
 
 
 def test_upgrade_can_select_only_requested_npm_tools(monkeypatch):

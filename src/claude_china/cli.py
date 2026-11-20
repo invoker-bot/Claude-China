@@ -371,6 +371,20 @@ def _run_npm(args, env):
     return subprocess.run(["npm"] + args, env=env)
 
 
+def _npm_script_permissions(packages, env):
+    command = "npm --version" if sys.platform == "win32" else ["npm", "--version"]
+    try:
+        output = subprocess.check_output(
+            command, shell=sys.platform == "win32", env=env,
+            text=True, stderr=subprocess.DEVNULL, timeout=30,
+        )
+        if int(output.strip().split(".", 1)[0]) >= 11:
+            return ["--allow-scripts=" + ",".join(packages)]
+    except (OSError, ValueError, subprocess.SubprocessError):
+        pass
+    return []
+
+
 def _verify_grok(command, env, version):
     try:
         check_grok_version(command, env, version)
@@ -412,8 +426,9 @@ def _upgrade_selected(selected, env):
         from .upgrades import ensure_not_running
         for provider in npm:
             ensure_not_running(provider.id)
+        packages = [provider.npm_package for provider in npm]
         result = _run_npm(["install", "-g", "--ignore-scripts=false"]
-                          + [provider.npm_package for provider in npm], env)
+                          + _npm_script_permissions(packages, env) + packages, env)
         if result.returncode:
             sys.exit(result.returncode)
     if any(provider.id == "grok" for provider in npm):
@@ -455,8 +470,8 @@ def _upgrade_grok(env):
         typer.echo(f"Refreshing Grok CLI for login profile '{name}'...")
         profile_env = dict(env, GROK_HOME=home)
         result = _run_npm([
-            "rebuild", "-g", "--ignore-scripts=false", "--foreground-scripts", "@xai-official/grok",
-        ], profile_env)
+            "rebuild", "-g", "--ignore-scripts=false", "--foreground-scripts",
+        ] + _npm_script_permissions(["@xai-official/grok"], profile_env) + ["@xai-official/grok"], profile_env)
         if result.returncode:
             typer.echo(f"Failed to refresh Grok CLI for profile '{name}'.", err=True)
             sys.exit(result.returncode)

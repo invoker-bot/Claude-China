@@ -153,7 +153,7 @@ class Probe {
 }''', encoding="utf-8")
     target = tmp_path / "Native Probe.exe"
     subprocess.run([str(compiler), "/nologo", "/target:exe", "/out:" + str(target), str(source)],
-                   check=True, capture_output=True, timeout=30)
+                   check=True, capture_output=True, timeout=120)
     report = tmp_path / "result.txt"
     env = dict(os.environ, CLAUDEC_TAKEOVER_PROBE="entrypoint-marker")
     pid = probe.launch_detached_debugger(
@@ -187,7 +187,7 @@ class Probe { static int Main(string[] args) {
 } }''', encoding="utf-8")
     target = tmp_path / "Handle Probe.exe"
     subprocess.run([str(compiler), "/nologo", "/target:exe", "/out:" + str(target), str(source)],
-                   check=True, capture_output=True, timeout=30)
+                   check=True, capture_output=True, timeout=120)
     report = tmp_path / "handle-result.txt"
     with report.open("wb", buffering=0) as output:
         handle = msvcrt.get_osfhandle(output.fileno())
@@ -211,7 +211,7 @@ def test_native_broker_waits_and_forwards_the_real_exit_code(tmp_path):
     source.write_text('class Probe { static int Main() { System.Threading.Thread.Sleep(400); return 17; } }')
     target = tmp_path / "Exit Probe.exe"
     subprocess.run([str(compiler), "/nologo", "/target:exe", "/out:" + str(target), str(source)],
-                   check=True, capture_output=True, timeout=30)
+                   check=True, capture_output=True, timeout=120)
     pid = probe.launch_detached_debugger([str(target)], dict(os.environ), str(tmp_path))
     started = time.monotonic()
     assert probe.wait_for_process_exit(pid) == 17

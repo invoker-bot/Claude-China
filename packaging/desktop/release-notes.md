@@ -1,4 +1,4 @@
-## Claude China 0.6.0
+## Claude China 0.6.1
 
 This release adds Google Antigravity, official missing-app installation, stronger
 profile and upgrade management, and automatic router-mode recovery.
@@ -23,7 +23,8 @@ profile and upgrade management, and automatic router-mode recovery.
   running processes before installation, then compare package metadata, actual
   executable versions and PATH resolution. Missing native platform packages and
   stale binaries are reported by `doctor --versions`. Antigravity uses Google's
-  native installer rather than npm.
+  native installer rather than npm. On npm 11 and newer, install scripts are
+  explicitly permitted only for the selected npm packages.
 - **Router recovery:** Network failures use non-modal Windows system notifications.
   When both the network and unchanged blocking rules recover, the guardian removes
   only its own rules automatically. A later managed launch also recovers an inactive
@@ -35,12 +36,12 @@ profile and upgrade management, and automatic router-mode recovery.
 
 Country checks still do not verify provider account eligibility, every split route,
 DNS/WebRTC exits or IP reputation. See the
-[router-mode guide](https://github.com/invoker-bot/Claude-China/blob/v0.6.0/docs/router-mode.md)
+[router-mode guide](https://github.com/invoker-bot/Claude-China/blob/v0.6.1/docs/router-mode.md)
 for automatic recovery conditions and remaining limits.
 
 ### Install and upgrade
 
-- **Windows x64:** install `Claude-China-0.6.0-windows-x64-setup.exe`, or use
+- **Windows x64:** install `Claude-China-0.6.1-windows-x64-setup.exe`, or use
   **检查更新 → 下载更新 → 安装并重启** in v0.4.0 or newer.
 - **macOS Apple Silicon / Intel:** download the matching DMG and replace the app in
   Applications manually. Ad-hoc signed packages are not eligible for in-app updates.
