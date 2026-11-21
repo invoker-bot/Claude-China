@@ -6,9 +6,12 @@ from .providers import get_provider
 
 
 def _secret_input(prompt):
-    if sys.stdin.isatty():
+    if not sys.stdin.isatty():
+        return input(prompt)
+    if not sys.stderr.isatty():
         return getpass.getpass(prompt)
-    return input(prompt)
+    from .secret_prompt import read_secret
+    return read_secret(prompt)
 
 
 def _secret_display(value, reveal):

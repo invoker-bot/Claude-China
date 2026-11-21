@@ -1,11 +1,15 @@
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 
 import pytest
+from prompt_toolkit.application import Application
+from prompt_toolkit.input import create_pipe_input
+from prompt_toolkit.output import DummyOutput
 from typer.testing import CliRunner
 
-from src.claude_china import cli, config
+from src.claude_china import cli, config, secret_prompt
 from src.claude_china.models import profile_from_dict
-from src.claude_china.profiles import _secret_input, add_profile, show_profile
+from src.claude_china.profiles import _secret_input, show_profile
 
 
 def test_show_masks_credentials_unless_explicitly_revealed(capsys):
@@ -34,15 +38,40 @@ def test_show_command_requires_reveal_for_credentials(tmp_path, monkeypatch):
     assert result.exit_code == 0 and 'private-key' in result.stdout
 
 
-def test_interactive_secret_uses_hidden_prompt_on_a_terminal(monkeypatch):
+def test_secret_counts_pastes_backspace_and_clear_before_enter(monkeypatch):
     monkeypatch.setattr('src.claude_china.profiles.sys.stdin.isatty', lambda: True)
-    hidden = pytest.MonkeyPatch()
-    hidden.setattr('src.claude_china.profiles.getpass.getpass', lambda prompt: 'hidden-key')
-    hidden.setattr('builtins.input', lambda prompt: pytest.fail('secret must not use echoing input'))
-    try:
-        assert _secret_input('API key: ') == 'hidden-key'
-    finally:
-        hidden.undo()
+    monkeypatch.setattr('src.claude_china.profiles.sys.stderr.isatty', lambda: True)
+    output = DummyOutput()
+    writes = []
+    monkeypatch.setattr(output, 'write', writes.append)
+    monkeypatch.setattr(secret_prompt, 'create_output', lambda stdout: output)
+    value = 'XQZ' * 32
+    paste = f'\x1b[200~{value}\x1b[201~'
+    steps = iter([paste, paste, '\x7f', '\x15', paste, '\r'])
+    frames = []
+
+    with create_pipe_input() as keyboard:
+        def after_render(app):
+            if not app.is_done:
+                row = app.renderer.last_rendered_screen.data_buffer[0]
+                frames.append(''.join(row[x].char for x in range(output.get_size().columns)).rstrip())
+                keyboard.send_text(next(steps, '\r'))
+
+        monkeypatch.setattr(secret_prompt, 'Application',
+                            partial(Application, input=keyboard, after_render=after_render))
+        assert _secret_input('API key: ') == value
+
+    assert frames == [f'API key: {count} chars (Ctrl+U to clear)'
+                      for count in [0, 96, 192, 191, 0, 96]]
+    assert not set(value).intersection(''.join(writes))
+
+
+def test_terminal_secret_falls_back_to_hidden_input_when_stderr_is_redirected(monkeypatch):
+    monkeypatch.setattr('src.claude_china.profiles.sys.stdin.isatty', lambda: True)
+    monkeypatch.setattr('src.claude_china.profiles.sys.stderr.isatty', lambda: False)
+    monkeypatch.setattr('src.claude_china.profiles.getpass.getpass', lambda prompt: 'hidden-key')
+    monkeypatch.setattr('builtins.input', lambda prompt: pytest.fail('secret must not use echoing input'))
+    assert _secret_input('API key: ') == 'hidden-key'
 
 
 @pytest.mark.parametrize('record', [
