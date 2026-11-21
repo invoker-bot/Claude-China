@@ -72,7 +72,7 @@ if (new URLSearchParams(location.search).has("preview")) {
     codex: { path: "", env_vars: {} }, "grok-bot": { path: "", env_vars: {} },
     antigravity: { path: "", env_vars: {} },
   };
-  let state = { phase: "idle", current: "0.6.1", latest: "", can_install: true, message: "手动检查新版本", progress: 0 };
+  let state = { phase: "idle", current: "0.6.2", latest: "", can_install: true, message: "手动检查新版本", progress: 0 };
   let timer;
   let maximized = false;
   const clone = value => JSON.parse(JSON.stringify(value));
@@ -296,7 +296,7 @@ if (new URLSearchParams(location.search).has("preview")) {
       timer = setTimeout(() => {
         const mode = modes.get("update");
         state = { ...state, phase: mode === "error" ? "error" : mode === "latest" ? "latest" : "available",
-          latest: mode === "latest" ? "0.6.1" : "0.6.2", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。" : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.6.2（预览）" };
+          latest: mode === "latest" ? "0.6.2" : "0.6.3", message: mode === "error" ? "GitHub 请求次数受限，请稍后重试。" : mode === "latest" ? "当前已是最新版本。" : "发现新版本 0.6.3（预览）" };
       }, 600);
       return clone(state);
     },

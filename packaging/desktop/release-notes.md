@@ -1,7 +1,11 @@
-## Claude China 0.6.1
+## Claude China 0.6.2
 
-This release adds Google Antigravity, official missing-app installation, stronger
-profile and upgrade management, and automatic router-mode recovery.
+`claudec add` shows a live character count when you type or paste an API key or
+auth token. The credential stays hidden. If a second paste doubles the count,
+press `Ctrl+U` to clear the field and paste again. `Backspace` removes one
+character at a time.
+
+### Other features in the 0.6 series
 
 - **Antigravity:** Launch the Antigravity desktop app on Windows, macOS and Linux.
   Manage native `agy` CLI profiles with Gemini API keys, custom compatible endpoints,
@@ -36,12 +40,12 @@ profile and upgrade management, and automatic router-mode recovery.
 
 Country checks still do not verify provider account eligibility, every split route,
 DNS/WebRTC exits or IP reputation. See the
-[router-mode guide](https://github.com/invoker-bot/Claude-China/blob/v0.6.1/docs/router-mode.md)
+[router-mode guide](https://github.com/invoker-bot/Claude-China/blob/v0.6.2/docs/router-mode.md)
 for automatic recovery conditions and remaining limits.
 
 ### Install and upgrade
 
-- **Windows x64:** install `Claude-China-0.6.1-windows-x64-setup.exe`, or use
+- **Windows x64:** install `Claude-China-0.6.2-windows-x64-setup.exe`, or use
   **检查更新 → 下载更新 → 安装并重启** in v0.4.0 or newer.
 - **macOS Apple Silicon / Intel:** download the matching DMG and replace the app in
   Applications manually. Ad-hoc signed packages are not eligible for in-app updates.
