@@ -8,6 +8,7 @@ import threading
 
 import pytest
 
+from claude_china.config_paths import codex_api_home
 from claude_china.desktop.usage import UsageIndex, discover_sources
 from claude_china.desktop.usage_records import Parser, counters, stamp
 
@@ -155,6 +156,43 @@ def test_discovery_includes_default_and_login_homes_but_deduplicates_profiles(tm
     assert len([s for s in roots if s['tool'] == 'claude']) == 3  # default, XDG fallback, isolated
     assert any(s['root'] == str(tmp_path / 'isolated') for s in roots)
     assert not (tmp_path / 'isolated').exists()
+
+
+def test_discovery_reads_usage_from_each_codex_api_profile_and_keeps_other_sources(tmp_path):
+    names = ['../账户:api', '..\\账户:api']
+    profiles = [{'name': name, 'type': 'codex', 'mode': 'api'} for name in names]
+    profiles += [profiles[0], {'name': names[0], 'type': 'grok', 'mode': 'api'},
+                 {'type': 'codex', 'mode': 'login', 'credentials_path': str(tmp_path / 'login')}]
+    sources = discover_sources(home=tmp_path, profiles=profiles, environ={}, platform='win32')
+    codex_roots = {s['root'] for s in sources if s['tool'] == 'codex'}
+    assert codex_roots == {str(tmp_path / '.codex'), str(tmp_path / 'login'),
+                           *(str(codex_api_home(name, home=tmp_path)) for name in names)}
+    assert [s['root'] for s in sources if s['tool'] == 'grok'] == [str(tmp_path / '.grok')]
+    assert list(tmp_path.iterdir()) == []
+    for number, name in enumerate(names):
+        home = codex_api_home(name, home=tmp_path)
+        session_id = 'api-session-' + str(number)
+        write(home / 'sessions/2026/10/21/rollout.jsonl', [
+            {'type': 'session_meta', 'timestamp': STAMP, 'payload': {'id': session_id, 'cwd': str(tmp_path)}},
+            {'type': 'token_usage_record', 'timestamp': STAMP, 'payload': {
+                'thread_id': session_id, 'response_id': 'response-' + str(number),
+                'usage': {'input_tokens': 100, 'output_tokens': 20}}},
+        ])
+    index = UsageIndex(tmp_path / 'stats.sqlite')
+    index.scan(sources)
+    totals = index.report(30, tool='codex', now=NOW)['totals']
+    assert totals['tokens'] == 240 and totals['sessions'] == 2
+
+
+def test_discovery_supports_legacy_api_mode_and_ignores_invalid_names(tmp_path):
+    sources = discover_sources(home=tmp_path, profiles=[
+        {'type': 'codex', 'name': 'legacy'}, {'type': 'codex', 'mode': 'api', 'name': None},
+        {'type': 'codex', 'mode': 'invalid', 'name': 'ignored'},
+    ], environ={}, platform='linux')
+    assert {s['root'] for s in sources if s['tool'] == 'codex'} == {
+        str(tmp_path / '.codex'), str(codex_api_home('legacy', home=tmp_path)),
+    }
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_codex_child_only_counts_responses_owned_by_the_child():

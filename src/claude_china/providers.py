@@ -60,6 +60,8 @@ PROVIDERS = (
         desktop_app_id="codex",
         history_home=".codex",
         resume_prefix=("resume",),
+        managed_env=("CODEX_API_KEY", "CODEX_ACCESS_TOKEN",
+                     "OPENAI_FEDERATION_RULE_ID", "OPENAI_IDENTITY_TOKEN_FILE"),
     ),
     ProviderSpec(
         id="antigravity",

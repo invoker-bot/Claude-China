@@ -13,8 +13,10 @@ from src.claude_china.launcher import (
 @pytest.fixture(autouse=True)
 def isolate_desktop_config(monkeypatch, tmp_path):
     from src.claude_china.desktop import config as desktop_config
+    from src.claude_china.desktop import router_guardian
 
     monkeypatch.setattr(desktop_config, "DESKTOP_CONFIG_FILE", tmp_path / "desktop.yaml")
+    monkeypatch.setattr(router_guardian, "status", lambda target: {"enabled": False, "state": "none"})
 
 
 def test_prepare_env_api_mode():

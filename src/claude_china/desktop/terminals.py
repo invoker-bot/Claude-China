@@ -9,7 +9,7 @@ import threading
 from urllib.parse import urlsplit
 
 from .. import config as cli_config
-from ..launcher import find_command, prepare_environment, resolve_default_args, PROXY_ENV_VARS
+from ..launcher import find_command, prepare_environment, prepare_profile_command, resolve_default_args, PROXY_ENV_VARS
 from ..models import VALID_TYPES, OFFICIAL_BASE_URLS, profile_from_dict, profile_to_dict
 from ..providers import PROVIDERS, get_provider, safety_app_id
 from . import config, safety, terminal_history
@@ -291,7 +291,8 @@ class TerminalService:
             arguments = terminal_history.resume_args(record['type'], session_id, arguments)
         else:
             arguments = terminal_history.new_session_args(record['type'], arguments)
-        argv = resolve_cli_argv(record['type']) + arguments
+        command = resolve_cli_argv(record['type'])
+        argv = command + arguments
         data = config.load_desktop_config()
         from . import cli_guard, egress, playwright_guard
         settings = config.get_safety_settings(data)
@@ -310,7 +311,8 @@ class TerminalService:
                 raise ValueError(str(exc) + ' 已取消启动。') from None
             except Exception:
                 raise ValueError('无法读取系统 HTTP 代理，已取消启动。') from None
-        env = prepare_environment(profile_from_dict(record),
+        profile = profile_from_dict(record)
+        env = prepare_environment(profile,
                                   base_env=merge_env(os.environ, config.get_common_env(data)))
         if proxy and not record.get('proxy'):
             env.update({key: proxy for key in PROXY_ENV_VARS})
@@ -339,6 +341,7 @@ class TerminalService:
                 router.check_ready('playwright', data, self.backend)
                 if record['type'] == 'claude':
                     self._router_context = {'baseline': report, 'settings': settings, 'data': data}
+        argv = prepare_profile_command(profile, argv[:len(command)], arguments, env, cwd=directory)
         if config.launch_settings_changed(data, config.load_desktop_config()) or _existing(_read(), name) != record:
             raise ValueError('检测期间配置发生变化，请重新启动。')
         return argv, env

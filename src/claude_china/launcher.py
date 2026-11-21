@@ -52,8 +52,11 @@ def clear_managed_environment(env):
             env["BROWSER"] = previous
         else:
             env.pop("BROWSER", None)
-    for env_var in MANAGED_ENV_VARS:
-        env.pop(env_var, None)
+    for env_var in list(env):
+        # Windows child environments are case-insensitive, even when desktop
+        # common_env supplied an ordinary dict with lowercase keys.
+        if env_var in MANAGED_ENV_VARS or (sys.platform == "win32" and env_var.upper() in MANAGED_ENV_VARS):
+            env.pop(env_var, None)
 
 
 def prepare_environment(profile, base_env=None):
@@ -106,6 +109,9 @@ def prepare_environment(profile, base_env=None):
             if env_var == "GROK_CLI_CHAT_PROXY_BASE_URL" and is_builtin_grok_api(value):
                 continue
             env[env_var] = value
+        if ptype == "codex":
+            from .codex_auth import prepare_environment as prepare_codex_environment
+            prepare_codex_environment(profile, env)
         provider = get_provider(ptype)
         if provider.settings_provider:
             if not profile.api_key:
@@ -198,6 +204,14 @@ def find_command(ptype):
     return cmd_path
 
 
+def prepare_profile_command(profile, command, arguments, env, cwd=None):
+    """Share authentication between the CLI and desktop terminal entry points."""
+    if isinstance(profile, ApiProfile) and profile.type == "codex":
+        from .codex_auth import prepare_command
+        return prepare_command(profile, command, arguments, env, cwd=cwd)
+    return list(command) + list(arguments)
+
+
 def launch(profile_dict, extra_args, use_default_args=True):
     # Convert dict to dataclass
     profile = profile_from_dict(profile_dict)
@@ -272,10 +286,12 @@ def launch(profile_dict, extra_args, use_default_args=True):
 
     if sys.platform == "win32":
         from .desktop import cli_guard
-        if cli_guard.enabled(data):
+        codex_api = ptype == "codex" and isinstance(profile, ApiProfile)
+        if cli_guard.enabled(data) or codex_api:
             from .desktop.terminal_host import resolve_cli_argv
-            full_cmd, env = cli_guard.prepare(resolve_cli_argv(ptype) + final_args, env, data)
-            if settings['enabled']:
+            command = resolve_cli_argv(ptype)
+            full_cmd, env = cli_guard.prepare(command + final_args, env, data)
+            if cli_guard.enabled(data) and settings['enabled']:
                 from .desktop import egress, safety
                 from .desktop.platforms import get_backend
                 from .desktop.platforms.base import AppStatus
@@ -297,8 +313,14 @@ def launch(profile_dict, extra_args, use_default_args=True):
                     print('安全检查未通过：检测期间启动设置发生变化，请重试。', file=sys.stderr)
                     sys.exit(1)
             try:
+                full_cmd = prepare_profile_command(profile, full_cmd[:len(command)], final_args, env)
+                if codex_api and desktop_config.launch_settings_changed(data, desktop_config.load_desktop_config()):
+                    raise ValueError('检测期间启动设置发生变化，请重试。')
                 result = subprocess.run(full_cmd, env=env)
                 sys.exit(result.returncode)
+            except ValueError as exc:
+                print(f"Error: {exc}", file=sys.stderr)
+                sys.exit(1)
             except KeyboardInterrupt:
                 sys.exit(130)
             return
@@ -320,4 +342,12 @@ def launch(profile_dict, extra_args, use_default_args=True):
     else:
         # Pass the complete environment so removed profile variables do not
         # leak back in from the launcher process.
+        try:
+            full_cmd = prepare_profile_command(profile, [cmd_path], final_args, env)
+            if (ptype == "codex" and isinstance(profile, ApiProfile)
+                    and desktop_config.launch_settings_changed(data, desktop_config.load_desktop_config())):
+                raise ValueError('检测期间启动设置发生变化，请重试。')
+        except ValueError as exc:
+            print(f"Error: {exc}", file=sys.stderr)
+            sys.exit(1)
         os.execvpe(cmd_path, full_cmd, env)

@@ -6,6 +6,7 @@ from urllib.parse import quote
 import pytest
 
 from claude_china.desktop import terminal_history as history
+from claude_china.config_paths import codex_api_home
 
 
 SESSION = '019a1111-2222-7333-8444-555555555555'
@@ -140,10 +141,27 @@ def test_scan_budget_keeps_newest_files_instead_of_directory_enumeration_order(t
 def test_profile_history_home_matches_launch_environment_and_does_not_create_directories(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, 'home', lambda: tmp_path)
     monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'inherited-other-account'))
-    assert history.profile_home({'type': 'codex', 'mode': 'api'}) == tmp_path / '.codex'
+    api_home = history.profile_home({'type': 'codex', 'mode': 'api', 'name': 'work-api'})
+    assert api_home == codex_api_home('work-api')
+    assert api_home.parent == tmp_path / '.claudec' / 'codex-api'
     account = tmp_path / 'isolated-account'
     assert history.profile_home({'type': 'codex', 'mode': 'login', 'credentials_path': str(account)}) == account
-    assert not account.exists()
+    assert history.profile_home({'type': 'claude', 'mode': 'api'}) == tmp_path / '.claude'
+    assert history.profile_home({'type': 'grok', 'mode': 'api'}) == tmp_path / '.grok'
+    assert not account.exists() and not api_home.exists()
+
+
+def test_codex_history_keeps_api_profiles_and_default_sessions_separate(tmp_path, monkeypatch):
+    monkeypatch.setattr(Path, 'home', lambda: tmp_path)
+    first = history.profile_home({'type': 'codex', 'name': '../账户:api'})
+    second = history.profile_home({'type': 'codex', 'mode': 'api', 'name': '..\\账户:api'})
+    assert first != second
+    assert first.parent == second.parent == tmp_path / '.claudec' / 'codex-api'
+    for home, session_id in [(first, SESSION), (second, OTHER), (tmp_path / '.codex', OTHER)]:
+        write_lines(home / 'sessions/2026/10/21/rollout.jsonl', [
+            {'type': 'session_meta', 'payload': {'id': session_id, 'cwd': str(tmp_path), 'source': 'cli'}}])
+    assert [s['id'] for s in history.list_sessions('codex', first)['sessions']] == [SESSION]
+    assert [s['id'] for s in history.list_sessions('codex', second)['sessions']] == [OTHER]
 
 
 @pytest.mark.parametrize('session_id', ['--help', '../other', 'bad; command', '', None])

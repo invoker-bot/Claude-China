@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 from urllib.parse import unquote
 
+from ..config_paths import codex_api_home
 from ..providers import PROVIDERS, get_provider
 
 MAX_SESSIONS = 200
@@ -28,6 +29,8 @@ def profile_home(record):
         if not root.is_absolute():
             raise ValueError('登录配置目录必须使用绝对路径。')
         return root.resolve()
+    if record['type'] == 'codex':
+        return codex_api_home(record.get('name', '')).resolve()
     return Path.home() / _HOMES[record['type']]
 
 

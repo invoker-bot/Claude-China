@@ -1,5 +1,6 @@
 """Shared settings location and one-time import from pre-claudec releases."""
 
+import hashlib
 import os
 from contextlib import contextmanager
 from pathlib import Path
@@ -12,6 +13,13 @@ import yaml
 
 def config_dir() -> Path:
     return Path.home() / ".claudec"
+
+
+def codex_api_home(name: str, home=None) -> Path:
+    """Keep API credentials and sessions separate from every login profile."""
+    root = config_dir() if home is None else Path(home) / ".claudec"
+    identity = hashlib.sha256(name.encode("utf-8")).hexdigest()[:24]
+    return root / "codex-api" / identity
 
 
 _LOCKS = {}

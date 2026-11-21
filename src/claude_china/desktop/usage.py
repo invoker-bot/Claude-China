@@ -12,6 +12,7 @@ import sys
 import threading
 import time
 
+from ..config_paths import codex_api_home
 from .usage_records import ADAPTER_VERSION, COUNTERS, Parser, text
 from . import usage_pricing as pricing
 
@@ -55,7 +56,14 @@ def discover_sources(home=None, profiles=None, environ=None, platform=None):
         except (OSError, ValueError, TypeError):
             profiles = []
     for profile in profiles:
-        if not isinstance(profile, dict) or profile.get('type') not in TOOLS[:3] or profile.get('mode') != 'login':
+        if not isinstance(profile, dict) or profile.get('type') not in TOOLS[:3]:
+            continue
+        if profile['type'] == 'codex' and profile.get('mode', 'api') == 'api':
+            name = profile.get('name', '')
+            if isinstance(name, str):
+                roots.add(('codex', str(codex_api_home(name, home=home).resolve())))
+            continue
+        if profile.get('mode') != 'login':
             continue
         location = profile.get('credentials_path')
         if isinstance(location, str) and Path(location).expanduser().is_absolute():

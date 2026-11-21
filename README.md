@@ -332,6 +332,13 @@ profiles:
       - --model
       - claude-sonnet-4-5
 
+  codex-api:
+    name: codex-api
+    type: codex
+    mode: api
+    base_url: https://api.openai.com/v1
+    api_key: sk-...
+
   codex-login:
     name: codex-login
     type: codex
@@ -374,6 +381,32 @@ claudec doctor google --versions
 Profile mutations use a cross-process read/modify/write transaction. Invalid
 provider IDs, authentication modes, URLs, proxies and relative login directories
 are rejected instead of being silently reinterpreted.
+
+### Codex CLI API authentication
+
+Each Codex API profile uses its own `CODEX_HOME` under
+`~/.claudec/codex-api/<profile-name-hash>`. Before starting the CLI, the launcher
+establishes API-key authentication with `codex login --with-api-key`, passes the
+key through standard input, and verifies the selected authentication. A failed
+login or verification stops the launch. Command-line launches, desktop launches
+and resumed sessions use the same profile authentication.
+
+The isolated home has its own settings, credentials and sessions. Existing
+`~/.codex` settings and sessions remain in that directory; put the options needed
+by the API profile in its `default_args` or isolated `config.toml`. The desktop
+history and usage views include the new profile directory. Renaming an API
+profile selects a new directory because the name determines its location.
+
+To check the selected profile without its saved session arguments:
+
+```bash
+claudec run --no-default-args codex-api login status
+```
+
+The result should report `API key configured` or `Logged in using an API key`,
+depending on the Codex version. This confirms the local authentication method;
+the server validates the key and API account access when a request is sent. See OpenAI's
+[Codex authentication documentation](https://developers.openai.com/codex/auth/).
 
 ### Antigravity CLI API setup
 
